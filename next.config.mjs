@@ -31,6 +31,26 @@ const nextConfig = {
       });
     }
 
+    // Suppress critical dependency warnings from ffjavascript/web-worker
+    // These are false positives from dynamic imports in ZK proof libraries
+    config.module = {
+      ...config.module,
+      exprContextCritical: false,
+    };
+
+    // Ignore the web-worker warnings specifically
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      {
+        module: /web-worker/,
+        message: /Critical dependency/,
+      },
+      {
+        module: /ffjavascript/,
+        message: /Critical dependency/,
+      },
+    ];
+
     return config;
   },
 };

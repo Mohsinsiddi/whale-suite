@@ -41,9 +41,9 @@ const CIRCUIT_BASE_PATH = '/circuit2/transaction2';
 // Fee constants (in SOL)
 export const PRIVACY_FEES = {
   WITHDRAWAL_FEE: 0.006, // ~6,000,000 lamports - relay fee for ZK withdrawal
-  DEPOSIT_FEE: 0.0001, // Minimal deposit fee (mostly network fees)
+  DEPOSIT_FEE: 0, // No deposit fee from Privacy Cash (only minimal network fee)
   MIN_DEPOSIT: 0.001, // Minimum deposit amount
-  MIN_WITHDRAWAL: 0.001, // Minimum withdrawal amount
+  MIN_WITHDRAWAL: 0.007, // Minimum withdrawal (must be > fee to receive something)
   RECOMMENDED_MIN_BALANCE: 0.01, // Recommended minimum for withdrawals
 };
 
@@ -442,38 +442,58 @@ class PrivacyCashService {
 
   /**
    * Validate withdrawal parameters
+   * @param amountFromBalance - The amount to withdraw FROM the private balance (not what user receives)
+   * @param privateBalanceSOL - Current private balance
    */
-  validateWithdrawal(amountInSOL: number, privateBalanceSOL: number): ValidationResult {
+  validateWithdrawal(amountFromBalance: number, privateBalanceSOL: number): ValidationResult {
     const fee = PRIVACY_FEES.WITHDRAWAL_FEE;
-    const totalRequired = amountInSOL + fee;
 
-    if (amountInSOL <= 0) {
+    // Use lamports for precise integer comparison (avoid floating point issues)
+    const balanceLamports = Math.round(privateBalanceSOL * LAMPORTS_PER_SOL);
+    const amountLamports = Math.round(amountFromBalance * LAMPORTS_PER_SOL);
+
+    if (amountFromBalance <= 0) {
       return {
         valid: false,
         error: 'Withdrawal amount must be greater than 0',
       };
     }
 
-    if (amountInSOL < PRIVACY_FEES.MIN_WITHDRAWAL) {
+    if (amountFromBalance <= fee) {
       return {
         valid: false,
-        error: `Minimum withdrawal is ${PRIVACY_FEES.MIN_WITHDRAWAL} SOL`,
+        error: `Amount must be greater than the relay fee (${fee} SOL). You would receive nothing.`,
       };
     }
 
-    if (privateBalanceSOL < totalRequired) {
+    if (balanceLamports < amountLamports) {
       return {
         valid: false,
-        error: `Insufficient private balance. You need ${totalRequired.toFixed(4)} SOL (${amountInSOL} + ${fee} fee), but only have ${privateBalanceSOL.toFixed(4)} SOL`,
+        error: `Insufficient balance. You have ${privateBalanceSOL.toFixed(4)} SOL but trying to withdraw ${amountFromBalance.toFixed(4)} SOL`,
         details: {
-          required: totalRequired,
+          required: amountFromBalance,
           available: privateBalanceSOL,
           fee,
         },
       };
     }
 
-    return { valid: true };
+    return {
+      valid: true,
+      details: {
+        required: amountFromBalance,
+        available: privateBalanceSOL,
+        fee,
+      }
+    };
+  }
+
+  /**
+   * Calculate what user receives after fee
+   */
+  calculateReceiveAmount(amountFromBalance: number): number {
+    const receiveLamports = Math.round(amountFromBalance * LAMPORTS_PER_SOL) - Math.round(PRIVACY_FEES.WITHDRAWAL_FEE * LAMPORTS_PER_SOL);
+    return Math.max(0, receiveLamports / LAMPORTS_PER_SOL);
   }
 
   /**
@@ -482,6 +502,10 @@ class PrivacyCashService {
   validateDeposit(amountInSOL: number, walletBalanceSOL: number): ValidationResult {
     const fee = PRIVACY_FEES.DEPOSIT_FEE;
     const totalRequired = amountInSOL + fee;
+
+    // Use lamports for precise integer comparison
+    const balanceLamports = Math.round(walletBalanceSOL * LAMPORTS_PER_SOL);
+    const requiredLamports = Math.round(totalRequired * LAMPORTS_PER_SOL);
 
     if (amountInSOL <= 0) {
       return {
@@ -497,7 +521,7 @@ class PrivacyCashService {
       };
     }
 
-    if (walletBalanceSOL < totalRequired) {
+    if (balanceLamports < requiredLamports) {
       return {
         valid: false,
         error: `Insufficient wallet balance. You need ${totalRequired.toFixed(4)} SOL (${amountInSOL} + ~${fee} fee), but only have ${walletBalanceSOL.toFixed(4)} SOL`,
@@ -513,11 +537,22 @@ class PrivacyCashService {
   }
 
   /**
-   * Get maximum withdrawable amount (balance - fee)
+   * Get maximum amount that can be withdrawn FROM balance
+   * Returns the full balance (user can withdraw all, will receive balance - fee)
    */
   getMaxWithdrawable(privateBalanceSOL: number): number {
-    const maxAmount = privateBalanceSOL - PRIVACY_FEES.WITHDRAWAL_FEE;
-    return Math.max(0, maxAmount);
+    // User can withdraw their entire balance
+    // They will receive (balance - fee)
+    return privateBalanceSOL;
+  }
+
+  /**
+   * Check if balance is withdrawable (greater than fee)
+   */
+  canWithdraw(privateBalanceSOL: number): boolean {
+    const balanceLamports = Math.round(privateBalanceSOL * LAMPORTS_PER_SOL);
+    const feeLamports = Math.round(PRIVACY_FEES.WITHDRAWAL_FEE * LAMPORTS_PER_SOL);
+    return balanceLamports > feeLamports;
   }
 
   /**

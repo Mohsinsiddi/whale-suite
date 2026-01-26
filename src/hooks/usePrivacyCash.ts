@@ -55,9 +55,9 @@ export function usePrivacyCash() {
       throw new Error('Wallet not connected');
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await privySignMessage({
       message,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       wallet: wallet as any, // Privy ConnectedStandardSolanaWallet type
     });
 
@@ -77,9 +77,9 @@ export function usePrivacyCash() {
     const serializedTx = tx.serialize();
 
     // Sign with Privy
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await privySignTransaction({
       transaction: serializedTx,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       wallet: wallet as any, // Privy ConnectedStandardSolanaWallet type
     });
 
@@ -189,8 +189,15 @@ export function usePrivacyCash() {
 
         return result;
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Deposit failed';
+        let errorMessage = error instanceof Error ? error.message : 'Deposit failed';
         console.error('Privacy deposit error:', error);
+
+        // Provide better error messages for common errors
+        if (errorMessage.includes('block height exceeded') || errorMessage.includes('has expired')) {
+          errorMessage = 'Transaction expired. Please try again - ZK proof generation took too long.';
+        } else if (errorMessage.includes('response not ok')) {
+          errorMessage = 'Relayer error. Please try again in a moment.';
+        }
 
         const result: PrivacyTxResult = {
           success: false,
@@ -214,21 +221,37 @@ export function usePrivacyCash() {
 
   /**
    * Validate withdrawal before attempting
+   * @param amountFromBalance - Amount to withdraw FROM private balance
    */
   const validateWithdrawal = useCallback(
-    (amount: number): ValidationResult => {
+    (amountFromBalance: number): ValidationResult => {
       const privateBalance = state.privateBalance?.balance || 0;
-      return privacyCashService.validateWithdrawal(amount, privateBalance);
+      return privacyCashService.validateWithdrawal(amountFromBalance, privateBalance);
     },
     [state.privateBalance]
   );
 
   /**
-   * Get maximum withdrawable amount
+   * Get maximum withdrawable amount (full balance)
    */
   const getMaxWithdrawable = useCallback((): number => {
     const privateBalance = state.privateBalance?.balance || 0;
     return privacyCashService.getMaxWithdrawable(privateBalance);
+  }, [state.privateBalance]);
+
+  /**
+   * Calculate what user will receive after fee
+   */
+  const calculateReceiveAmount = useCallback((amountFromBalance: number): number => {
+    return privacyCashService.calculateReceiveAmount(amountFromBalance);
+  }, []);
+
+  /**
+   * Check if balance is withdrawable
+   */
+  const canWithdrawBalance = useCallback((): boolean => {
+    const privateBalance = state.privateBalance?.balance || 0;
+    return privacyCashService.canWithdraw(privateBalance);
   }, [state.privateBalance]);
 
   /**
@@ -293,6 +316,10 @@ export function usePrivacyCash() {
         // Provide better error messages for common SDK errors
         if (errorMessage.includes('No enough balance')) {
           errorMessage = `Insufficient private balance. You need at least ${(amount + PRIVACY_FEES.WITHDRAWAL_FEE).toFixed(4)} SOL (amount + ${PRIVACY_FEES.WITHDRAWAL_FEE} fee).`;
+        } else if (errorMessage.includes('block height exceeded') || errorMessage.includes('has expired')) {
+          errorMessage = 'Transaction expired. Please try again - ZK proof generation took too long.';
+        } else if (errorMessage.includes('response not ok')) {
+          errorMessage = 'Relayer error. Please try again in a moment.';
         }
 
         console.error('Privacy withdraw error:', error);
@@ -365,6 +392,8 @@ export function usePrivacyCash() {
     // Validation helpers
     validateWithdrawal,
     getMaxWithdrawable,
+    calculateReceiveAmount,
+    canWithdrawBalance,
     // Fee constants
     fees: PRIVACY_FEES,
   };

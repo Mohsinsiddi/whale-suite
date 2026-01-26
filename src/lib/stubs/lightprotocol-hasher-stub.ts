@@ -9,6 +9,7 @@ export class WasmFactory {
     throw new Error('WasmFactory stub - use initLightWasm() from privacy-cash.ts instead');
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   static async loadModule(_options?: unknown) {
     throw new Error('WasmFactory stub - use initLightWasm() from privacy-cash.ts instead');
   }

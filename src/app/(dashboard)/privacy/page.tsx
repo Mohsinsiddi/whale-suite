@@ -22,11 +22,10 @@ export default function PrivacyCashPage() {
     initialized,
     deposit,
     withdraw,
-    estimateFee,
     initialize,
     reset,
     validateWithdrawal,
-    getMaxWithdrawable,
+    calculateReceiveAmount,
     fees,
   } = usePrivacyCash();
 
@@ -68,9 +67,9 @@ export default function PrivacyCashPage() {
       // Leave some SOL for network fees
       return walletBalance > 0.01 ? (walletBalance - 0.01).toFixed(4) : "0";
     }
-    // For withdrawal, account for the relay fee
-    const maxWithdraw = getMaxWithdrawable();
-    return maxWithdraw > 0 ? maxWithdraw.toFixed(4) : "0";
+    // For withdrawal, user can enter their full balance - we deduct fee from what they receive
+    const balance = privateBalance?.balance || 0;
+    return balance > 0 ? balance.toFixed(4) : "0";
   };
 
   // Get validation state for current amount
@@ -83,13 +82,19 @@ export default function PrivacyCashPage() {
         return validation.error || "Validation failed";
       }
     } else {
-      // Deposit validation
+      // Deposit validation - use lamports to avoid floating point issues
+      const LAMPORTS_PER_SOL = 1_000_000_000;
       const amountNum = parseFloat(amount);
+      const amountLamports = Math.round(amountNum * LAMPORTS_PER_SOL);
+      const reserveForFees = Math.round(0.01 * LAMPORTS_PER_SOL); // 0.01 SOL for network fees
+      const walletLamports = Math.round(walletBalance * LAMPORTS_PER_SOL);
+      const maxDepositLamports = walletLamports - reserveForFees;
+
       if (amountNum < fees.MIN_DEPOSIT) {
         return `Minimum deposit is ${fees.MIN_DEPOSIT} SOL`;
       }
-      if (amountNum > walletBalance - 0.01) {
-        return `Insufficient wallet balance. Max: ${(walletBalance - 0.01).toFixed(4)} SOL`;
+      if (amountLamports > maxDepositLamports) {
+        return `Insufficient wallet balance. Max: ${(maxDepositLamports / LAMPORTS_PER_SOL).toFixed(4)} SOL`;
       }
     }
     return null;
@@ -137,10 +142,6 @@ export default function PrivacyCashPage() {
       console.error("Transaction error:", err);
     }
   };
-
-  const estimatedFee = amount
-    ? estimateFee(activeTab)
-    : 0;
 
   // Initialize encryption service when user wants to interact
   const handleInitialize = async () => {
@@ -198,6 +199,16 @@ export default function PrivacyCashPage() {
               <div className="text-xs text-text-secondary">
                 {privateBalance ? `$${(privateBalance.balance * 150).toFixed(2)}` : "$0.00"}
               </div>
+              {privateBalance && privateBalance.balance > 0 && privateBalance.balance <= fees.WITHDRAWAL_FEE && (
+                <div className="text-xs text-warning mt-1">
+                  ⚠️ Below withdrawal fee
+                </div>
+              )}
+              {privateBalance && privateBalance.balance > fees.WITHDRAWAL_FEE && (
+                <div className="text-xs text-text-muted mt-1">
+                  After fee you receive: {calculateReceiveAmount(privateBalance.balance).toFixed(4)} SOL
+                </div>
+              )}
             </>
           ) : (
             <button
@@ -285,7 +296,7 @@ export default function PrivacyCashPage() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-medium text-text-secondary">
-                    Amount (SOL)
+                    {activeTab === "withdraw" ? "Amount to Withdraw (SOL)" : "Amount to Deposit (SOL)"}
                   </label>
                   <button
                     onClick={handleMax}
@@ -308,23 +319,46 @@ export default function PrivacyCashPage() {
                 </div>
               </div>
 
-              {/* Fee Estimate */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-bg-tertiary">
-                  <span className="text-xs text-text-muted">
-                    {activeTab === "withdraw" ? "Relay Fee" : "Network Fee"}
-                  </span>
-                  <span className="text-xs font-medium text-text-secondary">
-                    ~{estimatedFee.toFixed(4)} SOL
-                  </span>
-                </div>
-                {activeTab === "withdraw" && amount && parseFloat(amount) > 0 && (
-                  <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-bg-tertiary">
-                    <span className="text-xs text-text-muted">You Will Receive</span>
-                    <span className="text-xs font-medium text-neon-green">
-                      ~{(parseFloat(amount)).toFixed(4)} SOL
-                    </span>
-                  </div>
+              {/* Fee Breakdown */}
+              <div className="space-y-2 p-3 rounded-lg bg-bg-tertiary border border-border-secondary">
+                {activeTab === "withdraw" ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-muted">You Withdraw</span>
+                      <span className="text-sm font-medium text-text-primary">
+                        {amount && parseFloat(amount) > 0 ? parseFloat(amount).toFixed(4) : "0.0000"} SOL
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-muted">Relay Fee</span>
+                      <span className="text-xs text-error">
+                        -{fees.WITHDRAWAL_FEE.toFixed(4)} SOL
+                      </span>
+                    </div>
+                    <div className="border-t border-border-secondary pt-2 mt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-text-primary">You Receive</span>
+                        <span className="text-sm font-bold text-neon-green">
+                          {amount && parseFloat(amount) > 0
+                            ? calculateReceiveAmount(parseFloat(amount)).toFixed(4)
+                            : "0.0000"} SOL
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-muted">Deposit Amount</span>
+                      <span className="text-sm font-medium text-neon-green">
+                        {amount && parseFloat(amount) > 0 ? parseFloat(amount).toFixed(4) : "0.0000"} SOL
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-muted">Protocol Fee</span>
+                      <span className="text-xs text-neon-green">Free</span>
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -342,11 +376,21 @@ export default function PrivacyCashPage() {
                 </div>
               )}
 
+              {/* Dust Warning - Balance too low to withdraw */}
+              {activeTab === "withdraw" && initialized && (privateBalance?.balance || 0) > 0 && (privateBalance?.balance || 0) <= fees.WITHDRAWAL_FEE && (
+                <div className="p-3 rounded-lg bg-warning/10 border border-warning/30">
+                  <p className="text-xs text-warning">
+                    <strong>Balance too low to withdraw.</strong> You have {privateBalance?.balance.toFixed(4)} SOL but the withdrawal fee is {fees.WITHDRAWAL_FEE} SOL.
+                    Deposit at least {(fees.WITHDRAWAL_FEE + 0.001).toFixed(3)} SOL more to withdraw.
+                  </p>
+                </div>
+              )}
+
               {/* Min Balance Warning for Withdraw */}
-              {activeTab === "withdraw" && initialized && (privateBalance?.balance || 0) < fees.RECOMMENDED_MIN_BALANCE && (
+              {activeTab === "withdraw" && initialized && (privateBalance?.balance || 0) > fees.WITHDRAWAL_FEE && (privateBalance?.balance || 0) < fees.RECOMMENDED_MIN_BALANCE && (
                 <div className="p-3 rounded-lg bg-info/10 border border-info/30">
                   <p className="text-xs text-info">
-                    Tip: Deposit at least {fees.RECOMMENDED_MIN_BALANCE} SOL to cover withdrawal fees (~{fees.WITHDRAWAL_FEE} SOL).
+                    Tip: You can withdraw your full balance of {(privateBalance?.balance || 0).toFixed(4)} SOL and receive {calculateReceiveAmount(privateBalance?.balance || 0).toFixed(4)} SOL after relay fee.
                   </p>
                 </div>
               )}
@@ -430,11 +474,11 @@ export default function PrivacyCashPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-text-muted">Deposit Fee</span>
-                <span className="text-text-secondary">~{fees.DEPOSIT_FEE} SOL</span>
+                <span className="text-neon-green">Free</span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-text-muted">Withdrawal Fee</span>
-                <span className="text-text-secondary">~{fees.WITHDRAWAL_FEE} SOL</span>
+                <span className="text-text-secondary">~{fees.WITHDRAWAL_FEE} SOL (relay)</span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-text-muted">Min Deposit</span>
