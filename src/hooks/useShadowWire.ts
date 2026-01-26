@@ -235,7 +235,7 @@ export function useShadowWire() {
    */
   const withdraw = useCallback(
     async (amount: number, token: TokenSymbol = 'SOL'): Promise<ShadowWireWithdrawResult> => {
-      if (!walletAddress) {
+      if (!walletAddress || !wallet) {
         const result: ShadowWireWithdrawResult = {
           success: false,
           error: 'Wallet not connected',
@@ -247,7 +247,13 @@ export function useShadowWire() {
       setState((prev) => ({ ...prev, loading: true, error: null }));
 
       try {
-        const result = await shadowWireService.withdraw(walletAddress, amount, token);
+        // Pass signTransaction to handle signing and submission
+        const result = await shadowWireService.withdraw(
+          walletAddress,
+          amount,
+          signTransaction,
+          token
+        );
 
         setState((prev) => ({
           ...prev,
@@ -271,7 +277,7 @@ export function useShadowWire() {
         return { success: false, error: errorMessage };
       }
     },
-    [walletAddress, fetchShieldedBalance]
+    [walletAddress, wallet, signTransaction, fetchShieldedBalance]
   );
 
   /**

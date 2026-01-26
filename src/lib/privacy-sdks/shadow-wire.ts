@@ -314,25 +314,87 @@ class ShadowWireService {
 
   /**
    * Withdraw funds from shielded pool
+   * @param wallet - Wallet address
+   * @param amount - Amount in SOL (not lamports)
+   * @param signTransaction - Function to sign the transaction
+   * @param token - Token symbol (default: SOL)
    */
   async withdraw(
     wallet: string,
     amount: number,
+    signTransaction?: TransactionSigner,
     token: TokenSymbol = 'SOL'
   ): Promise<ShadowWireWithdrawResult> {
     try {
+      // Convert SOL to lamports (smallest unit)
+      const amountLamports = TokenUtils.toSmallestUnit(amount, token);
+
+      console.log('[ShadowWire] Withdrawing:', { wallet, amount, amountLamports, token });
+
       const response: WithdrawResponse = await this.client.withdraw({
         wallet,
-        amount,
+        amount: amountLamports,
         token_mint: token === 'SOL' ? undefined : token,
       });
 
+      console.log('[ShadowWire] Withdraw response:', response);
+
+      if (!response.success || !response.unsigned_tx_base64) {
+        return {
+          success: false,
+          error: 'Failed to create withdraw transaction',
+        };
+      }
+
+      // If no signer provided, return the unsigned transaction
+      if (!signTransaction) {
+        return {
+          success: true,
+          unsignedTxBase64: response.unsigned_tx_base64,
+          amountWithdrawn: response.amount_withdrawn,
+          fee: response.fee,
+        };
+      }
+
+      // Decode the base64 transaction
+      const txBuffer = Buffer.from(response.unsigned_tx_base64, 'base64');
+
+      // Try to deserialize as VersionedTransaction first, then legacy Transaction
+      let transaction: Transaction | VersionedTransaction;
+      try {
+        transaction = VersionedTransaction.deserialize(txBuffer);
+      } catch {
+        transaction = Transaction.from(txBuffer);
+      }
+
+      // Sign the transaction
+      const signedTx = await signTransaction(transaction);
+
+      // Serialize and send
+      const serialized = signedTx.serialize();
+      const signature = await this.connection.sendRawTransaction(serialized, {
+        skipPreflight: false,
+        preflightCommitment: 'confirmed',
+      });
+
+      console.log('[ShadowWire] Withdraw signature:', signature);
+
+      // Confirm the transaction
+      const confirmation = await this.connection.confirmTransaction(signature, 'confirmed');
+
+      if (confirmation.value.err) {
+        return {
+          success: false,
+          signature,
+          error: 'Withdraw transaction failed on chain',
+        };
+      }
+
       return {
-        success: response.success,
-        signature: response.tx_signature,
+        success: true,
+        signature,
         amountWithdrawn: response.amount_withdrawn,
         fee: response.fee,
-        unsignedTxBase64: response.unsigned_tx_base64,
       };
     } catch (error) {
       console.error('[ShadowWire] Withdraw error:', error);

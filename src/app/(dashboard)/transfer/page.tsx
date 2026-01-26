@@ -29,6 +29,7 @@ export default function TransferPage() {
     internalTransfer,
     externalTransfer,
     deposit: shadowWireDeposit,
+    withdraw: shadowWireWithdraw,
     shieldedBalance,
     fetchShieldedBalance,
     loading: shadowWireLoading,
@@ -58,6 +59,17 @@ export default function TransferPage() {
   const [showDepositSection, setShowDepositSection] = useState(false);
   const [depositError, setDepositError] = useState<string | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [showWithdrawSection, setShowWithdrawSection] = useState(false);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+
+  // Track last operation for success modal
+  const [lastOperation, setLastOperation] = useState<{
+    type: 'deposit' | 'withdraw' | 'transfer';
+    amount: string;
+    signature: string;
+    token: string;
+  } | null>(null);
 
   // Fetch shielded balance when wallet changes
   useEffect(() => {
@@ -132,6 +144,22 @@ export default function TransferPage() {
     }
   }, [amount, activeTab, shieldedBalanceSOL, MIN_TRANSFER_AMOUNT]);
 
+  // Validate withdraw amount
+  useEffect(() => {
+    const withdrawValue = parseFloat(withdrawAmount);
+    if (!withdrawAmount || withdrawAmount === "") {
+      setWithdrawError(null);
+    } else if (isNaN(withdrawValue) || withdrawValue <= 0) {
+      setWithdrawError("Please enter a valid amount");
+    } else if (withdrawValue < MIN_DEPOSIT_AMOUNT) {
+      setWithdrawError(`Minimum withdraw is ${MIN_DEPOSIT_AMOUNT} SOL`);
+    } else if (withdrawValue > shieldedBalanceSOL) {
+      setWithdrawError(`Insufficient shielded balance. You have ${shieldedBalanceSOL.toFixed(4)} SOL`);
+    } else {
+      setWithdrawError(null);
+    }
+  }, [withdrawAmount, shieldedBalanceSOL, MIN_DEPOSIT_AMOUNT]);
+
   const getStepStatus = (stepIndex: number): "pending" | "active" | "completed" => {
     if (currentStep > stepIndex) return "completed";
     if (currentStep === stepIndex) return "active";
@@ -204,7 +232,15 @@ export default function TransferPage() {
       setShowTxModal(false);
 
       if (result?.success) {
+        setLastOperation({
+          type: 'transfer',
+          amount: amount,
+          signature: result.signature || '',
+          token: 'SOL',
+        });
         setShowSuccessModal(true);
+        // Refresh shielded balance after transfer
+        setTimeout(() => fetchShieldedBalance(), 2000);
       }
     } else {
       // Standard transfer
@@ -232,8 +268,11 @@ export default function TransferPage() {
     setAmount("");
     setRecipient("");
     setDepositAmount("");
+    setWithdrawAmount("");
     setDepositError(null);
+    setWithdrawError(null);
     setAmountError(null);
+    setLastOperation(null);
     resetTransfer();
     resetShadowWire();
     // Refresh shielded balance after successful operation
@@ -278,10 +317,69 @@ export default function TransferPage() {
     setShowTxModal(false);
 
     if (result?.success) {
+      // Set last operation for success modal
+      setLastOperation({
+        type: 'deposit',
+        amount: depositAmount,
+        signature: result.signature || '',
+        token: 'SOL',
+      });
+      setShowSuccessModal(true);
       setDepositAmount("");
       setShowDepositSection(false);
-      // Refresh shielded balance
-      await fetchShieldedBalance();
+      // Refresh shielded balance after a short delay for API indexing
+      setTimeout(() => fetchShieldedBalance(), 2000);
+    }
+  };
+
+  // Handle withdraw from shielded pool
+  const handleWithdraw = async () => {
+    const withdrawValue = parseFloat(withdrawAmount);
+
+    // Validate before proceeding
+    if (!withdrawAmount || isNaN(withdrawValue) || withdrawValue <= 0) {
+      setWithdrawError("Please enter a valid amount");
+      return;
+    }
+
+    if (withdrawValue < MIN_DEPOSIT_AMOUNT) {
+      setWithdrawError(`Minimum withdraw is ${MIN_DEPOSIT_AMOUNT} SOL`);
+      return;
+    }
+
+    if (withdrawValue > shieldedBalanceSOL) {
+      setWithdrawError("Insufficient shielded balance");
+      return;
+    }
+
+    setShowTxModal(true);
+    setCurrentStep(0);
+
+    // Step 1: Preparing withdrawal
+    await new Promise((r) => setTimeout(r, 300));
+    setCurrentStep(1);
+
+    // Step 2: Execute withdraw
+    const result = await shadowWireWithdraw(withdrawValue);
+
+    setCurrentStep(2);
+    await new Promise((r) => setTimeout(r, 300));
+
+    setShowTxModal(false);
+
+    if (result?.success) {
+      // Set last operation for success modal
+      setLastOperation({
+        type: 'withdraw',
+        amount: withdrawAmount,
+        signature: result.signature || '',
+        token: 'SOL',
+      });
+      setShowSuccessModal(true);
+      setWithdrawAmount("");
+      setShowWithdrawSection(false);
+      // Refresh shielded balance after a short delay for API indexing
+      setTimeout(() => fetchShieldedBalance(), 2000);
     }
   };
 
@@ -334,14 +432,37 @@ export default function TransferPage() {
                     <div className="text-lg font-bold text-text-primary">
                       {shieldedBalanceSOL.toFixed(4)} SOL
                     </div>
-                    <button
-                      onClick={() => setShowDepositSection(!showDepositSection)}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-neon-green/20 text-neon-green hover:bg-neon-green/30 transition-colors"
-                    >
-                      {showDepositSection ? 'Hide Deposit' : '+ Deposit'}
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setShowDepositSection(!showDepositSection);
+                          if (showWithdrawSection) setShowWithdrawSection(false);
+                        }}
+                        className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                          showDepositSection
+                            ? 'bg-neon-green text-bg-primary'
+                            : 'bg-neon-green/20 text-neon-green hover:bg-neon-green/30'
+                        }`}
+                      >
+                        + Deposit
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowWithdrawSection(!showWithdrawSection);
+                          if (showDepositSection) setShowDepositSection(false);
+                        }}
+                        disabled={shieldedBalanceSOL === 0}
+                        className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                          showWithdrawSection
+                            ? 'bg-neon-cyan text-bg-primary'
+                            : 'bg-neon-cyan/20 text-neon-cyan hover:bg-neon-cyan/30 disabled:opacity-50 disabled:cursor-not-allowed'
+                        }`}
+                      >
+                        - Withdraw
+                      </button>
+                    </div>
                   </div>
-                  {shieldedBalanceSOL === 0 && (
+                  {shieldedBalanceSOL === 0 && !showDepositSection && (
                     <p className="text-xs text-warning mt-2">
                       You need to deposit SOL into the shielded pool before making private transfers.
                     </p>
@@ -385,9 +506,73 @@ export default function TransferPage() {
                     {depositError ? (
                       <p className="text-[10px] text-error">{depositError}</p>
                     ) : (
-                      <p className="text-[10px] text-text-muted">
-                        Minimum deposit: {MIN_DEPOSIT_AMOUNT} SOL. Funds will be available for private transfers.
-                      </p>
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-text-muted">
+                          Minimum deposit: {MIN_DEPOSIT_AMOUNT} SOL. Funds will be available for private transfers.
+                        </p>
+                        <p className="text-[10px] text-warning">
+                          Note: Balance may take 30-60 seconds to reflect after deposit.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Withdraw Section */}
+                {showWithdrawSection && (
+                  <div className={`p-3 rounded-xl bg-bg-tertiary border space-y-3 ${
+                    withdrawError ? 'border-error/50' : 'border-border-secondary'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-text-secondary">Withdraw from Shielded Pool</span>
+                      <span className="text-xs text-text-muted">
+                        Pool Balance: {shieldedBalanceSOL.toFixed(4)} SOL
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={withdrawAmount}
+                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                        placeholder={`Min ${MIN_DEPOSIT_AMOUNT} SOL`}
+                        min={MIN_DEPOSIT_AMOUNT}
+                        max={shieldedBalanceSOL}
+                        step="0.1"
+                        className={`flex-1 px-3 py-2 rounded-lg bg-bg-elevated border text-sm text-text-primary placeholder:text-text-muted focus:outline-none ${
+                          withdrawError
+                            ? 'border-error/50 focus:border-error'
+                            : 'border-border-secondary focus:border-neon-cyan'
+                        }`}
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={handleWithdraw}
+                        disabled={!!withdrawError || !withdrawAmount || shadowWireLoading}
+                        loading={shadowWireLoading}
+                      >
+                        Withdraw
+                      </Button>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <button
+                        onClick={() => setWithdrawAmount(shieldedBalanceSOL.toFixed(4))}
+                        className="text-[10px] text-neon-cyan hover:underline"
+                      >
+                        Withdraw Max
+                      </button>
+                    </div>
+                    {withdrawError ? (
+                      <p className="text-[10px] text-error">{withdrawError}</p>
+                    ) : (
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-text-muted">
+                          Withdraw funds from shielded pool back to your public wallet.
+                        </p>
+                        <p className="text-[10px] text-warning">
+                          Note: Balance may take 30-60 seconds to reflect after withdrawal.
+                        </p>
+                      </div>
                     )}
                   </div>
                 )}
@@ -691,9 +876,19 @@ export default function TransferPage() {
       <SuccessModal
         isOpen={showSuccessModal}
         onClose={handleSuccessClose}
-        title="Transfer Complete!"
-        message={`Successfully sent ${amount} SOL ${activeTab === 'private' ? (privateTransferType === 'internal' ? 'with hidden amount' : 'anonymously') : ''}`}
-        txSignature={combinedResult?.signature || ''}
+        title={
+          lastOperation?.type === 'deposit' ? 'Deposit Complete!' :
+          lastOperation?.type === 'withdraw' ? 'Withdrawal Complete!' :
+          'Transfer Complete!'
+        }
+        message={
+          lastOperation?.type === 'deposit'
+            ? `Successfully deposited ${lastOperation.amount} ${lastOperation.token} to shielded pool`
+            : lastOperation?.type === 'withdraw'
+            ? `Successfully withdrew ${lastOperation.amount} ${lastOperation.token} from shielded pool`
+            : `Successfully sent ${lastOperation?.amount || amount} SOL ${activeTab === 'private' ? (privateTransferType === 'internal' ? 'with hidden amount' : 'anonymously') : ''}`
+        }
+        txSignature={lastOperation?.signature || combinedResult?.signature || ''}
       />
     </div>
   );
