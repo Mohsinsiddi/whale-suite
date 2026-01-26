@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { WalletAvatar } from "../ui/Avatar";
 import Dropdown, { DropdownItem, DropdownDivider } from "../ui/Dropdown";
-import { CountBadge } from "../ui/Badge";
+import { CountBadge, TierBadge } from "../ui/Badge";
+import { useAuth } from "@/lib/privy/hooks";
+import { useUser, useWallet, useUI } from "@/store";
 
 interface HeaderProps {
   variant?: "landing" | "app";
@@ -13,21 +16,51 @@ interface HeaderProps {
 }
 
 export default function Header({ variant = "landing", wallet, notifications = 0 }: HeaderProps) {
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { logout, walletAddress } = useAuth();
+  const { userNumber, badgeTier, privacyScore } = useUser();
+  const { balance, hiddenBalance } = useWallet();
+  const { toggleSidebar } = useUI();
+
+  const displayWallet = wallet || walletAddress;
+  const shortWallet = displayWallet
+    ? `${displayWallet.slice(0, 4)}...${displayWallet.slice(-4)}`
+    : '';
+
+  const handleDisconnect = async () => {
+    try {
+      await logout();
+      router.push('/connect');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-bg-primary/80 backdrop-blur-xl border-b border-border-primary">
-      <div className="max-w-7xl mx-auto px-4">
+      <div className="max-w-7xl mx-auto px-4 lg:pl-64">
         <div className="flex items-center justify-between h-14">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-lg">🐋</span>
-            <span className="font-bold text-base bg-gradient-to-r from-neon-green to-neon-cyan bg-clip-text text-transparent">
-              WHALE SUITE
-            </span>
-          </Link>
+          {/* Left Side - Menu Button (mobile) + Logo */}
+          <div className="flex items-center gap-3">
+            {variant === "app" && (
+              <button
+                onClick={toggleSidebar}
+                className="lg:hidden p-2 rounded-lg hover:bg-bg-tertiary transition-colors"
+              >
+                <MenuIcon className="w-5 h-5 text-text-secondary" />
+              </button>
+            )}
 
-          {/* Nav Links - Desktop */}
+            <Link href={variant === "app" ? "/dashboard" : "/"} className="flex items-center gap-2">
+              <span className="text-lg">🐋</span>
+              <span className="font-bold text-base bg-gradient-to-r from-neon-green to-neon-cyan bg-clip-text text-transparent hidden sm:block">
+                WHALE SUITE
+              </span>
+            </Link>
+          </div>
+
+          {/* Nav Links - Desktop (Landing only) */}
           {variant === "landing" && (
             <nav className="hidden md:flex items-center gap-6">
               <Link href="#features" className="text-sm text-text-secondary hover:text-neon-green transition-colors">
@@ -43,7 +76,7 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
           )}
 
           {/* Right Side */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {variant === "landing" ? (
               <Link
                 href="/connect"
@@ -52,7 +85,28 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
                 Launch App
               </Link>
             ) : (
-              <div className="flex items-center gap-2">
+              <>
+                {/* Balance Display */}
+                <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border-primary">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-text-muted">Balance:</span>
+                    <span className="text-sm font-semibold text-neon-green">
+                      {balance?.toFixed(2) || '0.00'} SOL
+                    </span>
+                  </div>
+                  {hiddenBalance > 0 && (
+                    <>
+                      <div className="w-px h-4 bg-border-primary" />
+                      <div className="flex items-center gap-1.5">
+                        <EyeOffIcon className="w-3 h-3 text-neon-cyan" />
+                        <span className="text-sm font-semibold text-neon-cyan">
+                          {hiddenBalance.toFixed(2)}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 {/* Notifications */}
                 <Dropdown
                   trigger={
@@ -71,38 +125,88 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
                     <div className="mt-2 space-y-1">
                       <NotificationItem
                         title="Transfer Complete"
-                        message="50 SOL sent to 0x4f2..."
+                        message="50 SOL sent privately"
                         time="2m ago"
                       />
                       <NotificationItem
-                        title="Badge Minted"
-                        message="Gold Badge NFT received"
-                        time="1h ago"
+                        title="Whale Alert"
+                        message="Large deposit detected in pool"
+                        time="15m ago"
                       />
                     </div>
                   </div>
                 </Dropdown>
 
-                {/* Profile */}
+                {/* Profile Dropdown */}
                 <Dropdown
                   trigger={
-                    <button className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-bg-tertiary transition-colors">
-                      <WalletAvatar address={wallet || "0x0000"} size="sm" showAddress={false} />
+                    <button className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-bg-tertiary transition-colors border border-transparent hover:border-border-primary">
+                      <WalletAvatar address={displayWallet || "0x0000"} size="sm" showAddress={false} />
+                      <div className="hidden sm:flex flex-col items-start">
+                        <span className="text-xs font-medium text-text-primary">
+                          {userNumber ? `Whale #${userNumber}` : shortWallet}
+                        </span>
+                        <span className="text-[10px] text-text-muted">{shortWallet}</span>
+                      </div>
                       <ChevronDownIcon className="w-3 h-3 text-text-muted" />
                     </button>
                   }
                 >
-                  <DropdownItem icon={<UserIcon />}>Profile</DropdownItem>
-                  <DropdownItem icon={<SettingsIcon />}>Settings</DropdownItem>
+                  {/* User Info Header */}
+                  <div className="px-3 py-2 border-b border-border-primary">
+                    <div className="flex items-center gap-2">
+                      <WalletAvatar address={displayWallet || "0x0000"} size="md" showAddress={false} />
+                      <div>
+                        <p className="text-sm font-semibold text-text-primary">
+                          {userNumber ? `Whale #${userNumber}` : 'New Whale'}
+                        </p>
+                        <p className="text-xs text-text-muted">{shortWallet}</p>
+                      </div>
+                    </div>
+                    {badgeTier && badgeTier !== 'none' && (
+                      <div className="mt-2">
+                        <TierBadge tier={badgeTier as "bronze" | "silver" | "gold" | "diamond" | "legendary"} size="sm" />
+                      </div>
+                    )}
+                    <div className="mt-2 flex items-center gap-2 text-xs">
+                      <span className="text-text-muted">Privacy Score:</span>
+                      <span className="font-semibold text-neon-green">{privacyScore || 0}</span>
+                    </div>
+                  </div>
+
+                  {/* Mobile Balance */}
+                  <div className="sm:hidden px-3 py-2 border-b border-border-primary">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-muted">Balance</span>
+                      <span className="text-sm font-semibold text-neon-green">
+                        {balance?.toFixed(2) || '0.00'} SOL
+                      </span>
+                    </div>
+                    {hiddenBalance > 0 && (
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-xs text-text-muted">Hidden</span>
+                        <span className="text-sm font-semibold text-neon-cyan">
+                          {hiddenBalance.toFixed(2)} SOL
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <DropdownItem icon={<UserIcon />} onClick={() => router.push('/profile')}>
+                    Profile
+                  </DropdownItem>
+                  <DropdownItem icon={<SettingsIcon />} onClick={() => router.push('/settings')}>
+                    Settings
+                  </DropdownItem>
                   <DropdownDivider />
-                  <DropdownItem icon={<LogoutIcon />} variant="danger">
+                  <DropdownItem icon={<LogoutIcon />} variant="danger" onClick={handleDisconnect}>
                     Disconnect
                   </DropdownItem>
                 </Dropdown>
-              </div>
+              </>
             )}
 
-            {/* Mobile Menu Button */}
+            {/* Mobile Menu Button (Landing only) */}
             {variant === "landing" && (
               <button
                 className="md:hidden p-2 rounded-lg hover:bg-bg-tertiary transition-colors"
@@ -119,7 +223,7 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
         </div>
       </div>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu (Landing) */}
       {mobileMenuOpen && variant === "landing" && (
         <div className="md:hidden border-t border-border-primary bg-bg-primary/95 backdrop-blur-xl">
           <nav className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-2">
@@ -180,6 +284,12 @@ const CloseIcon = ({ className = "w-4 h-4" }) => (
 const BellIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+  </svg>
+);
+
+const EyeOffIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
   </svg>
 );
 

@@ -1,20 +1,19 @@
 'use client';
 
-import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { usePrivy } from '@privy-io/react-auth';
+import { useWallets } from '@privy-io/react-auth/solana';
 import { useCallback, useMemo } from 'react';
 
 export function useAuth() {
   const { ready, authenticated, user, login, logout } = usePrivy();
-  const { wallets } = useWallets();
+  const { wallets: solanaWallets } = useWallets();
 
-  // Get the primary wallet (first connected wallet)
+  // Get the primary Solana wallet
   const primaryWallet = useMemo(() => {
-    if (!wallets || wallets.length === 0) return null;
-
-    // Find external wallet first, then embedded
-    const externalWallet = wallets.find((w) => w.walletClientType !== 'privy');
-    return externalWallet || wallets[0] || null;
-  }, [wallets]);
+    if (!solanaWallets || solanaWallets.length === 0) return null;
+    // Return first available Solana wallet
+    return solanaWallets[0];
+  }, [solanaWallets]);
 
   // Get wallet address
   const walletAddress = useMemo(() => {

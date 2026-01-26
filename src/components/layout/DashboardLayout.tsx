@@ -56,14 +56,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Sidebar */}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Mobile Menu Button */}
-      <button
-        onClick={() => setSidebarOpen(true)}
-        className="fixed bottom-4 left-4 z-40 lg:hidden p-3 rounded-full bg-neon-green text-bg-primary shadow-glow-md"
-      >
-        <MenuIcon />
-      </button>
-
       {/* Main Content */}
       <main className="lg:pl-64 pt-14">
         <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -73,9 +65,3 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     </div>
   );
 }
-
-const MenuIcon = () => (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-  </svg>
-);
