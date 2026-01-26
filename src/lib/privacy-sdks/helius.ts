@@ -59,6 +59,27 @@ export interface WhaleActivity {
   description: string;
 }
 
+export interface TokenMetadata {
+  mint: string;
+  decimals: number;
+  symbol?: string;
+  name?: string;
+  logoURI?: string;
+}
+
+// Cache for token metadata to avoid repeated API calls
+const tokenMetadataCache: Map<string, TokenMetadata> = new Map();
+
+// Known token decimals (fallback)
+const KNOWN_DECIMALS: Record<string, number> = {
+  'So11111111111111111111111111111111111111112': 9, // SOL
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': 6, // USDC
+  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB': 6, // USDT
+  'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263': 5, // BONK
+  'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN': 6, // JUP
+  'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm': 6, // WIF
+};
+
 class HeliusService {
   private connection: Connection;
   private apiKey: string;
@@ -249,6 +270,138 @@ class HeliusService {
    */
   getConnection(): Connection {
     return this.connection;
+  }
+
+  /**
+   * Get token metadata (decimals, symbol, name) from blockchain
+   * Uses Helius DAS API for accurate on-chain data
+   */
+  async getTokenMetadata(mintAddress: string): Promise<TokenMetadata | null> {
+    // Check cache first
+    if (tokenMetadataCache.has(mintAddress)) {
+      return tokenMetadataCache.get(mintAddress)!;
+    }
+
+    // Check known decimals fallback
+    if (KNOWN_DECIMALS[mintAddress] !== undefined) {
+      const metadata: TokenMetadata = {
+        mint: mintAddress,
+        decimals: KNOWN_DECIMALS[mintAddress],
+      };
+      tokenMetadataCache.set(mintAddress, metadata);
+      return metadata;
+    }
+
+    try {
+      // Use Helius DAS API to get asset info
+      const response = await fetch(HELIUS_RPC, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'get-asset',
+          method: 'getAsset',
+          params: { id: mintAddress },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Helius API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.result) {
+        const asset = data.result;
+        const metadata: TokenMetadata = {
+          mint: mintAddress,
+          decimals: asset.token_info?.decimals ?? 9,
+          symbol: asset.token_info?.symbol || asset.content?.metadata?.symbol,
+          name: asset.content?.metadata?.name,
+          logoURI: asset.content?.links?.image || asset.content?.files?.[0]?.uri,
+        };
+        tokenMetadataCache.set(mintAddress, metadata);
+        return metadata;
+      }
+
+      // Fallback: try to get mint info directly from RPC
+      return await this.getMintInfoFromRPC(mintAddress);
+    } catch (error) {
+      console.error('Error fetching token metadata:', error);
+      // Fallback: try to get mint info directly from RPC
+      return await this.getMintInfoFromRPC(mintAddress);
+    }
+  }
+
+  /**
+   * Fallback: Get mint info directly from Solana RPC
+   */
+  private async getMintInfoFromRPC(mintAddress: string): Promise<TokenMetadata | null> {
+    try {
+      const mintPubkey = new PublicKey(mintAddress);
+      const mintInfo = await this.connection.getParsedAccountInfo(mintPubkey);
+
+      if (mintInfo.value?.data && 'parsed' in mintInfo.value.data) {
+        const parsedData = mintInfo.value.data.parsed;
+        if (parsedData.type === 'mint') {
+          const metadata: TokenMetadata = {
+            mint: mintAddress,
+            decimals: parsedData.info.decimals,
+          };
+          tokenMetadataCache.set(mintAddress, metadata);
+          return metadata;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error fetching mint info from RPC:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get decimals for a token mint (convenience method)
+   */
+  async getTokenDecimals(mintAddress: string): Promise<number> {
+    // Check known decimals first (fast path)
+    if (KNOWN_DECIMALS[mintAddress] !== undefined) {
+      return KNOWN_DECIMALS[mintAddress];
+    }
+
+    const metadata = await this.getTokenMetadata(mintAddress);
+    return metadata?.decimals ?? 9; // Default to 9 if unknown
+  }
+
+  /**
+   * Get multiple token metadata at once
+   */
+  async getMultipleTokenMetadata(mintAddresses: string[]): Promise<Map<string, TokenMetadata>> {
+    const results = new Map<string, TokenMetadata>();
+
+    // Filter out already cached
+    const uncached = mintAddresses.filter(mint => !tokenMetadataCache.has(mint));
+
+    // Add cached results
+    for (const mint of mintAddresses) {
+      if (tokenMetadataCache.has(mint)) {
+        results.set(mint, tokenMetadataCache.get(mint)!);
+      }
+    }
+
+    // Fetch uncached in parallel
+    if (uncached.length > 0) {
+      const promises = uncached.map(mint => this.getTokenMetadata(mint));
+      const fetched = await Promise.all(promises);
+
+      for (let i = 0; i < uncached.length; i++) {
+        if (fetched[i]) {
+          results.set(uncached[i], fetched[i]!);
+        }
+      }
+    }
+
+    return results;
   }
 }
 

@@ -1,37 +1,166 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Whale Trading Suite
 
-## Getting Started
+Privacy-First Trading Platform for Solana Whales | Solana Privacy Hack 2026
 
-First, run the development server:
+## Project Status
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+### Completed Features
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Privacy Cash Integration | **COMPLETE** | Deposit & Withdraw SOL to/from shielded ZK pool |
+| Jupiter Swap Integration | **COMPLETE** | Token swaps with best routes via Jupiter aggregator |
+| Helius Token Balances | **COMPLETE** | Fetch all wallet token balances via Helius API |
+| ZK Proof Generation | **COMPLETE** | WASM-based proof generation with Light Protocol |
+| Privy Wallet Integration | **COMPLETE** | Sign messages & transactions with Privy |
+| Balance Validation | **COMPLETE** | Lamports-based validation (no floating point issues) |
+| Error Handling | **COMPLETE** | User-friendly error messages for common issues |
+| UI/UX | **COMPLETE** | Dark cyberpunk theme with responsive design |
+
+---
+
+## 1. Privacy Cash SDK Integration
+
+Successfully integrated `privacycash` SDK v1.1.11 for:
+
+- **Deposit (Shield)**: Transfer SOL from public wallet to private shielded pool
+  - No protocol fees
+  - ZK proof generation (~10-15 seconds)
+  - Relayer submission to indexer backend
+
+- **Withdraw (Unshield)**: Transfer SOL from private pool back to public wallet
+  - Relay fee: ~0.006 SOL
+  - ZK proof generation
+  - Supports custom recipient addresses
+
+**Key Files:**
+- `src/lib/privacy-sdks/privacy-cash.ts` - SDK wrapper
+- `src/hooks/usePrivacyCash.ts` - React hook with Privy integration
+- `src/app/(dashboard)/privacy/page.tsx` - Privacy Cash UI
+
+---
+
+## 2. Jupiter Swap Integration (Ultra API)
+
+Successfully integrated Jupiter Ultra API for token swaps:
+
+- **Ultra API**: Uses Jupiter's new Ultra API with automatic priority fees & transaction landing
+- **Token Selection**: SOL, USDC, USDT, BONK, JUP + any tokens in user's wallet
+- **Best Routes**: Jupiter finds optimal swap routes across all Solana DEXs
+- **Real-time Quotes**: Price quotes update as you type (500ms debounce)
+- **Slippage Control**: 0.1%, 0.5%, 1.0% options
+- **Price Impact Warning**: Highlights high impact swaps
+- **Wallet Token Display**: Shows all tokens in user's wallet with balances
+- **Token Search**: Search token metadata via Jupiter Search API
+
+**Flow:**
+1. Get Order (`/ultra/v1/order`) - Returns transaction to sign
+2. Sign with Privy wallet
+3. Execute via Jupiter (`/ultra/v1/execute`) - Jupiter handles landing
+
+**Key Files:**
+- `src/lib/privacy-sdks/jupiter.ts` - Jupiter Ultra API service
+- `src/hooks/useSwap.ts` - React hook with Privy signing
+- `src/app/(dashboard)/swap/page.tsx` - Jupiter Swap UI (public swaps)
+
+---
+
+## 3. Helius Integration
+
+Helius API integration for:
+
+- **SOL Balance**: Real-time SOL balance fetching
+- **Token Balances**: All SPL tokens in wallet with metadata
+- **Transaction History**: Parsed transaction history
+- **Auto-refresh**: Balances refresh every 30 seconds
+
+**Key Files:**
+- `src/lib/privacy-sdks/helius.ts` - Helius API service
+- `src/hooks/useHelius.ts` - React hooks for balances, transactions, whale feed
+
+---
+
+## Technical Implementation
+
+```
+src/
+├── lib/privacy-sdks/
+│   ├── privacy-cash.ts      # Privacy Cash (ZK deposits/withdrawals)
+│   ├── jupiter.ts           # Jupiter (token swaps)
+│   ├── helius.ts            # Helius (balances, transactions)
+│   └── index.ts             # Barrel exports
+├── hooks/
+│   ├── usePrivacyCash.ts    # Privacy Cash hook
+│   ├── useSwap.ts           # Jupiter swap hook
+│   └── useHelius.ts         # Helius data hooks
+└── app/(dashboard)/
+    ├── privacy/page.tsx     # Shield/Unshield UI
+    └── swap/page.tsx        # Token swap UI
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# Install dependencies
+npm install
 
-## Learn More
+# Run development server
+npm run dev
 
-To learn more about Next.js, take a look at the following resources:
+# Build for production
+npm run build
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Environment Variables
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```env
+NEXT_PUBLIC_SOLANA_RPC=https://api.mainnet-beta.solana.com
+NEXT_PUBLIC_HELIUS_API_KEY=your_helius_api_key
+NEXT_PUBLIC_PRIVY_APP_ID=your_privy_app_id
+NEXT_PUBLIC_JUPITER_API_KEY=your_jupiter_api_key
+MONGODB_URI=mongodb://localhost:27017/whale-suite
+```
 
-## Deploy on Vercel
+Get Jupiter API key at: https://portal.jup.ag
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# whale-suite
+## Known Behaviors
+
+### Privacy Cash
+1. **ZK Proof Time**: Proof generation takes 10-15 seconds
+2. **Transaction Expiry**: If proof takes too long, retry
+3. **Minimum Balances**:
+   - Min deposit: 0.001 SOL
+   - Min withdrawal: 0.007 SOL (must be > relay fee)
+
+### Jupiter Swap (Public)
+1. **Quote Debouncing**: Quotes fetch after 500ms typing delay
+2. **Slippage**: Default 0.5%, adjustable (handled by Ultra API)
+3. **SOL Reserve**: MAX button leaves 0.01 SOL for fees
+4. **API Key Required**: Jupiter Ultra API requires an API key
+5. **Public Transactions**: All Jupiter swaps are visible on-chain (Private Swap coming soon)
+
+---
+
+## Tech Stack
+
+- **Frontend**: Next.js 14, TypeScript, Tailwind CSS
+- **Wallet**: Privy (embedded + external wallets)
+- **Privacy**: Privacy Cash SDK, Light Protocol WASM
+- **Swaps**: Jupiter Aggregator API
+- **Data**: Helius Enhanced API
+- **Database**: MongoDB with Mongoose
+- **State**: Zustand + SWR
+
+---
+
+## Hackathon Targets
+
+| Bounty | Amount | Status |
+|--------|--------|--------|
+| Privacy Cash Integration | $15,000 | **COMPLETE** |
+| Jupiter Integration | - | **COMPLETE** |
+| Helius Integration | - | **COMPLETE** |

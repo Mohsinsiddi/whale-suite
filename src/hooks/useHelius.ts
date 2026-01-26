@@ -47,11 +47,63 @@ export function useWalletBalances(walletAddress: string | null) {
     return () => clearInterval(interval);
   }, [walletAddress, fetchBalances]);
 
+  /**
+   * Optimistic update after swap
+   * Immediately updates local state, then syncs with blockchain
+   */
+  const optimisticSwapUpdate = useCallback((
+    fromMint: string,
+    toMint: string,
+    fromAmount: number,
+    toAmount: number
+  ) => {
+    setBalances(prev => {
+      if (!prev) return prev;
+
+      // Update SOL balance if involved
+      let newSol = prev.sol;
+      if (fromMint === 'So11111111111111111111111111111111111111112') {
+        newSol = Math.max(0, prev.sol - fromAmount);
+      } else if (toMint === 'So11111111111111111111111111111111111111112') {
+        newSol = prev.sol + toAmount;
+      }
+
+      // Update token balances
+      const newTokens = prev.tokens.map(token => {
+        if (token.mint.toLowerCase() === fromMint.toLowerCase()) {
+          return {
+            ...token,
+            uiAmount: Math.max(0, token.uiAmount - fromAmount),
+            amount: Math.max(0, token.amount - fromAmount * Math.pow(10, token.decimals)),
+          };
+        }
+        if (token.mint.toLowerCase() === toMint.toLowerCase()) {
+          return {
+            ...token,
+            uiAmount: token.uiAmount + toAmount,
+            amount: token.amount + toAmount * Math.pow(10, token.decimals),
+          };
+        }
+        return token;
+      });
+
+      return {
+        ...prev,
+        sol: newSol,
+        tokens: newTokens,
+      };
+    });
+
+    // Background sync after 3 seconds
+    setTimeout(fetchBalances, 3000);
+  }, [fetchBalances]);
+
   return {
     balances,
     loading,
     error,
     refetch: fetchBalances,
+    optimisticSwapUpdate,
   };
 }
 
