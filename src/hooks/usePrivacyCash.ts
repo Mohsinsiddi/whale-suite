@@ -8,6 +8,8 @@ import {
   PrivacyAction,
   PrivacyTxResult,
   PrivateBalance,
+  PRIVACY_FEES,
+  ValidationResult,
 } from '@/lib/privacy-sdks/privacy-cash';
 
 export interface PrivacyCashState {
@@ -211,6 +213,25 @@ export function usePrivacyCash() {
   );
 
   /**
+   * Validate withdrawal before attempting
+   */
+  const validateWithdrawal = useCallback(
+    (amount: number): ValidationResult => {
+      const privateBalance = state.privateBalance?.balance || 0;
+      return privacyCashService.validateWithdrawal(amount, privateBalance);
+    },
+    [state.privateBalance]
+  );
+
+  /**
+   * Get maximum withdrawable amount
+   */
+  const getMaxWithdrawable = useCallback((): number => {
+    const privateBalance = state.privateBalance?.balance || 0;
+    return privacyCashService.getMaxWithdrawable(privateBalance);
+  }, [state.privateBalance]);
+
+  /**
    * Withdraw SOL from privacy pool
    */
   const withdraw = useCallback(
@@ -218,6 +239,25 @@ export function usePrivacyCash() {
       if (!publicKey || !walletAddress) {
         setState((prev) => ({ ...prev, error: 'Wallet not connected. Please connect your wallet first.' }));
         return null;
+      }
+
+      // Validate before proceeding
+      const privateBalance = state.privateBalance?.balance || 0;
+      const validation = privacyCashService.validateWithdrawal(amount, privateBalance);
+
+      if (!validation.valid) {
+        const result: PrivacyTxResult = {
+          success: false,
+          error: validation.error,
+          action: 'withdraw',
+          amount,
+        };
+        setState((prev) => ({
+          ...prev,
+          error: validation.error || 'Validation failed',
+          result,
+        }));
+        return result;
       }
 
       setState((prev) => ({ ...prev, loading: true, error: null, result: null }));
@@ -248,7 +288,13 @@ export function usePrivacyCash() {
 
         return result;
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Withdrawal failed';
+        let errorMessage = error instanceof Error ? error.message : 'Withdrawal failed';
+
+        // Provide better error messages for common SDK errors
+        if (errorMessage.includes('No enough balance')) {
+          errorMessage = `Insufficient private balance. You need at least ${(amount + PRIVACY_FEES.WITHDRAWAL_FEE).toFixed(4)} SOL (amount + ${PRIVACY_FEES.WITHDRAWAL_FEE} fee).`;
+        }
+
         console.error('Privacy withdraw error:', error);
 
         const result: PrivacyTxResult = {
@@ -268,7 +314,7 @@ export function usePrivacyCash() {
         return result;
       }
     },
-    [publicKey, walletAddress, signMessage]
+    [publicKey, walletAddress, signMessage, state.privateBalance]
   );
 
   /**
@@ -316,6 +362,11 @@ export function usePrivacyCash() {
     initialize,
     reset,
     clearCache,
+    // Validation helpers
+    validateWithdrawal,
+    getMaxWithdrawable,
+    // Fee constants
+    fees: PRIVACY_FEES,
   };
 }
 

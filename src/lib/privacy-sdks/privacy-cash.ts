@@ -38,6 +38,15 @@ const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 // SDK appends .wasm and .zkey to this path
 const CIRCUIT_BASE_PATH = '/circuit2/transaction2';
 
+// Fee constants (in SOL)
+export const PRIVACY_FEES = {
+  WITHDRAWAL_FEE: 0.006, // ~6,000,000 lamports - relay fee for ZK withdrawal
+  DEPOSIT_FEE: 0.0001, // Minimal deposit fee (mostly network fees)
+  MIN_DEPOSIT: 0.001, // Minimum deposit amount
+  MIN_WITHDRAWAL: 0.001, // Minimum withdrawal amount
+  RECOMMENDED_MIN_BALANCE: 0.01, // Recommended minimum for withdrawals
+};
+
 // Common token mints
 export const TOKEN_MINTS = {
   USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
@@ -45,6 +54,16 @@ export const TOKEN_MINTS = {
 };
 
 export type PrivacyAction = 'deposit' | 'withdraw';
+
+export interface ValidationResult {
+  valid: boolean;
+  error?: string;
+  details?: {
+    required: number;
+    available: number;
+    fee: number;
+  };
+}
 
 export interface PrivacyTxResult {
   success: boolean;
@@ -415,10 +434,90 @@ class PrivacyCashService {
    * Estimate fees for privacy operations
    */
   estimateFee(action: PrivacyAction): number {
-    // Privacy Cash charges ~0.3% protocol fee + network fees
-    const baseFee = 0.000005; // Base Solana fee
-    const privacyFee = action === 'deposit' ? 0.003 : 0.003;
-    return baseFee + privacyFee;
+    if (action === 'withdraw') {
+      return PRIVACY_FEES.WITHDRAWAL_FEE;
+    }
+    return PRIVACY_FEES.DEPOSIT_FEE;
+  }
+
+  /**
+   * Validate withdrawal parameters
+   */
+  validateWithdrawal(amountInSOL: number, privateBalanceSOL: number): ValidationResult {
+    const fee = PRIVACY_FEES.WITHDRAWAL_FEE;
+    const totalRequired = amountInSOL + fee;
+
+    if (amountInSOL <= 0) {
+      return {
+        valid: false,
+        error: 'Withdrawal amount must be greater than 0',
+      };
+    }
+
+    if (amountInSOL < PRIVACY_FEES.MIN_WITHDRAWAL) {
+      return {
+        valid: false,
+        error: `Minimum withdrawal is ${PRIVACY_FEES.MIN_WITHDRAWAL} SOL`,
+      };
+    }
+
+    if (privateBalanceSOL < totalRequired) {
+      return {
+        valid: false,
+        error: `Insufficient private balance. You need ${totalRequired.toFixed(4)} SOL (${amountInSOL} + ${fee} fee), but only have ${privateBalanceSOL.toFixed(4)} SOL`,
+        details: {
+          required: totalRequired,
+          available: privateBalanceSOL,
+          fee,
+        },
+      };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Validate deposit parameters
+   */
+  validateDeposit(amountInSOL: number, walletBalanceSOL: number): ValidationResult {
+    const fee = PRIVACY_FEES.DEPOSIT_FEE;
+    const totalRequired = amountInSOL + fee;
+
+    if (amountInSOL <= 0) {
+      return {
+        valid: false,
+        error: 'Deposit amount must be greater than 0',
+      };
+    }
+
+    if (amountInSOL < PRIVACY_FEES.MIN_DEPOSIT) {
+      return {
+        valid: false,
+        error: `Minimum deposit is ${PRIVACY_FEES.MIN_DEPOSIT} SOL`,
+      };
+    }
+
+    if (walletBalanceSOL < totalRequired) {
+      return {
+        valid: false,
+        error: `Insufficient wallet balance. You need ${totalRequired.toFixed(4)} SOL (${amountInSOL} + ~${fee} fee), but only have ${walletBalanceSOL.toFixed(4)} SOL`,
+        details: {
+          required: totalRequired,
+          available: walletBalanceSOL,
+          fee,
+        },
+      };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Get maximum withdrawable amount (balance - fee)
+   */
+  getMaxWithdrawable(privateBalanceSOL: number): number {
+    const maxAmount = privateBalanceSOL - PRIVACY_FEES.WITHDRAWAL_FEE;
+    return Math.max(0, maxAmount);
   }
 
   /**
