@@ -26,7 +26,8 @@ export function useWalletBalances(walletAddress: string | null) {
     setError(null);
 
     try {
-      const data = await heliusService.getWalletBalances(walletAddress);
+      // Use RPC for real-time data (no indexing delay)
+      const data = await heliusService.getBalancesFromRPC(walletAddress);
       setBalances(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch balances');
@@ -69,7 +70,8 @@ export function useWalletBalances(walletAddress: string | null) {
     fromMint: string,
     toMint: string,
     fromAmount: number,
-    toAmount: number
+    toAmount: number,
+    toDecimals?: number
   ) => {
     setBalances(prev => {
       if (!prev) return prev;
@@ -82,8 +84,13 @@ export function useWalletBalances(walletAddress: string | null) {
         newSol = prev.sol + toAmount;
       }
 
-      // Update token balances
-      const newTokens = prev.tokens.map(token => {
+      // Check if toMint token exists in the array
+      const toTokenExists = prev.tokens.some(
+        t => t.mint.toLowerCase() === toMint.toLowerCase()
+      );
+
+      // Update existing token balances
+      let newTokens = prev.tokens.map(token => {
         if (token.mint.toLowerCase() === fromMint.toLowerCase()) {
           return {
             ...token,
@@ -100,6 +107,23 @@ export function useWalletBalances(walletAddress: string | null) {
         }
         return token;
       });
+
+      // If receiving token doesn't exist, ADD it to the array
+      if (!toTokenExists && toMint !== 'So11111111111111111111111111111111111111112') {
+        const decimals = toDecimals || 6; // Default to 6 (USDC/USDT)
+        newTokens = [
+          ...newTokens,
+          {
+            mint: toMint,
+            amount: toAmount * Math.pow(10, decimals),
+            decimals,
+            uiAmount: toAmount,
+            symbol: undefined,
+            name: undefined,
+            logoURI: undefined,
+          },
+        ];
+      }
 
       return {
         ...prev,

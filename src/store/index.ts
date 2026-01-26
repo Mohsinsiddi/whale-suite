@@ -82,11 +82,13 @@ export const useWallet = () =>
       balance: state.balance,
       hiddenBalance: state.hiddenBalance,
       walletLoading: state.walletLoading,
+      balanceRefreshTrigger: state.balanceRefreshTrigger,
       setWallet: state.setWallet,
       setConnected: state.setConnected,
       setBalance: state.setBalance,
       setHiddenBalance: state.setHiddenBalance,
       setWalletLoading: state.setWalletLoading,
+      triggerBalanceRefresh: state.triggerBalanceRefresh,
       resetWallet: state.resetWallet,
     }))
   );

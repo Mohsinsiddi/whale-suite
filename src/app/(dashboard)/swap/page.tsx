@@ -69,7 +69,7 @@ const DEFAULT_TOKENS: Token[] = [
 export default function SwapPage() {
   const { walletAddress, authenticated } = useAuth();
   const { balances, loading: balancesLoading, refetch: refetchBalances, optimisticSwapUpdate } = useWalletBalances(walletAddress);
-  const { balance: storeBalance, setBalance: setStoreBalance } = useWallet();
+  const { balance: storeBalance, setBalance: setStoreBalance, triggerBalanceRefresh } = useWallet();
   const {
     executeSwap,
     getExpectedOutput,
@@ -217,7 +217,8 @@ export default function SwapPage() {
         fromToken.mint,
         toToken.mint,
         parseFloat(fromAmount),
-        result.outputAmount
+        result.outputAmount,
+        toToken.decimals
       );
 
       // Also update global store balance if SOL is involved
@@ -226,6 +227,9 @@ export default function SwapPage() {
       } else if (toToken.mint === TOKEN_MINTS.SOL) {
         setStoreBalance((storeBalance || 0) + result.outputAmount);
       }
+
+      // Trigger header balance refresh
+      triggerBalanceRefresh();
 
       // Clear inputs
       setFromAmount("");

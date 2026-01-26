@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { useStore } from '@/store';
 
 // RPC endpoints with fallbacks
 // Helius free tier: https://docs.helius.dev/ (recommended)
@@ -20,6 +21,8 @@ interface WalletBalance {
 }
 
 export function useWalletBalance(walletAddress: string | null): WalletBalance {
+  // Subscribe to global balance refresh trigger
+  const balanceRefreshTrigger = useStore((state) => state.balanceRefreshTrigger);
   const [balance, setBalance] = useState<number>(0);
   const [lamports, setLamports] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
@@ -64,6 +67,13 @@ export function useWalletBalance(walletAddress: string | null): WalletBalance {
     const interval = setInterval(fetchBalance, 30000);
     return () => clearInterval(interval);
   }, [walletAddress, fetchBalance]);
+
+  // Refetch when global refresh trigger changes (e.g., after swap)
+  useEffect(() => {
+    if (balanceRefreshTrigger > 0 && walletAddress) {
+      fetchBalance();
+    }
+  }, [balanceRefreshTrigger, walletAddress, fetchBalance]);
 
   return {
     balance,

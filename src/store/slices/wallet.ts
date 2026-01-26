@@ -7,6 +7,7 @@ export interface WalletSlice {
   balance: number;
   hiddenBalance: number;
   walletLoading: boolean;
+  balanceRefreshTrigger: number; // Increment to trigger balance refresh across components
 
   // Actions
   setWallet: (wallet: string | null) => void;
@@ -14,6 +15,7 @@ export interface WalletSlice {
   setBalance: (balance: number) => void;
   setHiddenBalance: (balance: number) => void;
   setWalletLoading: (loading: boolean) => void;
+  triggerBalanceRefresh: () => void;
   resetWallet: () => void;
 }
 
@@ -23,6 +25,7 @@ const initialWalletState = {
   balance: 0,
   hiddenBalance: 0,
   walletLoading: false,
+  balanceRefreshTrigger: 0,
 };
 
 export const createWalletSlice: StateCreator<WalletSlice, [], [], WalletSlice> = (set) => ({
@@ -42,6 +45,9 @@ export const createWalletSlice: StateCreator<WalletSlice, [], [], WalletSlice> =
 
   setWalletLoading: (loading: boolean) =>
     set({ walletLoading: loading }),
+
+  triggerBalanceRefresh: () =>
+    set((state) => ({ balanceRefreshTrigger: state.balanceRefreshTrigger + 1 })),
 
   resetWallet: () =>
     set(initialWalletState),
