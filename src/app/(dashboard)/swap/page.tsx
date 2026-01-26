@@ -528,6 +528,7 @@ export default function SwapPage() {
                       );
                       const logoURI = defaultToken?.logoURI || token.logoURI;
                       const symbol = defaultToken?.symbol || token.symbol || "???";
+                      // eslint-disable-next-line @typescript-eslint/no-unused-vars
                       const name = defaultToken?.name || token.name || symbol;
 
                       return (

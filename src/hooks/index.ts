@@ -12,6 +12,7 @@ export { useWalletBalance } from './useWalletBalance';
 export { useSwap } from './useSwap';
 export { useTransfer } from './useTransfer';
 export { usePrivacyCash } from './usePrivacyCash';
+export { useShadowWire } from './useShadowWire';
 export {
   useWalletBalances,
   useTransactionHistory,

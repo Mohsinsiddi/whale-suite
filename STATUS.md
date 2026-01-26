@@ -1,6 +1,6 @@
 # 🐋 WHALE SUITE - PROJECT STATUS
 
-> Last Updated: 2026-01-26
+> Last Updated: 2026-01-27
 > Status: 🟡 IN PROGRESS
 
 ---
@@ -9,14 +9,14 @@
 
 ```
 Foundation    [██████████] 100%
-Pages         [████░░░░░░] 40%
-Components    [██████░░░░] 60%
+Pages         [████████░░] 80%
+Components    [████████░░] 80%
 API Routes    [████████░░] 80%
-SDK Integrations [████░░░░░░] 40%
+SDK Integrations [████████░░] 80%
 Database      [██████████] 100%
 Smart Contract [░░░░░░░░░░] 0%
 ─────────────────────────────
-TOTAL         [██████░░░░] 60%
+TOTAL         [████████░░] 75%
 ```
 
 ---
@@ -42,27 +42,29 @@ TOTAL         [██████░░░░] 60%
 
 | Route | Page | Status | Priority | Notes |
 |-------|------|--------|----------|-------|
-| `/` | Landing | 🔴 Not Started | P0 | Hero, features, CTA |
+| `/` | Landing | ✅ Done | P0 | Hero, features, CTA |
 | `/docs` | Documentation | 🔴 Not Started | P2 | MDX support |
 | `/docs/[...slug]` | Doc Pages | 🔴 Not Started | P2 | Dynamic routes |
-| `/connect` | Connect Wallet | 🔴 Not Started | P0 | Privy integration |
+| `/connect` | Connect Wallet | ✅ Done | P0 | Privy integration |
 
 ### Protected Pages (Auth Required)
 
 | Route | Page | Status | Priority | Notes |
 |-------|------|--------|----------|-------|
 | `/onboarding` | Onboarding | 🔴 Not Started | P0 | First-time setup |
-| `/dashboard` | Dashboard | 🔴 Not Started | P0 | Command center |
-| `/vaults` | Shadow Vaults | 🔴 Not Started | P0 | List all vaults |
+| `/dashboard` | Dashboard | ✅ Done | P0 | Command center |
+| `/vaults` | Shadow Vaults | ✅ Done | P0 | List all vaults |
 | `/vaults/[id]` | Vault Detail | 🔴 Not Started | P1 | Single vault view |
-| `/transfer` | Ghost Send | 🔴 Not Started | P1 | Private transfers |
-| `/swap` | Swap | 🔴 Not Started | P1 | Jupiter integration |
-| `/markets` | Markets | 🔴 Not Started | P2 | PNP prediction markets |
-| `/intelligence` | Whale Intel | 🔴 Not Started | P1 | Whale feed & signals |
-| `/portfolio` | Portfolio | 🔴 Not Started | P1 | P&L tracking |
-| `/badges` | Badges | 🔴 Not Started | P1 | NFT marketplace |
-| `/affiliate` | Affiliate | 🔴 Not Started | P2 | Referral dashboard |
-| `/profile` | Profile | 🔴 Not Started | P2 | Settings |
+| `/transfer` | Ghost Send | ✅ Done | P1 | SOL transfers |
+| `/swap` | Swap | ✅ Done | P1 | Jupiter Swap API v1 with optimistic updates |
+| `/privacy` | Privacy Cash | ✅ Done | P0 | Shield/Unshield SOL |
+| `/markets` | Markets | ✅ Done | P2 | PNP prediction markets |
+| `/intelligence` | Whale Intel | ✅ Done | P1 | Whale feed & signals |
+| `/portfolio` | Portfolio | ✅ Done | P1 | P&L tracking |
+| `/badges` | Badges | ✅ Done | P1 | NFT marketplace |
+| `/affiliate` | Affiliate | ✅ Done | P2 | Referral dashboard |
+| `/profile` | Profile | ✅ Done | P2 | User profile |
+| `/settings` | Settings | ✅ Done | P2 | User settings |
 
 **Priority Legend:** P0 = Must have | P1 = Should have | P2 = Nice to have
 
@@ -272,11 +274,12 @@ TOTAL         [██████░░░░] 60%
 | SDK | Package | Status | File | Notes |
 |-----|---------|--------|------|-------|
 | Privy | `@privy-io/react-auth` | ✅ Done | `lib/privy/config.ts` | Auth + Solana wallets |
-| Helius | `helius-sdk` | ✅ Done | `lib/privacy-sdks/helius.ts` | RPC + Whale feed + Balances |
-| Jupiter | `@jup-ag/api` | ✅ Done | `lib/privacy-sdks/jupiter.ts` | Swaps |
+| Helius | `helius-sdk` | ✅ Done | `lib/privacy-sdks/helius.ts` | RPC + Whale feed + Balances + Token Metadata |
+| Jupiter | Swap API v1 | ✅ Done | `lib/privacy-sdks/jupiter.ts` | Swaps with dynamic decimals + optimistic updates |
 | Privacy Cash | Custom | ✅ Done | `lib/privacy-sdks/privacy-cash.ts` | Deposit/Withdraw shielded pool |
 | Transfer | Custom | ✅ Done | `lib/privacy-sdks/transfer.ts` | SOL transfers |
-| Light Protocol | `@lightprotocol/stateless.js` | ⬜ Pending | - | ZK private transfers |
+| ShadowWire | `@radr/shadowwire` | ✅ Done | `lib/privacy-sdks/shadow-wire.ts` | Bulletproof ZK private transfers ($15k bounty) |
+| Light Protocol | `@lightprotocol/stateless.js` | ⬜ Pending | - | Alternative ZK private transfers |
 | PNP Exchange | Custom API | ⬜ Pending | `lib/privacy-sdks/pnp.ts` | Markets |
 
 ---
@@ -285,11 +288,11 @@ TOTAL         [██████░░░░] 60%
 
 | Slice | Status | File |
 |-------|--------|------|
-| authSlice | 🔴 Not Started | `store/slices/auth.ts` |
-| userSlice | 🔴 Not Started | `store/slices/user.ts` |
-| vaultSlice | 🔴 Not Started | `store/slices/vault.ts` |
-| uiSlice | 🔴 Not Started | `store/slices/ui.ts` |
-| Store Index | 🔴 Not Started | `store/index.ts` |
+| authSlice | ✅ Done | `store/slices/auth.ts` |
+| userSlice | ✅ Done | `store/slices/user.ts` |
+| walletSlice | ✅ Done | `store/slices/wallet.ts` - Balance refresh trigger |
+| uiSlice | ✅ Done | `store/slices/ui.ts` |
+| Store Index | ✅ Done | `store/index.ts` - Combined store with selectors |
 
 ---
 
@@ -329,7 +332,11 @@ Track any changes made during development here.
 | 2026-01-26 | Privacy Cash | Replaced Elusiv with `privacycash` package | Elusiv deprecated Jan 2025 |
 | 2026-01-26 | ShadowWire | No npm, need GitHub clone | Package not on npm |
 | 2026-01-26 | PNP Exchange | Marked as NOT anonymous | PNP is regular prediction market |
-| | | | |
+| 2026-01-27 | Jupiter Swap | Switched from Ultra API to Swap v1 API | Ultra API returning quote errors |
+| 2026-01-27 | Token Decimals | Fetch decimals from blockchain | Different tokens have different decimals (6 vs 9) |
+| 2026-01-27 | Balance Updates | Added optimistic updates + RPC fetch | Helius API has indexing delay |
+| 2026-01-27 | Header Sync | Added balance refresh trigger to Zustand | Header uses separate hook from swap page |
+| 2026-01-27 | ShadowWire SDK | Full integration with @radr/shadowwire | $15k Radr Labs bounty - Bulletproof ZK transfers |
 | | | | |
 
 ---
@@ -370,20 +377,22 @@ Track any changes made during development here.
 14. [x] Add transaction progress modals
 15. [x] Create Privacy Cash service (deposit/withdraw shielded pool)
 16. [x] Create Privacy Cash page UI (/privacy)
-17. [ ] Integrate real-time whale feed on Intelligence page
-18. [ ] Build Badge NFT purchase flow
-19. [ ] Add Affiliate dashboard with referral tracking
+17. [x] Integrate ShadowWire SDK for private transfers ($15k bounty)
+18. [ ] Integrate real-time whale feed on Intelligence page
+19. [ ] Build Badge NFT purchase flow
+20. [ ] Add Affiliate dashboard with referral tracking
 
 ---
 
 ## 💡 NOTES
 
 - **Privy Embedded Wallets** = Shadow Vaults (not PDAs)
-- **Privacy Cash** = Dark Pool deposits/withdrawals
-- **ShadowWire** = Ghost Send (anonymous transfers)
+- **Privacy Cash** = Dark Pool deposits/withdrawals (ZK proof based)
+- **ShadowWire** = Ghost Send (Bulletproof ZK transfers) - Internal: hidden amount, External: anonymous sender
 - **PNP** = Prediction markets (NOT anonymous)
-- **Jupiter** = Swaps (public, not private)
-- **Helius** = Whale intelligence feed
+- **Jupiter Swap API v1** = Swaps (public, not private) with optimistic balance updates
+- **Helius** = Whale intelligence feed + RPC balance fetching (real-time, no indexing delay)
+- **Zustand Store** = Global state with balance refresh trigger for header sync
 
 ---
 

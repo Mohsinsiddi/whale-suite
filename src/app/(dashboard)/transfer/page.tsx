@@ -7,7 +7,7 @@ import Badge from "@/components/ui/Badge";
 import Input, { AmountInput } from "@/components/ui/Input";
 import Tabs, { TabPanel } from "@/components/ui/Tabs";
 import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
-import { useTransfer, useWalletBalance } from "@/hooks";
+import { useTransfer, useWalletBalance, useShadowWire } from "@/hooks";
 import { useAuth } from "@/lib/privy/hooks";
 import { TransferType } from "@/lib/privacy-sdks";
 
@@ -20,10 +20,31 @@ export default function TransferPage() {
     validateAddress,
     loading: transferLoading,
     result: transferResult,
-    estimate,
     error: transferError,
     reset: resetTransfer,
   } = useTransfer();
+
+  // ShadowWire hook for private transfers
+  const {
+    internalTransfer,
+    externalTransfer,
+    deposit: shadowWireDeposit,
+    shieldedBalance,
+    fetchShieldedBalance,
+    loading: shadowWireLoading,
+    result: shadowWireResult,
+    error: shadowWireError,
+    calculateFee: shadowWireCalculateFee,
+    getMinimumAmount: shadowWireMinAmount,
+    initialize: initShadowWire,
+    initialized: shadowWireInitialized,
+    wasmSupported,
+    reset: resetShadowWire,
+  } = useShadowWire();
+
+  // Minimum amounts
+  const MIN_DEPOSIT_AMOUNT = shadowWireMinAmount('SOL'); // 0.1 SOL
+  const MIN_TRANSFER_AMOUNT = shadowWireMinAmount('SOL'); // 0.1 SOL
 
   const [activeTab, setActiveTab] = useState("private");
   const [amount, setAmount] = useState("");
@@ -32,6 +53,30 @@ export default function TransferPage() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [recipientError, setRecipientError] = useState<string | null>(null);
+  const [privateTransferType, setPrivateTransferType] = useState<"internal" | "external">("internal");
+  const [depositAmount, setDepositAmount] = useState("");
+  const [showDepositSection, setShowDepositSection] = useState(false);
+  const [depositError, setDepositError] = useState<string | null>(null);
+  const [amountError, setAmountError] = useState<string | null>(null);
+
+  // Fetch shielded balance when wallet changes
+  useEffect(() => {
+    if (walletAddress && activeTab === "private") {
+      fetchShieldedBalance();
+    }
+  }, [walletAddress, activeTab, fetchShieldedBalance]);
+
+  // Shielded balance in SOL (available balance from pool)
+  const shieldedBalanceSOL = shieldedBalance?.available ? shieldedBalance.available / 1e9 : 0;
+
+  // Combined loading state
+  const isLoading = transferLoading || shadowWireLoading;
+
+  // Combined error state
+  const combinedError = activeTab === "private" ? shadowWireError : transferError;
+
+  // Combined result
+  const combinedResult = activeTab === "private" ? shadowWireResult : transferResult;
 
   const tabs = [
     { id: "private", label: "Private Transfer", icon: <GhostIcon /> },
@@ -55,6 +100,38 @@ export default function TransferPage() {
     }
   }, [amount, recipient, activeTab, estimateTransfer, validateAddress]);
 
+  // Validate deposit amount
+  useEffect(() => {
+    const depositValue = parseFloat(depositAmount);
+    if (!depositAmount || depositAmount === "") {
+      setDepositError(null);
+    } else if (isNaN(depositValue) || depositValue <= 0) {
+      setDepositError("Please enter a valid amount");
+    } else if (depositValue < MIN_DEPOSIT_AMOUNT) {
+      setDepositError(`Minimum deposit is ${MIN_DEPOSIT_AMOUNT} SOL (anti-spam)`);
+    } else if (depositValue > balance) {
+      setDepositError("Insufficient balance");
+    } else {
+      setDepositError(null);
+    }
+  }, [depositAmount, balance, MIN_DEPOSIT_AMOUNT]);
+
+  // Validate transfer amount for private transfers
+  useEffect(() => {
+    const amountValue = parseFloat(amount);
+    if (!amount || amount === "" || activeTab !== "private") {
+      setAmountError(null);
+    } else if (isNaN(amountValue) || amountValue <= 0) {
+      setAmountError("Please enter a valid amount");
+    } else if (amountValue < MIN_TRANSFER_AMOUNT) {
+      setAmountError(`Minimum transfer is ${MIN_TRANSFER_AMOUNT} SOL`);
+    } else if (amountValue > shieldedBalanceSOL) {
+      setAmountError(`Insufficient shielded balance. You have ${shieldedBalanceSOL.toFixed(4)} SOL in pool.`);
+    } else {
+      setAmountError(null);
+    }
+  }, [amount, activeTab, shieldedBalanceSOL, MIN_TRANSFER_AMOUNT]);
+
   const getStepStatus = (stepIndex: number): "pending" | "active" | "completed" => {
     if (currentStep > stepIndex) return "completed";
     if (currentStep === stepIndex) return "active";
@@ -63,9 +140,9 @@ export default function TransferPage() {
 
   const txSteps = activeTab === "private"
     ? [
-        { label: "Preparing transaction", status: getStepStatus(0) },
-        { label: "Encrypting amount", status: getStepStatus(1) },
-        { label: "Broadcasting to network", status: getStepStatus(2) },
+        { label: "Initializing ZK proofs...", status: getStepStatus(0) },
+        { label: "Generating Bulletproof range proof...", status: getStepStatus(1) },
+        { label: "Broadcasting to ShadowWire...", status: getStepStatus(2) },
       ]
     : [
         { label: "Building transaction", status: getStepStatus(0) },
@@ -76,24 +153,77 @@ export default function TransferPage() {
   const handleSend = async () => {
     if (!amount || !recipient || recipientError) return;
 
+    const amountValue = parseFloat(amount);
+
+    // Validate for private transfers
+    if (activeTab === "private") {
+      if (amountValue < MIN_TRANSFER_AMOUNT) {
+        setAmountError(`Minimum transfer is ${MIN_TRANSFER_AMOUNT} SOL`);
+        return;
+      }
+
+      if (amountValue > shieldedBalanceSOL) {
+        setAmountError(`Insufficient shielded balance. Please deposit at least ${amountValue.toFixed(4)} SOL to the pool first.`);
+        return;
+      }
+    }
+
     setShowTxModal(true);
     setCurrentStep(0);
 
-    // Step 1: Preparing
-    await new Promise((r) => setTimeout(r, 500));
-    setCurrentStep(1);
+    if (activeTab === "private") {
+      // Private transfer using ShadowWire SDK
+      // Step 1: Initialize ZK proofs
+      await new Promise((r) => setTimeout(r, 300));
 
-    // Step 2: Execute transfer
-    const type: TransferType = activeTab === "private" ? "private" : "standard";
-    const result = await executeTransfer(recipient, parseFloat(amount), type);
+      // Initialize WASM if needed
+      if (!shadowWireInitialized) {
+        const initialized = await initShadowWire();
+        if (!initialized) {
+          setShowTxModal(false);
+          return;
+        }
+      }
 
-    setCurrentStep(2);
-    await new Promise((r) => setTimeout(r, 500));
+      setCurrentStep(1);
+      // Step 2: Generate proof and execute transfer
+      await new Promise((r) => setTimeout(r, 200));
 
-    setShowTxModal(false);
+      let result;
+      if (privateTransferType === "internal") {
+        // Internal transfer: amount hidden via Bulletproofs
+        result = await internalTransfer(recipient, parseFloat(amount));
+      } else {
+        // External transfer: sender anonymous
+        result = await externalTransfer(recipient, parseFloat(amount));
+      }
 
-    if (result?.success) {
-      setShowSuccessModal(true);
+      setCurrentStep(2);
+      await new Promise((r) => setTimeout(r, 300));
+
+      setShowTxModal(false);
+
+      if (result?.success) {
+        setShowSuccessModal(true);
+      }
+    } else {
+      // Standard transfer
+      // Step 1: Preparing
+      await new Promise((r) => setTimeout(r, 500));
+      setCurrentStep(1);
+
+      // Step 2: Execute transfer
+      const type: TransferType = "standard";
+      const result = await executeTransfer(recipient, parseFloat(amount), type);
+
+      setCurrentStep(2);
+      await new Promise((r) => setTimeout(r, 500));
+
+      setShowTxModal(false);
+
+      if (result?.success) {
+        setShowSuccessModal(true);
+      }
     }
   };
 
@@ -101,7 +231,58 @@ export default function TransferPage() {
     setShowSuccessModal(false);
     setAmount("");
     setRecipient("");
+    setDepositAmount("");
+    setDepositError(null);
+    setAmountError(null);
     resetTransfer();
+    resetShadowWire();
+    // Refresh shielded balance after successful operation
+    if (walletAddress) {
+      fetchShieldedBalance();
+    }
+  };
+
+  // Handle deposit to shielded pool
+  const handleDeposit = async () => {
+    const depositValue = parseFloat(depositAmount);
+
+    // Validate before proceeding
+    if (!depositAmount || isNaN(depositValue) || depositValue <= 0) {
+      setDepositError("Please enter a valid amount");
+      return;
+    }
+
+    if (depositValue < MIN_DEPOSIT_AMOUNT) {
+      setDepositError(`Minimum deposit is ${MIN_DEPOSIT_AMOUNT} SOL (anti-spam protection)`);
+      return;
+    }
+
+    if (depositValue > balance) {
+      setDepositError("Insufficient wallet balance");
+      return;
+    }
+
+    setShowTxModal(true);
+    setCurrentStep(0);
+
+    // Step 1: Preparing deposit
+    await new Promise((r) => setTimeout(r, 300));
+    setCurrentStep(1);
+
+    // Step 2: Execute deposit
+    const result = await shadowWireDeposit(parseFloat(depositAmount));
+
+    setCurrentStep(2);
+    await new Promise((r) => setTimeout(r, 300));
+
+    setShowTxModal(false);
+
+    if (result?.success) {
+      setDepositAmount("");
+      setShowDepositSection(false);
+      // Refresh shielded balance
+      await fetchShieldedBalance();
+    }
   };
 
   return (
@@ -126,6 +307,91 @@ export default function TransferPage() {
 
             <TabPanel value="private" activeValue={activeTab} className="mt-6">
               <div className="space-y-5">
+                {/* WASM Support Warning */}
+                {!wasmSupported && (
+                  <div className="p-3 rounded-xl bg-warning/10 border border-warning/20">
+                    <p className="text-xs text-warning">
+                      Your browser does not support WebAssembly. Private transfers require a modern browser.
+                    </p>
+                  </div>
+                )}
+
+                {/* Shielded Balance - Required for Private Transfers */}
+                <div className="p-3 rounded-xl bg-gradient-to-r from-neon-green/10 to-neon-cyan/10 border border-neon-green/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <ShieldIcon className="w-4 h-4 text-neon-green" />
+                      <span className="text-xs font-medium text-neon-green">ShadowWire Pool Balance</span>
+                    </div>
+                    <button
+                      onClick={() => fetchShieldedBalance()}
+                      className="text-xs text-text-muted hover:text-neon-green transition-colors"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-lg font-bold text-text-primary">
+                      {shieldedBalanceSOL.toFixed(4)} SOL
+                    </div>
+                    <button
+                      onClick={() => setShowDepositSection(!showDepositSection)}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-neon-green/20 text-neon-green hover:bg-neon-green/30 transition-colors"
+                    >
+                      {showDepositSection ? 'Hide Deposit' : '+ Deposit'}
+                    </button>
+                  </div>
+                  {shieldedBalanceSOL === 0 && (
+                    <p className="text-xs text-warning mt-2">
+                      You need to deposit SOL into the shielded pool before making private transfers.
+                    </p>
+                  )}
+                </div>
+
+                {/* Deposit Section */}
+                {showDepositSection && (
+                  <div className={`p-3 rounded-xl bg-bg-tertiary border space-y-3 ${
+                    depositError ? 'border-error/50' : 'border-border-secondary'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-text-secondary">Deposit to Shielded Pool</span>
+                      <span className="text-xs text-text-muted">
+                        Public Balance: {balance.toFixed(4)} SOL
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={depositAmount}
+                        onChange={(e) => setDepositAmount(e.target.value)}
+                        placeholder={`Min ${MIN_DEPOSIT_AMOUNT} SOL`}
+                        min={MIN_DEPOSIT_AMOUNT}
+                        step="0.1"
+                        className={`flex-1 px-3 py-2 rounded-lg bg-bg-elevated border text-sm text-text-primary placeholder:text-text-muted focus:outline-none ${
+                          depositError
+                            ? 'border-error/50 focus:border-error'
+                            : 'border-border-secondary focus:border-neon-green'
+                        }`}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={handleDeposit}
+                        disabled={!!depositError || !depositAmount || shadowWireLoading}
+                        loading={shadowWireLoading}
+                      >
+                        Deposit
+                      </Button>
+                    </div>
+                    {depositError ? (
+                      <p className="text-[10px] text-error">{depositError}</p>
+                    ) : (
+                      <p className="text-[10px] text-text-muted">
+                        Minimum deposit: {MIN_DEPOSIT_AMOUNT} SOL. Funds will be available for private transfers.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* From Wallet */}
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">
@@ -148,9 +414,40 @@ export default function TransferPage() {
                         <div className="text-sm font-medium text-neon-green">
                           {balanceLoading ? '...' : `${balance.toFixed(4)} SOL`}
                         </div>
-                        <div className="text-xs text-text-muted">Available</div>
+                        <div className="text-xs text-text-muted">Public Balance</div>
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Privacy Type Selector */}
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1.5">
+                    Privacy Type
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setPrivateTransferType("internal")}
+                      className={`p-3 rounded-xl border transition-all ${
+                        privateTransferType === "internal"
+                          ? "bg-neon-green/10 border-neon-green text-neon-green"
+                          : "bg-bg-tertiary border-border-secondary text-text-secondary hover:border-border-primary"
+                      }`}
+                    >
+                      <div className="text-xs font-medium mb-0.5">Hidden Amount</div>
+                      <div className="text-[10px] opacity-70">Amount hidden via ZK proof</div>
+                    </button>
+                    <button
+                      onClick={() => setPrivateTransferType("external")}
+                      className={`p-3 rounded-xl border transition-all ${
+                        privateTransferType === "external"
+                          ? "bg-neon-cyan/10 border-neon-cyan text-neon-cyan"
+                          : "bg-bg-tertiary border-border-secondary text-text-secondary hover:border-border-primary"
+                      }`}
+                    >
+                      <div className="text-xs font-medium mb-0.5">Anonymous Sender</div>
+                      <div className="text-[10px] opacity-70">Your identity is hidden</div>
+                    </button>
                   </div>
                 </div>
 
@@ -164,21 +461,41 @@ export default function TransferPage() {
                 />
 
                 {/* Amount */}
-                <AmountInput
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  balance={`${balance.toFixed(4)} SOL`}
-                  onMaxClick={() => setAmount((balance - 0.001).toFixed(4))}
-                />
+                <div>
+                  <AmountInput
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    balance={`Pool: ${shieldedBalanceSOL.toFixed(4)} SOL`}
+                    onMaxClick={() => setAmount(Math.max(0, shieldedBalanceSOL - 0.001).toFixed(4))}
+                    error={amountError || undefined}
+                  />
+                  {!amountError && parseFloat(amount) > 0 && (
+                    <p className="text-[10px] text-text-muted mt-1">
+                      Transfers use your shielded pool balance, not public wallet.
+                    </p>
+                  )}
+                </div>
 
                 {/* Privacy Info */}
-                <div className="p-3 rounded-xl bg-neon-green/5 border border-neon-green/20">
+                <div className={`p-3 rounded-xl ${
+                  privateTransferType === "internal"
+                    ? "bg-neon-green/5 border border-neon-green/20"
+                    : "bg-neon-cyan/5 border border-neon-cyan/20"
+                }`}>
                   <div className="flex items-start gap-2">
-                    <ShieldIcon className="w-4 h-4 text-neon-green mt-0.5" />
+                    <ShieldIcon className={`w-4 h-4 mt-0.5 ${
+                      privateTransferType === "internal" ? "text-neon-green" : "text-neon-cyan"
+                    }`} />
                     <div>
-                      <p className="text-xs font-medium text-neon-green mb-1">Private Transfer</p>
+                      <p className={`text-xs font-medium mb-1 ${
+                        privateTransferType === "internal" ? "text-neon-green" : "text-neon-cyan"
+                      }`}>
+                        {privateTransferType === "internal" ? "Hidden Amount Transfer" : "Anonymous Transfer"}
+                      </p>
                       <p className="text-xs text-text-secondary">
-                        Amount will be hidden using zero-knowledge proofs. Only you and the recipient will know the amount.
+                        {privateTransferType === "internal"
+                          ? "Amount is hidden using Bulletproof zero-knowledge proofs. Only you and the recipient will know the amount."
+                          : "Your sender identity is hidden. The recipient receives funds from the ShadowWire pool without knowing who sent them."}
                       </p>
                     </div>
                   </div>
@@ -188,24 +505,36 @@ export default function TransferPage() {
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-text-muted">Estimated Fee</span>
                   <span className="text-text-secondary">
-                    ~{estimate?.fee?.toFixed(6) || '0.00005'} SOL
+                    ~{amount ? shadowWireCalculateFee(parseFloat(amount) || 0).fee.toFixed(6) : '0.00'} SOL
+                    <span className="text-text-muted ml-1">
+                      ({shadowWireCalculateFee(1).feePercentage.toFixed(2)}%)
+                    </span>
                   </span>
                 </div>
 
                 {/* Error Display */}
-                {transferError && (
+                {combinedError && (
                   <div className="p-3 rounded-xl bg-error/10 border border-error/20">
-                    <p className="text-xs text-error">{transferError}</p>
+                    <p className="text-xs text-error">{combinedError}</p>
                   </div>
                 )}
 
                 <Button
                   fullWidth
                   onClick={handleSend}
-                  disabled={!amount || !recipient || !!recipientError || transferLoading || parseFloat(amount) > balance}
-                  loading={transferLoading}
+                  disabled={
+                    !amount ||
+                    !recipient ||
+                    !!recipientError ||
+                    !!amountError ||
+                    isLoading ||
+                    parseFloat(amount) < MIN_TRANSFER_AMOUNT ||
+                    parseFloat(amount) > shieldedBalanceSOL ||
+                    !wasmSupported
+                  }
+                  loading={shadowWireLoading}
                 >
-                  {transferLoading ? 'Sending...' : 'Send Privately'}
+                  {shadowWireLoading ? 'Generating ZK Proof...' : `Send ${privateTransferType === "internal" ? "with Hidden Amount" : "Anonymously"}`}
                 </Button>
               </div>
             </TabPanel>
@@ -363,8 +692,8 @@ export default function TransferPage() {
         isOpen={showSuccessModal}
         onClose={handleSuccessClose}
         title="Transfer Complete!"
-        message={`Successfully sent ${amount} SOL ${activeTab === 'private' ? 'privately' : ''}`}
-        txSignature={transferResult?.signature || ''}
+        message={`Successfully sent ${amount} SOL ${activeTab === 'private' ? (privateTransferType === 'internal' ? 'with hidden amount' : 'anonymously') : ''}`}
+        txSignature={combinedResult?.signature || ''}
       />
     </div>
   );

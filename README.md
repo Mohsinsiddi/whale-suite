@@ -40,43 +40,54 @@ Successfully integrated `privacycash` SDK v1.1.11 for:
 
 ---
 
-## 2. Jupiter Swap Integration (Ultra API)
+## 2. Jupiter Swap Integration (Swap API v1)
 
-Successfully integrated Jupiter Ultra API for token swaps:
+Successfully integrated Jupiter Swap API v1 for token swaps:
 
-- **Ultra API**: Uses Jupiter's new Ultra API with automatic priority fees & transaction landing
+- **Swap API v1**: Uses Jupiter's Swap API with dynamic priority fees & slippage
 - **Token Selection**: SOL, USDC, USDT, BONK, JUP + any tokens in user's wallet
 - **Best Routes**: Jupiter finds optimal swap routes across all Solana DEXs
 - **Real-time Quotes**: Price quotes update as you type (500ms debounce)
 - **Slippage Control**: 0.1%, 0.5%, 1.0% options
 - **Price Impact Warning**: Highlights high impact swaps
 - **Wallet Token Display**: Shows all tokens in user's wallet with balances
-- **Token Search**: Search token metadata via Jupiter Search API
+- **Dynamic Decimals**: Fetches token decimals from blockchain for accurate conversions
+- **Optimistic Updates**: Balance updates instantly after swap, syncs with RPC
+- **Header Balance Sync**: Global store triggers header balance refresh
 
 **Flow:**
-1. Get Order (`/ultra/v1/order`) - Returns transaction to sign
-2. Sign with Privy wallet
-3. Execute via Jupiter (`/ultra/v1/execute`) - Jupiter handles landing
+1. Get Quote (`/swap/v1/quote`) - Returns quote with route info
+2. Get Swap Transaction (`/swap/v1/swap`) - Returns transaction to sign
+3. Sign with Privy wallet
+4. Send to network & confirm
+5. Optimistic balance update + RPC sync
 
 **Key Files:**
-- `src/lib/privacy-sdks/jupiter.ts` - Jupiter Ultra API service
+- `src/lib/privacy-sdks/jupiter.ts` - Jupiter Swap API v1 service
 - `src/hooks/useSwap.ts` - React hook with Privy signing
+- `src/hooks/useHelius.ts` - Balance hooks with optimistic updates
 - `src/app/(dashboard)/swap/page.tsx` - Jupiter Swap UI (public swaps)
 
 ---
 
 ## 3. Helius Integration
 
-Helius API integration for:
+Helius API + Direct RPC integration for:
 
-- **SOL Balance**: Real-time SOL balance fetching
+- **SOL Balance**: Real-time SOL balance fetching via RPC
 - **Token Balances**: All SPL tokens in wallet with metadata
-- **Transaction History**: Parsed transaction history
+- **RPC Balance Fetch**: Direct RPC for real-time balances (no indexing delay)
+- **Token Metadata**: Fetches decimals, symbols from Helius DAS API with RPC fallback
+- **Transaction History**: Parsed transaction history via Helius Enhanced API
 - **Auto-refresh**: Balances refresh every 30 seconds
+- **Optimistic Updates**: Instant UI updates after swaps
+- **Global Refresh Trigger**: Zustand store triggers balance refresh across components
 
 **Key Files:**
-- `src/lib/privacy-sdks/helius.ts` - Helius API service
+- `src/lib/privacy-sdks/helius.ts` - Helius API + RPC service
 - `src/hooks/useHelius.ts` - React hooks for balances, transactions, whale feed
+- `src/hooks/useWalletBalance.ts` - Header balance hook with store integration
+- `src/store/slices/wallet.ts` - Global wallet state with refresh trigger
 
 ---
 
@@ -86,13 +97,21 @@ Helius API integration for:
 src/
 ├── lib/privacy-sdks/
 │   ├── privacy-cash.ts      # Privacy Cash (ZK deposits/withdrawals)
-│   ├── jupiter.ts           # Jupiter (token swaps)
-│   ├── helius.ts            # Helius (balances, transactions)
+│   ├── jupiter.ts           # Jupiter Swap API v1 (token swaps)
+│   ├── helius.ts            # Helius API + RPC (balances, metadata)
 │   └── index.ts             # Barrel exports
 ├── hooks/
-│   ├── usePrivacyCash.ts    # Privacy Cash hook
-│   ├── useSwap.ts           # Jupiter swap hook
-│   └── useHelius.ts         # Helius data hooks
+│   ├── usePrivacyCash.ts    # Privacy Cash hook with Privy signing
+│   ├── useSwap.ts           # Jupiter swap hook with Privy signing
+│   ├── useHelius.ts         # Helius data hooks (optimistic updates)
+│   └── useWalletBalance.ts  # Header balance hook (store integration)
+├── store/
+│   ├── index.ts             # Zustand store with all slices
+│   └── slices/
+│       ├── wallet.ts        # Wallet state + balance refresh trigger
+│       ├── auth.ts          # Auth state
+│       ├── user.ts          # User profile state
+│       └── ui.ts            # UI state (modals, sidebar)
 └── app/(dashboard)/
     ├── privacy/page.tsx     # Shield/Unshield UI
     └── swap/page.tsx        # Token swap UI
@@ -138,10 +157,13 @@ Get Jupiter API key at: https://portal.jup.ag
 
 ### Jupiter Swap (Public)
 1. **Quote Debouncing**: Quotes fetch after 500ms typing delay
-2. **Slippage**: Default 0.5%, adjustable (handled by Ultra API)
+2. **Slippage**: Default 0.5%, adjustable (0.1%, 0.5%, 1.0%)
 3. **SOL Reserve**: MAX button leaves 0.01 SOL for fees
-4. **API Key Required**: Jupiter Ultra API requires an API key
-5. **Public Transactions**: All Jupiter swaps are visible on-chain (Private Swap coming soon)
+4. **API Key Optional**: Jupiter Swap API works without key, but rate-limited
+5. **Dynamic Decimals**: Token decimals fetched from blockchain (no hardcoded values)
+6. **Instant Balance Updates**: Optimistic update + RPC sync after 2 seconds
+7. **Header Sync**: Global store triggers header balance refresh
+8. **Public Transactions**: All Jupiter swaps are visible on-chain (Private Swap coming soon)
 
 ---
 

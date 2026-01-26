@@ -120,6 +120,7 @@ interface AmountInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "
   onTokenChange?: (token: string) => void;
   balance?: string;
   onMaxClick?: () => void;
+  error?: string;
 }
 
 export function AmountInput({
@@ -128,6 +129,7 @@ export function AmountInput({
   onTokenChange,
   balance,
   onMaxClick,
+  error,
   ...props
 }: AmountInputProps) {
   return (
@@ -136,7 +138,7 @@ export function AmountInput({
         <label className="text-xs font-medium text-text-secondary">Amount</label>
         {balance && (
           <span className="text-xs text-text-muted">
-            Balance: <span className="text-text-secondary">{balance}</span>
+            <span className="text-text-secondary">{balance}</span>
           </span>
         )}
       </div>
@@ -147,12 +149,16 @@ export function AmountInput({
           step="any"
           className={`
             w-full px-3 py-3 text-lg font-medium
-            bg-bg-secondary border border-border-secondary rounded-xl
+            bg-bg-secondary border rounded-xl
             text-text-primary placeholder:text-text-muted
             transition-all duration-200
-            focus:outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green/20
+            focus:outline-none focus:ring-1
             pr-24
             [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
+            ${error
+              ? "border-error focus:border-error focus:ring-error/20"
+              : "border-border-secondary focus:border-neon-green focus:ring-neon-green/20"
+            }
           `}
           placeholder="0.00"
           {...props}
@@ -186,6 +192,10 @@ export function AmountInput({
           )}
         </div>
       </div>
+
+      {error && (
+        <p className="text-xs text-error">{error}</p>
+      )}
     </div>
   );
 }
