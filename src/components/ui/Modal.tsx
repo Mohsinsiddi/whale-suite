@@ -201,6 +201,33 @@ interface SuccessModalProps {
   actions?: ReactNode;
 }
 
+// Helper to parse transaction signatures (handles "TX1:... TX2:..." format)
+function parseSignatures(signature: string): { label: string; sig: string }[] {
+  if (!signature) return [];
+
+  // Check if it contains multiple transactions (TX1:, TX2:, etc.)
+  if (signature.includes('TX1:') || signature.includes('TX2:')) {
+    const signatures: { label: string; sig: string }[] = [];
+
+    // Extract TX1
+    const tx1Match = signature.match(/TX1:([A-Za-z0-9]+)/);
+    if (tx1Match) {
+      signatures.push({ label: 'Transaction 1', sig: tx1Match[1] });
+    }
+
+    // Extract TX2
+    const tx2Match = signature.match(/TX2:([A-Za-z0-9]+)/);
+    if (tx2Match) {
+      signatures.push({ label: 'Transaction 2', sig: tx2Match[1] });
+    }
+
+    return signatures;
+  }
+
+  // Single signature
+  return [{ label: 'Transaction', sig: signature }];
+}
+
 export function SuccessModal({
   isOpen,
   onClose,
@@ -209,6 +236,8 @@ export function SuccessModal({
   txSignature,
   actions,
 }: SuccessModalProps) {
+  const signatures = parseSignatures(txSignature || '');
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="sm">
       <div className="text-center py-4">
@@ -220,16 +249,22 @@ export function SuccessModal({
         <h3 className="text-lg font-semibold text-text-primary mb-1">{title}</h3>
         <p className="text-sm text-text-secondary mb-4">{message}</p>
 
-        {txSignature && (
-          <a
-            href={`https://solscan.io/tx/${txSignature}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs text-neon-cyan hover:underline mb-4"
-          >
-            View on Solscan
-            <ExternalLinkIcon className="w-3 h-3" />
-          </a>
+        {signatures.length > 0 && (
+          <div className="space-y-2 mb-4">
+            {signatures.map((tx, index) => (
+              <a
+                key={index}
+                href={`https://solscan.io/tx/${tx.sig}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 text-xs text-neon-cyan hover:underline"
+              >
+                {signatures.length > 1 && <span className="text-text-muted">{tx.label}:</span>}
+                <span className="font-mono">{tx.sig.slice(0, 8)}...{tx.sig.slice(-8)}</span>
+                <ExternalLinkIcon className="w-3 h-3" />
+              </a>
+            ))}
+          </div>
         )}
 
         {actions || (
