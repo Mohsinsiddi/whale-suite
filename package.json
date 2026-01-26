@@ -6,10 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "node scripts/postinstall.mjs",
+    "setup-wasm": "node scripts/postinstall.mjs"
   },
   "dependencies": {
     "@jup-ag/api": "^6.0.48",
+    "@lightprotocol/hasher.rs": "^0.2.1",
     "@privy-io/react-auth": "^3.12.0",
     "@solana-program/memo": "^0.10.0",
     "@solana/web3.js": "^1.98.4",
@@ -17,6 +20,7 @@
     "helius-sdk": "^2.1.0",
     "mongoose": "^9.1.5",
     "next": "^14.2.28",
+    "privacycash": "^1.1.11",
     "react": "^18",
     "react-dom": "^18",
     "swr": "^2.3.8",
@@ -27,8 +31,10 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "copy-webpack-plugin": "^13.0.1",
     "eslint": "^8",
     "eslint-config-next": "14.2.15",
+    "null-loader": "^4.0.1",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.21.0",

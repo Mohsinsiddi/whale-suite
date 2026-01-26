@@ -19,11 +19,15 @@ export default function PrivacyCashPage() {
     loading,
     error,
     result,
+    initialized,
     deposit,
     withdraw,
     estimateFee,
+    initialize,
     reset,
   } = usePrivacyCash();
+
+  const [initLoading, setInitLoading] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TabType>("deposit");
   const [amount, setAmount] = useState("");
@@ -31,10 +35,11 @@ export default function PrivacyCashPage() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [progressStep, setProgressStep] = useState(0);
   const [progressSteps] = useState([
-    "Preparing transaction...",
+    "Initializing encryption...",
+    "Generating ZK proof...",
     "Awaiting signature...",
-    "Processing on-chain...",
-    "Confirming...",
+    "Submitting to relayer...",
+    "Confirming on-chain...",
   ]);
 
   // Handle transaction result
@@ -73,25 +78,50 @@ export default function PrivacyCashPage() {
     setShowProgressModal(true);
     setProgressStep(0);
 
-    // Simulate progress steps
-    const interval = setInterval(() => {
+    // Progress through steps as SDK processes
+    const advanceStep = () => {
       setProgressStep((prev) => Math.min(prev + 1, progressSteps.length - 1));
-    }, 1500);
+    };
 
     try {
+      // Initialize if needed (step 0)
+      if (!initialized) {
+        await initialize();
+      }
+      advanceStep(); // Step 1: ZK proof generation
+
+      // Start a timer for progress feedback during long ZK proof generation
+      const proofTimer = setTimeout(advanceStep, 3000); // Step 2 after 3s
+      const sigTimer = setTimeout(advanceStep, 6000); // Step 3 after 6s
+
       if (activeTab === "deposit") {
         await deposit(parseFloat(amount));
       } else {
         await withdraw(parseFloat(amount));
       }
-    } finally {
-      clearInterval(interval);
+
+      clearTimeout(proofTimer);
+      clearTimeout(sigTimer);
+      setProgressStep(progressSteps.length - 1); // Final step
+    } catch (err) {
+      console.error("Transaction error:", err);
     }
   };
 
   const estimatedFee = amount
-    ? estimateFee(activeTab, parseFloat(amount) || 0)
+    ? estimateFee(activeTab)
     : 0;
+
+  // Initialize encryption service when user wants to interact
+  const handleInitialize = async () => {
+    if (initialized) return;
+    setInitLoading(true);
+    try {
+      await initialize();
+    } finally {
+      setInitLoading(false);
+    }
+  };
 
   const canSubmit =
     authenticated &&
@@ -132,12 +162,24 @@ export default function PrivacyCashPage() {
             <ShieldIcon className="w-4 h-4 text-neon-green" />
             <span className="text-xs text-text-muted">Hidden Balance</span>
           </div>
-          <div className="text-2xl font-bold text-neon-green">
-            {privateBalance ? `${privateBalance.balance.toFixed(4)} SOL` : "0.0000 SOL"}
-          </div>
-          <div className="text-xs text-text-secondary">
-            {privateBalance ? `$${(privateBalance.balance * 150).toFixed(2)}` : "$0.00"}
-          </div>
+          {initialized ? (
+            <>
+              <div className="text-2xl font-bold text-neon-green">
+                {privateBalance ? `${privateBalance.balance.toFixed(4)} SOL` : "0.0000 SOL"}
+              </div>
+              <div className="text-xs text-text-secondary">
+                {privateBalance ? `$${(privateBalance.balance * 150).toFixed(2)}` : "$0.00"}
+              </div>
+            </>
+          ) : (
+            <button
+              onClick={handleInitialize}
+              disabled={initLoading || !authenticated}
+              className="text-sm text-neon-green hover:text-neon-green/80 transition-colors underline"
+            >
+              {initLoading ? "Signing..." : "Click to reveal (requires signature)"}
+            </button>
+          )}
         </Card>
 
         <Card variant="default" padding="md">

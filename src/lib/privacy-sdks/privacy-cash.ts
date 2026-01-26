@@ -1,37 +1,50 @@
 /**
  * Privacy Cash Service
- * - Deposit SOL to hide balance (shielded pool)
- * - Withdraw SOL from hidden balance
- * - Check private balance
+ * Real integration with Privacy Cash SDK for Solana Privacy Hackathon 2026
+ * $15,000 Bounty Target
  *
- * Note: This is a placeholder implementation.
- * In production, integrate with Light Protocol, Elusiv (if available),
- * or another ZK privacy solution on Solana.
+ * Features:
+ * - Deposit SOL to shielded pool (ZK proofs)
+ * - Withdraw SOL from shielded pool
+ * - SPL token support (USDC, USDT)
+ *
+ * @see https://github.com/Privacy-Cash/privacy-cash-sdk
  */
 
 import {
   Connection,
   PublicKey,
-  Transaction,
-  SystemProgram,
+  VersionedTransaction,
   LAMPORTS_PER_SOL,
 } from '@solana/web3.js';
+
+// Privacy Cash SDK - Frontend utilities
+import {
+  deposit,
+  withdraw,
+  depositSPL,
+  withdrawSPL,
+  EncryptionService,
+  getBalanceFromUtxos,
+  getUtxos,
+  getBalanceFromUtxosSPL,
+  getUtxosSPL,
+} from 'privacycash/utils';
 
 const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
 const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 
-// Privacy Pool address (placeholder - would be actual program address in production)
-// Using a valid base58 address format for demo purposes
-// In production, this would be the actual privacy protocol's pool address
-const PRIVACY_POOL_ADDRESS = '11111111111111111111111111111112'; // System program placeholder
+// Circuit files path (served from public folder)
+// SDK appends .wasm and .zkey to this path
+const CIRCUIT_BASE_PATH = '/circuit2/transaction2';
+
+// Common token mints
+export const TOKEN_MINTS = {
+  USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+  USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+};
 
 export type PrivacyAction = 'deposit' | 'withdraw';
-
-export interface PrivacyTxParams {
-  action: PrivacyAction;
-  amount: number; // in SOL
-  wallet: string;
-}
 
 export interface PrivacyTxResult {
   success: boolean;
@@ -44,119 +57,177 @@ export interface PrivacyTxResult {
 
 export interface PrivateBalance {
   balance: number; // in SOL
+  lamports: number;
   lastUpdated: number;
-  pendingDeposits: number;
-  pendingWithdrawals: number;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let lightWasm: any = null;
+
+/**
+ * Get localStorage safely (returns a mock for SSR)
+ */
+function getStorage(): Storage {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return window.localStorage;
+  }
+  // Return a mock storage for SSR - operations will fail gracefully
+  return {
+    length: 0,
+    clear: () => {},
+    getItem: () => null,
+    key: () => null,
+    removeItem: () => {},
+    setItem: () => {},
+  };
+}
+
+/**
+ * Initialize the Light Protocol WASM module
+ * Note: Requires postinstall script to copy WASM files to browser-fat/es/
+ */
+async function initLightWasm() {
+  if (lightWasm) return lightWasm;
+
+  try {
+    const { WasmFactory } = await import('@lightprotocol/hasher.rs');
+    lightWasm = await WasmFactory.getInstance();
+    return lightWasm;
+  } catch (error) {
+    console.error('Failed to initialize Light WASM:', error);
+    throw new Error('Failed to initialize privacy module');
+  }
+}
+
+/**
+ * Get wallet signature for encryption key derivation
+ */
+async function getWalletSignature(
+  signMessage: (message: Uint8Array) => Promise<Uint8Array>
+): Promise<Uint8Array> {
+  const encodedMessage = new TextEncoder().encode('Privacy Money account sign in');
+
+  try {
+    let signature = await signMessage(encodedMessage);
+
+    // Handle case where signMessage returns an object
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((signature as any).signature) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      signature = (signature as any).signature;
+    }
+
+    if (!(signature instanceof Uint8Array)) {
+      throw new Error('Signature is not a Uint8Array');
+    }
+
+    return signature;
+  } catch (error) {
+    if (error instanceof Error && error.message?.toLowerCase().includes('user rejected')) {
+      throw new Error('User rejected the signature request');
+    }
+    throw error;
+  }
 }
 
 class PrivacyCashService {
   private connection: Connection;
-  private privateBalances: Map<string, PrivateBalance> = new Map();
+  private encryptionService: EncryptionService | null = null;
 
   constructor() {
     this.connection = new Connection(HELIUS_RPC, 'confirmed');
   }
 
   /**
-   * Get private (hidden) balance for a wallet
-   * In production, this would query the privacy protocol
+   * Initialize encryption service with wallet signature
    */
-  async getPrivateBalance(walletAddress: string): Promise<PrivateBalance> {
-    // Check cached balance first
-    const cached = this.privateBalances.get(walletAddress);
-    if (cached && Date.now() - cached.lastUpdated < 30000) {
-      return cached;
+  async initEncryption(
+    signMessage: (message: Uint8Array) => Promise<Uint8Array>
+  ): Promise<EncryptionService> {
+    if (this.encryptionService) {
+      return this.encryptionService;
     }
 
-    // In production, query the actual privacy protocol
-    // For now, return stored/mock data
-    const balance: PrivateBalance = {
-      balance: cached?.balance || 0,
-      lastUpdated: Date.now(),
-      pendingDeposits: 0,
-      pendingWithdrawals: 0,
-    };
+    const signature = await getWalletSignature(signMessage);
+    this.encryptionService = new EncryptionService();
+    this.encryptionService.deriveEncryptionKeyFromSignature(signature);
 
-    this.privateBalances.set(walletAddress, balance);
-    return balance;
+    return this.encryptionService;
+  }
+
+  /**
+   * Get private (shielded) SOL balance
+   */
+  async getPrivateBalance(
+    publicKey: PublicKey,
+    signMessage: (message: Uint8Array) => Promise<Uint8Array>
+  ): Promise<PrivateBalance> {
+    try {
+      const encryptionService = await this.initEncryption(signMessage);
+
+      const utxos = await getUtxos({
+        publicKey,
+        connection: this.connection,
+        encryptionService,
+        storage: getStorage(),
+      });
+
+      const { lamports } = getBalanceFromUtxos(utxos);
+
+      return {
+        balance: lamports / LAMPORTS_PER_SOL,
+        lamports,
+        lastUpdated: Date.now(),
+      };
+    } catch (error) {
+      console.error('Error fetching private balance:', error);
+      return {
+        balance: 0,
+        lamports: 0,
+        lastUpdated: Date.now(),
+      };
+    }
   }
 
   /**
    * Deposit SOL into the privacy pool (shield funds)
    */
   async deposit(
-    walletAddress: string,
-    amount: number,
-    signTransaction: (tx: Transaction) => Promise<Transaction>
+    publicKey: PublicKey,
+    amountInSOL: number,
+    signMessage: (message: Uint8Array) => Promise<Uint8Array>,
+    signTransaction: (tx: VersionedTransaction) => Promise<VersionedTransaction>,
+    referrer?: string
   ): Promise<PrivacyTxResult> {
     try {
-      // Validate wallet address
-      if (!walletAddress || walletAddress.trim() === '') {
-        return {
-          success: false,
-          error: 'Wallet address is required',
-          action: 'deposit',
-          amount,
-        };
-      }
+      const encryptionService = await this.initEncryption(signMessage);
+      const wasm = await initLightWasm();
 
-      const publicKey = new PublicKey(walletAddress);
+      const amountInLamports = Math.floor(amountInSOL * LAMPORTS_PER_SOL);
 
-      // In production, this would call the privacy protocol's deposit instruction
-      // For now, we simulate with a standard transfer to demonstrate the flow
-
-      // Build deposit transaction
-      // Note: In real implementation, this would be a call to privacy program
-      const transaction = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: new PublicKey(PRIVACY_POOL_ADDRESS),
-          lamports: Math.floor(amount * LAMPORTS_PER_SOL),
-        })
-      );
-
-      const { blockhash, lastValidBlockHeight } =
-        await this.connection.getLatestBlockhash('confirmed');
-
-      transaction.recentBlockhash = blockhash;
-      transaction.lastValidBlockHeight = lastValidBlockHeight;
-      transaction.feePayer = publicKey;
-
-      // Sign and send
-      const signedTransaction = await signTransaction(transaction);
-      const signature = await this.connection.sendRawTransaction(
-        signedTransaction.serialize(),
-        { skipPreflight: false, preflightCommitment: 'confirmed' }
-      );
-
-      // Wait for confirmation
-      const confirmation = await this.connection.confirmTransaction(signature, 'confirmed');
-
-      if (confirmation.value.err) {
-        return {
-          success: false,
-          error: 'Transaction failed on chain',
-          action: 'deposit',
-          amount,
-        };
-      }
-
-      // Update local private balance
-      const currentBalance = this.privateBalances.get(walletAddress);
-      const newBalance = (currentBalance?.balance || 0) + amount;
-      this.privateBalances.set(walletAddress, {
-        balance: newBalance,
-        lastUpdated: Date.now(),
-        pendingDeposits: 0,
-        pendingWithdrawals: 0,
+      const result = await deposit({
+        lightWasm: wasm,
+        connection: this.connection,
+        amount_in_lamports: amountInLamports,
+        keyBasePath: CIRCUIT_BASE_PATH,
+        publicKey: publicKey,
+        transactionSigner: async (tx: VersionedTransaction) => {
+          return await signTransaction(tx);
+        },
+        storage: getStorage(),
+        encryptionService,
+        referrer: referrer || '',
       });
+
+      // Get updated balance
+      const newBalance = await this.getPrivateBalance(publicKey, signMessage);
 
       return {
         success: true,
-        signature,
+        signature: result?.tx || 'success',
         action: 'deposit',
-        amount,
-        newPrivateBalance: newBalance,
+        amount: amountInSOL,
+        newPrivateBalance: newBalance.balance,
       };
     } catch (error) {
       console.error('Privacy deposit error:', error);
@@ -164,7 +235,7 @@ class PrivacyCashService {
         success: false,
         error: error instanceof Error ? error.message : 'Deposit failed',
         action: 'deposit',
-        amount,
+        amount: amountInSOL,
       };
     }
   }
@@ -173,44 +244,39 @@ class PrivacyCashService {
    * Withdraw SOL from privacy pool (unshield funds)
    */
   async withdraw(
-    walletAddress: string,
-    amount: number,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    signTransaction: (tx: Transaction) => Promise<Transaction>
+    publicKey: PublicKey,
+    amountInSOL: number,
+    recipientAddress: string,
+    signMessage: (message: Uint8Array) => Promise<Uint8Array>,
+    referrer?: string
   ): Promise<PrivacyTxResult> {
     try {
-      // Check if user has enough private balance
-      const privateBalance = await this.getPrivateBalance(walletAddress);
-      if (privateBalance.balance < amount) {
-        return {
-          success: false,
-          error: `Insufficient private balance. Available: ${privateBalance.balance} SOL`,
-          action: 'withdraw',
-          amount,
-        };
-      }
+      const encryptionService = await this.initEncryption(signMessage);
+      const wasm = await initLightWasm();
 
-      // In production, this would call the privacy protocol's withdraw instruction
-      // The withdrawal would generate a ZK proof to unshield funds
+      const amountInLamports = Math.floor(amountInSOL * LAMPORTS_PER_SOL);
 
-      // For demo, we simulate the withdrawal
-      // In real implementation, the privacy program would send funds back to user
-
-      // Simulate successful withdrawal
-      const newBalance = privateBalance.balance - amount;
-      this.privateBalances.set(walletAddress, {
-        balance: newBalance,
-        lastUpdated: Date.now(),
-        pendingDeposits: 0,
-        pendingWithdrawals: 0,
+      const result = await withdraw({
+        amount_in_lamports: amountInLamports,
+        connection: this.connection,
+        encryptionService,
+        keyBasePath: CIRCUIT_BASE_PATH,
+        publicKey: publicKey,
+        storage: getStorage(),
+        recipient: new PublicKey(recipientAddress),
+        lightWasm: wasm,
+        referrer: referrer || '',
       });
+
+      // Get updated balance
+      const newBalance = await this.getPrivateBalance(publicKey, signMessage);
 
       return {
         success: true,
-        signature: 'simulated_' + Date.now().toString(36),
+        signature: result?.tx || 'success',
         action: 'withdraw',
-        amount,
-        newPrivateBalance: newBalance,
+        amount: amountInSOL,
+        newPrivateBalance: newBalance.balance,
       };
     } catch (error) {
       console.error('Privacy withdraw error:', error);
@@ -218,20 +284,140 @@ class PrivacyCashService {
         success: false,
         error: error instanceof Error ? error.message : 'Withdrawal failed',
         action: 'withdraw',
-        amount,
+        amount: amountInSOL,
       };
+    }
+  }
+
+  /**
+   * Deposit SPL token (USDC, USDT) into privacy pool
+   * @param amount - Amount in token units (e.g., 1.5 USDC)
+   */
+  async depositSPL(
+    publicKey: PublicKey,
+    amount: number,
+    mintAddress: string,
+    signMessage: (message: Uint8Array) => Promise<Uint8Array>,
+    signTransaction: (tx: VersionedTransaction) => Promise<VersionedTransaction>,
+    referrer?: string
+  ): Promise<PrivacyTxResult> {
+    try {
+      const encryptionService = await this.initEncryption(signMessage);
+      const wasm = await initLightWasm();
+
+      const result = await depositSPL({
+        lightWasm: wasm,
+        connection: this.connection,
+        amount: amount,
+        keyBasePath: CIRCUIT_BASE_PATH,
+        publicKey: publicKey,
+        transactionSigner: async (tx: VersionedTransaction) => {
+          return await signTransaction(tx);
+        },
+        storage: getStorage(),
+        encryptionService,
+        mintAddress,
+        referrer: referrer || '',
+      });
+
+      return {
+        success: true,
+        signature: result?.tx || 'success',
+        action: 'deposit',
+        amount: amount,
+      };
+    } catch (error) {
+      console.error('Privacy SPL deposit error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'SPL Deposit failed',
+        action: 'deposit',
+        amount: amount,
+      };
+    }
+  }
+
+  /**
+   * Withdraw SPL token from privacy pool
+   * @param amount - Amount in token units (e.g., 1.5 USDC)
+   */
+  async withdrawSPL(
+    publicKey: PublicKey,
+    amount: number,
+    mintAddress: string,
+    recipientAddress: string,
+    signMessage: (message: Uint8Array) => Promise<Uint8Array>,
+    referrer?: string
+  ): Promise<PrivacyTxResult> {
+    try {
+      const encryptionService = await this.initEncryption(signMessage);
+      const wasm = await initLightWasm();
+
+      const result = await withdrawSPL({
+        connection: this.connection,
+        encryptionService,
+        keyBasePath: CIRCUIT_BASE_PATH,
+        publicKey: publicKey,
+        storage: getStorage(),
+        recipient: new PublicKey(recipientAddress),
+        lightWasm: wasm,
+        mintAddress,
+        amount,
+        referrer: referrer || '',
+      });
+
+      return {
+        success: true,
+        signature: result?.tx || 'success',
+        action: 'withdraw',
+        amount: amount,
+      };
+    } catch (error) {
+      console.error('Privacy SPL withdraw error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'SPL Withdrawal failed',
+        action: 'withdraw',
+        amount: amount,
+      };
+    }
+  }
+
+  /**
+   * Get private balance for SPL token
+   */
+  async getPrivateBalanceSPL(
+    publicKey: PublicKey,
+    mintAddress: string,
+    signMessage: (message: Uint8Array) => Promise<Uint8Array>
+  ): Promise<{ amount: number; baseUnits: number }> {
+    try {
+      const encryptionService = await this.initEncryption(signMessage);
+
+      const utxos = await getUtxosSPL({
+        publicKey,
+        connection: this.connection,
+        encryptionService,
+        storage: getStorage(),
+        mintAddress,
+      });
+
+      const { base_units, amount } = getBalanceFromUtxosSPL(utxos);
+
+      return { amount, baseUnits: base_units };
+    } catch (error) {
+      console.error('Error fetching private SPL balance:', error);
+      return { amount: 0, baseUnits: 0 };
     }
   }
 
   /**
    * Estimate fees for privacy operations
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  estimateFee(action: PrivacyAction, amount: number): number {
-    // Privacy operations typically have higher fees due to ZK proof generation
-    // Note: amount is reserved for future use when fees scale with amount
+  estimateFee(action: PrivacyAction): number {
+    // Privacy Cash charges ~0.3% protocol fee + network fees
     const baseFee = 0.000005; // Base Solana fee
-    const privacyFee = action === 'deposit' ? 0.001 : 0.002; // Higher for withdrawals
+    const privacyFee = action === 'deposit' ? 0.003 : 0.003;
     return baseFee + privacyFee;
   }
 
@@ -243,54 +429,19 @@ class PrivacyCashService {
   }
 
   /**
-   * Build a deposit transaction (without signing)
-   * This allows external callers to sign with their own wallet
+   * Clear local cache (useful for debugging)
    */
-  async buildDepositTransaction(
-    walletAddress: string,
-    amount: number
-  ): Promise<Transaction> {
-    // Validate wallet address
-    if (!walletAddress || walletAddress.trim() === '') {
-      throw new Error('Wallet address is required');
+  clearCache(): void {
+    if (typeof window !== 'undefined') {
+      // Clear Privacy Cash related localStorage items
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+        if (key.startsWith('zkcash-') || key.startsWith('privacy-cash-')) {
+          localStorage.removeItem(key);
+        }
+      });
     }
-
-    const publicKey = new PublicKey(walletAddress);
-
-    // Build deposit transaction
-    // Note: In real implementation, this would be a call to privacy program
-    const transaction = new Transaction().add(
-      SystemProgram.transfer({
-        fromPubkey: publicKey,
-        toPubkey: new PublicKey(PRIVACY_POOL_ADDRESS),
-        lamports: Math.floor(amount * LAMPORTS_PER_SOL),
-      })
-    );
-
-    const { blockhash, lastValidBlockHeight } =
-      await this.connection.getLatestBlockhash('confirmed');
-
-    transaction.recentBlockhash = blockhash;
-    transaction.lastValidBlockHeight = lastValidBlockHeight;
-    transaction.feePayer = publicKey;
-
-    return transaction;
-  }
-
-  /**
-   * Update private balance after successful deposit
-   */
-  updatePrivateBalance(walletAddress: string, amount: number, isDeposit: boolean): void {
-    const currentBalance = this.privateBalances.get(walletAddress);
-    const currentAmount = currentBalance?.balance || 0;
-    const newBalance = isDeposit ? currentAmount + amount : currentAmount - amount;
-
-    this.privateBalances.set(walletAddress, {
-      balance: Math.max(0, newBalance),
-      lastUpdated: Date.now(),
-      pendingDeposits: 0,
-      pendingWithdrawals: 0,
-    });
+    this.encryptionService = null;
   }
 }
 
