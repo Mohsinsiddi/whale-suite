@@ -1,32 +1,79 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Card, { CardHeader, CardTitle } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import { InfoTooltip } from "@/components/ui/Tooltip";
+import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
+import { useSwap, useWalletBalance } from "@/hooks";
+import { useAuth } from "@/lib/privy/hooks";
+import { TOKEN_MINTS } from "@/lib/privacy-sdks";
 
 interface Token {
   symbol: string;
   name: string;
   icon: string;
-  balance: number;
+  mint: string;
+  decimals: number;
 }
 
 const tokens: Token[] = [
-  { symbol: "SOL", name: "Solana", icon: "◎", balance: 124.5 },
-  { symbol: "USDC", name: "USD Coin", icon: "$", balance: 5420.0 },
-  { symbol: "USDT", name: "Tether", icon: "₮", balance: 1250.0 },
-  { symbol: "JUP", name: "Jupiter", icon: "♃", balance: 10000.0 },
-  { symbol: "RAY", name: "Raydium", icon: "◈", balance: 500.0 },
+  { symbol: "SOL", name: "Solana", icon: "◎", mint: TOKEN_MINTS.SOL, decimals: 9 },
+  { symbol: "USDC", name: "USD Coin", icon: "$", mint: TOKEN_MINTS.USDC, decimals: 6 },
+  { symbol: "USDT", name: "Tether", icon: "₮", mint: TOKEN_MINTS.USDT, decimals: 6 },
+  { symbol: "JUP", name: "Jupiter", icon: "♃", mint: TOKEN_MINTS.JUP, decimals: 6 },
+  { symbol: "BONK", name: "Bonk", icon: "🐕", mint: TOKEN_MINTS.BONK, decimals: 5 },
 ];
 
 export default function SwapPage() {
+  const { walletAddress } = useAuth();
+  const { balance, loading: balanceLoading } = useWalletBalance(walletAddress);
+  const {
+    executeSwap,
+    getExpectedOutput,
+    loading: swapLoading,
+    error: swapError,
+    result: swapResult,
+    reset: resetSwap,
+  } = useSwap();
+
   const [fromToken, setFromToken] = useState(tokens[0]);
   const [toToken, setToToken] = useState(tokens[1]);
   const [fromAmount, setFromAmount] = useState("");
   const [toAmount, setToAmount] = useState("");
-  const [slippage, setSlippage] = useState("0.5");
+  const [slippage, setSlippage] = useState("50"); // In basis points (0.5%)
+  const [priceImpact, setPriceImpact] = useState<number>(0);
+  const [showTxModal, setShowTxModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+
+  // Fetch quote when input changes
+  useEffect(() => {
+    const fetchQuote = async () => {
+      if (!fromAmount || parseFloat(fromAmount) <= 0) {
+        setToAmount("");
+        setPriceImpact(0);
+        return;
+      }
+
+      const result = await getExpectedOutput(
+        fromToken.mint,
+        toToken.mint,
+        parseFloat(fromAmount)
+      );
+
+      if (result) {
+        // Adjust for decimals
+        const outputAmount = result.outputAmount / Math.pow(10, 9 - toToken.decimals);
+        setToAmount(outputAmount.toFixed(toToken.decimals === 6 ? 2 : 4));
+        setPriceImpact(result.priceImpact);
+      }
+    };
+
+    const debounce = setTimeout(fetchQuote, 500);
+    return () => clearTimeout(debounce);
+  }, [fromAmount, fromToken, toToken, getExpectedOutput]);
 
   const handleSwapTokens = () => {
     const temp = fromToken;
@@ -34,6 +81,59 @@ export default function SwapPage() {
     setToToken(temp);
     setFromAmount(toAmount);
     setToAmount(fromAmount);
+  };
+
+  const handleSwap = async () => {
+    if (!fromAmount || parseFloat(fromAmount) <= 0) return;
+
+    setShowTxModal(true);
+    setCurrentStep(0);
+
+    // Step 1: Getting quote
+    await new Promise((r) => setTimeout(r, 500));
+    setCurrentStep(1);
+
+    // Step 2: Execute swap
+    const result = await executeSwap(
+      fromToken.mint,
+      toToken.mint,
+      parseFloat(fromAmount),
+      parseInt(slippage)
+    );
+
+    setCurrentStep(2);
+    await new Promise((r) => setTimeout(r, 500));
+
+    setShowTxModal(false);
+
+    if (result?.success) {
+      setShowSuccessModal(true);
+    }
+  };
+
+  const handleSuccessClose = () => {
+    setShowSuccessModal(false);
+    setFromAmount("");
+    setToAmount("");
+    resetSwap();
+  };
+
+  const getStepStatus = (stepIndex: number): "pending" | "active" | "completed" => {
+    if (currentStep > stepIndex) return "completed";
+    if (currentStep === stepIndex) return "active";
+    return "pending";
+  };
+
+  const txSteps = [
+    { label: "Getting best route", status: getStepStatus(0) },
+    { label: "Signing transaction", status: getStepStatus(1) },
+    { label: "Confirming on chain", status: getStepStatus(2) },
+  ];
+
+  // Get token balance (only SOL for now)
+  const getTokenBalance = (token: Token) => {
+    if (token.symbol === "SOL") return balance;
+    return 0; // TODO: Fetch token balances
   };
 
   return (
@@ -66,7 +166,7 @@ export default function SwapPage() {
               <div className="flex justify-between mb-2">
                 <span className="text-xs text-text-muted">You Pay</span>
                 <span className="text-xs text-text-muted">
-                  Balance: {fromToken.balance} {fromToken.symbol}
+                  Balance: {balanceLoading ? '...' : getTokenBalance(fromToken).toFixed(4)} {fromToken.symbol}
                 </span>
               </div>
               <div className="flex items-center gap-3">
@@ -75,17 +175,17 @@ export default function SwapPage() {
                   value={fromAmount}
                   onChange={(e) => setFromAmount(e.target.value)}
                   placeholder="0.00"
-                  className="flex-1 bg-transparent text-2xl font-semibold text-text-primary placeholder:text-text-muted focus:outline-none"
+                  className="flex-1 bg-transparent text-2xl font-semibold text-text-primary placeholder:text-text-muted focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <TokenSelector token={fromToken} tokens={tokens} onSelect={setFromToken} />
               </div>
               <div className="flex justify-between mt-2">
                 <span className="text-xs text-text-muted">
-                  ≈ ${(parseFloat(fromAmount || "0") * 150).toLocaleString()}
+                  {swapLoading && fromAmount ? 'Fetching...' : ''}
                 </span>
                 <button
                   className="text-xs text-neon-green hover:underline"
-                  onClick={() => setFromAmount(fromToken.balance.toString())}
+                  onClick={() => setFromAmount((getTokenBalance(fromToken) - 0.01).toFixed(4))}
                 >
                   MAX
                 </button>
@@ -107,21 +207,21 @@ export default function SwapPage() {
               <div className="flex justify-between mb-2">
                 <span className="text-xs text-text-muted">You Receive</span>
                 <span className="text-xs text-text-muted">
-                  Balance: {toToken.balance} {toToken.symbol}
+                  Balance: {getTokenBalance(toToken).toFixed(4)} {toToken.symbol}
                 </span>
               </div>
               <div className="flex items-center gap-3">
                 <input
                   type="number"
                   value={toAmount}
-                  onChange={(e) => setToAmount(e.target.value)}
+                  readOnly
                   placeholder="0.00"
                   className="flex-1 bg-transparent text-2xl font-semibold text-text-primary placeholder:text-text-muted focus:outline-none"
                 />
                 <TokenSelector token={toToken} tokens={tokens} onSelect={setToToken} />
               </div>
               <span className="text-xs text-text-muted mt-2 block">
-                ≈ ${(parseFloat(toAmount || "0") * 1).toLocaleString()}
+                {swapLoading ? 'Calculating...' : ''}
               </span>
             </div>
 
@@ -130,7 +230,9 @@ export default function SwapPage() {
               <div className="flex justify-between items-center text-xs mb-2">
                 <span className="text-text-muted">Rate</span>
                 <span className="text-text-secondary">
-                  1 {fromToken.symbol} = 150 {toToken.symbol}
+                  {fromAmount && toAmount
+                    ? `1 ${fromToken.symbol} = ${(parseFloat(toAmount) / parseFloat(fromAmount)).toFixed(4)} ${toToken.symbol}`
+                    : `1 ${fromToken.symbol} = ? ${toToken.symbol}`}
                 </span>
               </div>
               <div className="flex justify-between items-center text-xs mb-2">
@@ -139,24 +241,26 @@ export default function SwapPage() {
                   <InfoTooltip content="Maximum price movement you're willing to accept" />
                 </div>
                 <div className="flex items-center gap-1">
-                  {["0.1", "0.5", "1.0"].map((s) => (
+                  {[{ label: "0.1%", value: "10" }, { label: "0.5%", value: "50" }, { label: "1.0%", value: "100" }].map((s) => (
                     <button
-                      key={s}
-                      onClick={() => setSlippage(s)}
+                      key={s.value}
+                      onClick={() => setSlippage(s.value)}
                       className={`px-2 py-0.5 rounded text-xs transition-colors ${
-                        slippage === s
+                        slippage === s.value
                           ? "bg-neon-green/20 text-neon-green"
                           : "bg-bg-elevated text-text-muted hover:text-text-secondary"
                       }`}
                     >
-                      {s}%
+                      {s.label}
                     </button>
                   ))}
                 </div>
               </div>
               <div className="flex justify-between items-center text-xs mb-2">
                 <span className="text-text-muted">Price Impact</span>
-                <span className="text-neon-green">&lt;0.01%</span>
+                <span className={priceImpact > 1 ? "text-warning" : "text-neon-green"}>
+                  {priceImpact > 0 ? `${priceImpact.toFixed(2)}%` : '<0.01%'}
+                </span>
               </div>
               <div className="flex justify-between items-center text-xs">
                 <span className="text-text-muted">Network Fee</span>
@@ -164,8 +268,21 @@ export default function SwapPage() {
               </div>
             </div>
 
-            <Button fullWidth className="mt-4" disabled={!fromAmount}>
-              Swap Tokens
+            {/* Error Display */}
+            {swapError && (
+              <div className="mt-4 p-3 rounded-xl bg-error/10 border border-error/20">
+                <p className="text-xs text-error">{swapError}</p>
+              </div>
+            )}
+
+            <Button
+              fullWidth
+              className="mt-4"
+              disabled={!fromAmount || !toAmount || swapLoading || parseFloat(fromAmount) > getTokenBalance(fromToken)}
+              loading={swapLoading}
+              onClick={handleSwap}
+            >
+              {swapLoading ? 'Swapping...' : 'Swap Tokens'}
             </Button>
           </Card>
         </div>
@@ -213,6 +330,24 @@ export default function SwapPage() {
           </Card>
         </div>
       </div>
+
+      {/* Transaction Progress Modal */}
+      <TransactionModal
+        isOpen={showTxModal}
+        onClose={() => setShowTxModal(false)}
+        title="Swapping Tokens..."
+        steps={txSteps}
+        currentStep={currentStep}
+      />
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={handleSuccessClose}
+        title="Swap Complete!"
+        message={`Swapped ${fromAmount} ${fromToken.symbol} for ${toAmount} ${toToken.symbol}`}
+        txSignature={swapResult?.signature || ''}
+      />
     </div>
   );
 }

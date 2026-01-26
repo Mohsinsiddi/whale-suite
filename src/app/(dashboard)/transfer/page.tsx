@@ -1,25 +1,59 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Card, { CardHeader, CardTitle } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import Input, { AmountInput } from "@/components/ui/Input";
 import Tabs, { TabPanel } from "@/components/ui/Tabs";
 import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
+import { useTransfer, useWalletBalance } from "@/hooks";
+import { useAuth } from "@/lib/privy/hooks";
+import { TransferType } from "@/lib/privacy-sdks";
 
 export default function TransferPage() {
+  const { walletAddress } = useAuth();
+  const { balance, loading: balanceLoading } = useWalletBalance(walletAddress);
+  const {
+    executeTransfer,
+    estimateTransfer,
+    validateAddress,
+    loading: transferLoading,
+    result: transferResult,
+    estimate,
+    error: transferError,
+    reset: resetTransfer,
+  } = useTransfer();
+
   const [activeTab, setActiveTab] = useState("private");
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
   const [showTxModal, setShowTxModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
+  const [recipientError, setRecipientError] = useState<string | null>(null);
 
   const tabs = [
     { id: "private", label: "Private Transfer", icon: <GhostIcon /> },
-    { id: "internal", label: "Internal Transfer", icon: <TransferIcon /> },
+    { id: "standard", label: "Standard Transfer", icon: <TransferIcon /> },
   ];
+
+  // Validate recipient on change
+  useEffect(() => {
+    if (recipient && !validateAddress(recipient)) {
+      setRecipientError("Invalid Solana address");
+    } else {
+      setRecipientError(null);
+    }
+  }, [recipient, validateAddress]);
+
+  // Estimate fee when amount/type changes
+  useEffect(() => {
+    if (amount && recipient && validateAddress(recipient)) {
+      const type: TransferType = activeTab === "private" ? "private" : "standard";
+      estimateTransfer(recipient, parseFloat(amount), type);
+    }
+  }, [amount, recipient, activeTab, estimateTransfer, validateAddress]);
 
   const getStepStatus = (stepIndex: number): "pending" | "active" | "completed" => {
     if (currentStep > stepIndex) return "completed";
@@ -27,23 +61,47 @@ export default function TransferPage() {
     return "pending";
   };
 
-  const txSteps = [
-    { label: "Preparing transaction", status: getStepStatus(0) },
-    { label: "Encrypting amount", status: getStepStatus(1) },
-    { label: "Broadcasting", status: getStepStatus(2) },
-  ];
+  const txSteps = activeTab === "private"
+    ? [
+        { label: "Preparing transaction", status: getStepStatus(0) },
+        { label: "Encrypting amount", status: getStepStatus(1) },
+        { label: "Broadcasting to network", status: getStepStatus(2) },
+      ]
+    : [
+        { label: "Building transaction", status: getStepStatus(0) },
+        { label: "Signing with wallet", status: getStepStatus(1) },
+        { label: "Confirming on chain", status: getStepStatus(2) },
+      ];
 
-  const handleSend = () => {
+  const handleSend = async () => {
+    if (!amount || !recipient || recipientError) return;
+
     setShowTxModal(true);
     setCurrentStep(0);
 
-    // Simulate transaction steps
-    setTimeout(() => setCurrentStep(1), 1500);
-    setTimeout(() => setCurrentStep(2), 3000);
-    setTimeout(() => {
-      setShowTxModal(false);
+    // Step 1: Preparing
+    await new Promise((r) => setTimeout(r, 500));
+    setCurrentStep(1);
+
+    // Step 2: Execute transfer
+    const type: TransferType = activeTab === "private" ? "private" : "standard";
+    const result = await executeTransfer(recipient, parseFloat(amount), type);
+
+    setCurrentStep(2);
+    await new Promise((r) => setTimeout(r, 500));
+
+    setShowTxModal(false);
+
+    if (result?.success) {
       setShowSuccessModal(true);
-    }, 4500);
+    }
+  };
+
+  const handleSuccessClose = () => {
+    setShowSuccessModal(false);
+    setAmount("");
+    setRecipient("");
+    resetTransfer();
   };
 
   return (
@@ -68,25 +126,29 @@ export default function TransferPage() {
 
             <TabPanel value="private" activeValue={activeTab} className="mt-6">
               <div className="space-y-5">
-                {/* From Vault */}
+                {/* From Wallet */}
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">
-                    From Vault
+                    From Wallet
                   </label>
                   <div className="p-3 rounded-xl bg-bg-tertiary border border-border-secondary">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-neon-green to-neon-cyan flex items-center justify-center text-bg-primary font-bold text-sm">
-                          M
+                          W
                         </div>
                         <div>
-                          <div className="text-sm font-medium text-text-primary">Main Vault</div>
-                          <div className="text-xs text-text-muted font-mono">0x4f2e...8a3b</div>
+                          <div className="text-sm font-medium text-text-primary">Connected Wallet</div>
+                          <div className="text-xs text-text-muted font-mono">
+                            {walletAddress ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : 'Not connected'}
+                          </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm font-medium text-neon-green">380.2 SOL</div>
-                        <div className="text-xs text-text-muted">Hidden Balance</div>
+                        <div className="text-sm font-medium text-neon-green">
+                          {balanceLoading ? '...' : `${balance.toFixed(4)} SOL`}
+                        </div>
+                        <div className="text-xs text-text-muted">Available</div>
                       </div>
                     </div>
                   </div>
@@ -95,17 +157,18 @@ export default function TransferPage() {
                 {/* Recipient */}
                 <Input
                   label="Recipient Address"
-                  placeholder="Enter Solana address or ENS"
+                  placeholder="Enter Solana address"
                   value={recipient}
                   onChange={(e) => setRecipient(e.target.value)}
+                  error={recipientError || undefined}
                 />
 
                 {/* Amount */}
                 <AmountInput
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  balance="380.2 SOL"
-                  onMaxClick={() => setAmount("380.2")}
+                  balance={`${balance.toFixed(4)} SOL`}
+                  onMaxClick={() => setAmount((balance - 0.001).toFixed(4))}
                 />
 
                 {/* Privacy Info */}
@@ -124,51 +187,111 @@ export default function TransferPage() {
                 {/* Fee Estimate */}
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-text-muted">Estimated Fee</span>
-                  <span className="text-text-secondary">~0.001 SOL</span>
+                  <span className="text-text-secondary">
+                    ~{estimate?.fee?.toFixed(6) || '0.00005'} SOL
+                  </span>
                 </div>
 
-                <Button fullWidth onClick={handleSend} disabled={!amount || !recipient}>
-                  Send Privately
+                {/* Error Display */}
+                {transferError && (
+                  <div className="p-3 rounded-xl bg-error/10 border border-error/20">
+                    <p className="text-xs text-error">{transferError}</p>
+                  </div>
+                )}
+
+                <Button
+                  fullWidth
+                  onClick={handleSend}
+                  disabled={!amount || !recipient || !!recipientError || transferLoading || parseFloat(amount) > balance}
+                  loading={transferLoading}
+                >
+                  {transferLoading ? 'Sending...' : 'Send Privately'}
                 </Button>
               </div>
             </TabPanel>
 
-            <TabPanel value="internal" activeValue={activeTab} className="mt-6">
+            <TabPanel value="standard" activeValue={activeTab} className="mt-6">
               <div className="space-y-5">
-                <div className="grid grid-cols-2 gap-4">
-                  {/* From Vault */}
-                  <div>
-                    <label className="block text-xs font-medium text-text-secondary mb-1.5">From</label>
-                    <select className="w-full px-3 py-2.5 text-sm bg-bg-tertiary border border-border-secondary rounded-lg text-text-primary focus:outline-none focus:border-neon-green">
-                      <option>Main Vault</option>
-                      <option>Trading Vault</option>
-                      <option>Savings</option>
-                    </select>
-                  </div>
-                  {/* To Vault */}
-                  <div>
-                    <label className="block text-xs font-medium text-text-secondary mb-1.5">To</label>
-                    <select className="w-full px-3 py-2.5 text-sm bg-bg-tertiary border border-border-secondary rounded-lg text-text-primary focus:outline-none focus:border-neon-green">
-                      <option>Trading Vault</option>
-                      <option>Main Vault</option>
-                      <option>Savings</option>
-                    </select>
+                {/* From Wallet */}
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1.5">
+                    From Wallet
+                  </label>
+                  <div className="p-3 rounded-xl bg-bg-tertiary border border-border-secondary">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-neon-cyan to-neon-teal flex items-center justify-center text-bg-primary font-bold text-sm">
+                          W
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-text-primary">Connected Wallet</div>
+                          <div className="text-xs text-text-muted font-mono">
+                            {walletAddress ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : 'Not connected'}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-medium text-neon-cyan">
+                          {balanceLoading ? '...' : `${balance.toFixed(4)} SOL`}
+                        </div>
+                        <div className="text-xs text-text-muted">Available</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
+                {/* Recipient */}
+                <Input
+                  label="Recipient Address"
+                  placeholder="Enter Solana address"
+                  value={recipient}
+                  onChange={(e) => setRecipient(e.target.value)}
+                  error={recipientError || undefined}
+                />
+
+                {/* Amount */}
                 <AmountInput
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  balance="380.2 SOL"
-                  onMaxClick={() => setAmount("380.2")}
+                  balance={`${balance.toFixed(4)} SOL`}
+                  onMaxClick={() => setAmount((balance - 0.001).toFixed(4))}
                 />
 
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-text-muted">Network Fee</span>
-                  <span className="text-neon-green">FREE (Internal)</span>
+                {/* Standard Info */}
+                <div className="p-3 rounded-xl bg-neon-cyan/5 border border-neon-cyan/20">
+                  <div className="flex items-start gap-2">
+                    <TransferIcon className="w-4 h-4 text-neon-cyan mt-0.5" />
+                    <div>
+                      <p className="text-xs font-medium text-neon-cyan mb-1">Standard Transfer</p>
+                      <p className="text-xs text-text-secondary">
+                        Fast and cheap transfer. Transaction details are public on the blockchain.
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                <Button fullWidth disabled={!amount}>Transfer Between Vaults</Button>
+                {/* Fee Estimate */}
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-text-muted">Network Fee</span>
+                  <span className="text-text-secondary">~0.000005 SOL</span>
+                </div>
+
+                {/* Error Display */}
+                {transferError && (
+                  <div className="p-3 rounded-xl bg-error/10 border border-error/20">
+                    <p className="text-xs text-error">{transferError}</p>
+                  </div>
+                )}
+
+                <Button
+                  fullWidth
+                  variant="secondary"
+                  onClick={handleSend}
+                  disabled={!amount || !recipient || !!recipientError || transferLoading || parseFloat(amount) > balance}
+                  loading={transferLoading}
+                >
+                  {transferLoading ? 'Sending...' : 'Send SOL'}
+                </Button>
               </div>
             </TabPanel>
           </Card>
@@ -238,10 +361,10 @@ export default function TransferPage() {
       {/* Success Modal */}
       <SuccessModal
         isOpen={showSuccessModal}
-        onClose={() => setShowSuccessModal(false)}
+        onClose={handleSuccessClose}
         title="Transfer Complete!"
-        message={`Successfully sent ${amount} SOL privately`}
-        txSignature="5xYz...abc123"
+        message={`Successfully sent ${amount} SOL ${activeTab === 'private' ? 'privately' : ''}`}
+        txSignature={transferResult?.signature || ''}
       />
     </div>
   );
@@ -254,8 +377,8 @@ const GhostIcon = () => (
   </svg>
 );
 
-const TransferIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+const TransferIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
   </svg>
 );
