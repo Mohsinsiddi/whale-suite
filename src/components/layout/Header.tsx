@@ -8,6 +8,7 @@ import Dropdown, { DropdownItem, DropdownDivider } from "../ui/Dropdown";
 import { CountBadge, TierBadge } from "../ui/Badge";
 import { useAuth } from "@/lib/privy/hooks";
 import { useUser, useWallet, useUI } from "@/store";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
 
 interface HeaderProps {
   variant?: "landing" | "app";
@@ -20,10 +21,14 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { logout, walletAddress } = useAuth();
   const { userNumber, badgeTier, privacyScore } = useUser();
-  const { balance, hiddenBalance } = useWallet();
+  const { hiddenBalance } = useWallet();
   const { toggleSidebar } = useUI();
 
-  const displayWallet = wallet || walletAddress;
+  // Fetch real SOL balance from blockchain
+  const displayWalletAddr = wallet || walletAddress;
+  const { balance, loading: balanceLoading } = useWalletBalance(displayWalletAddr);
+
+  const displayWallet = displayWalletAddr;
   const shortWallet = displayWallet
     ? `${displayWallet.slice(0, 4)}...${displayWallet.slice(-4)}`
     : '';
@@ -90,9 +95,13 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
                 <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border-primary">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs text-text-muted">Balance:</span>
-                    <span className="text-sm font-semibold text-neon-green">
-                      {balance?.toFixed(2) || '0.00'} SOL
-                    </span>
+                    {balanceLoading ? (
+                      <span className="text-sm font-semibold text-text-muted animate-pulse">...</span>
+                    ) : (
+                      <span className="text-sm font-semibold text-neon-green">
+                        {balance.toFixed(4)} SOL
+                      </span>
+                    )}
                   </div>
                   {hiddenBalance > 0 && (
                     <>
@@ -178,9 +187,13 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
                   <div className="sm:hidden px-3 py-2 border-b border-border-primary">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-text-muted">Balance</span>
-                      <span className="text-sm font-semibold text-neon-green">
-                        {balance?.toFixed(2) || '0.00'} SOL
-                      </span>
+                      {balanceLoading ? (
+                        <span className="text-sm font-semibold text-text-muted animate-pulse">...</span>
+                      ) : (
+                        <span className="text-sm font-semibold text-neon-green">
+                          {balance.toFixed(4)} SOL
+                        </span>
+                      )}
                     </div>
                     {hiddenBalance > 0 && (
                       <div className="flex items-center justify-between mt-1">
