@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { Providers } from "./providers";
+
+// Force dynamic rendering for all pages to avoid MongoDB bundling issues
+export const dynamic = 'force-dynamic';
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -36,7 +40,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-bg-primary`}
       >
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

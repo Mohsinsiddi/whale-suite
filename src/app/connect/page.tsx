@@ -1,34 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Card from "@/components/ui/Card";
-
-const walletOptions = [
-  { id: "phantom", name: "Phantom", icon: "👻", popular: true },
-  { id: "solflare", name: "Solflare", icon: "🔆", popular: false },
-  { id: "backpack", name: "Backpack", icon: "🎒", popular: false },
-];
-
-const socialOptions = [
-  { id: "google", name: "Google", icon: "G" },
-  { id: "twitter", name: "Twitter", icon: "𝕏" },
-  { id: "email", name: "Email", icon: "✉" },
-];
+import { useAuth } from "@/lib/privy/hooks";
 
 export default function ConnectPage() {
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
+  const router = useRouter();
+  const { ready, authenticated, login, isLoading } = useAuth();
 
-  const handleConnect = (walletId: string) => {
-    setSelectedWallet(walletId);
-    setIsConnecting(true);
-    // Simulate connection
-    setTimeout(() => {
-      setIsConnecting(false);
-      // Would redirect to dashboard on success
-    }, 2000);
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (ready && authenticated) {
+      router.push("/dashboard");
+    }
+  }, [ready, authenticated, router]);
+
+  const handleConnect = () => {
+    login();
   };
+
+  // Show loading while Privy initializes
+  if (!ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-neon-green border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -54,35 +54,37 @@ export default function ConnectPage() {
             </p>
           </div>
 
-          {/* Wallet Options */}
-          <div className="space-y-2 mb-6">
-            {walletOptions.map((wallet) => (
-              <button
-                key={wallet.id}
-                onClick={() => handleConnect(wallet.id)}
-                disabled={isConnecting}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
-                  selectedWallet === wallet.id && isConnecting
-                    ? "bg-neon-green/10 border-neon-green"
-                    : "bg-bg-tertiary border-border-secondary hover:border-neon-green/40"
-                }`}
-              >
-                <span className="text-2xl">{wallet.icon}</span>
-                <span className="flex-1 text-left">
-                  <span className="text-sm font-medium text-text-primary">{wallet.name}</span>
-                  {wallet.popular && (
-                    <span className="ml-2 px-1.5 py-0.5 text-[10px] font-semibold bg-neon-green/20 text-neon-green rounded">
-                      POPULAR
-                    </span>
-                  )}
-                </span>
-                {selectedWallet === wallet.id && isConnecting ? (
-                  <div className="w-5 h-5 border-2 border-neon-green border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <ChevronRightIcon />
-                )}
-              </button>
-            ))}
+          {/* Connect Button */}
+          <button
+            onClick={handleConnect}
+            disabled={isLoading}
+            className="w-full p-4 rounded-xl border bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary font-semibold transition-all hover:shadow-glow-md disabled:opacity-50 disabled:cursor-not-allowed mb-6"
+          >
+            {isLoading ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="w-5 h-5 border-2 border-bg-primary border-t-transparent rounded-full animate-spin" />
+                Connecting...
+              </span>
+            ) : (
+              "Connect Wallet"
+            )}
+          </button>
+
+          {/* Supported Wallets */}
+          <div className="text-center mb-6">
+            <p className="text-xs text-text-muted mb-3">Supported wallets</p>
+            <div className="flex items-center justify-center gap-4">
+              {[
+                { id: "phantom", icon: "👻", name: "Phantom" },
+                { id: "solflare", icon: "🔆", name: "Solflare" },
+                { id: "backpack", icon: "🎒", name: "Backpack" },
+              ].map((wallet) => (
+                <div key={wallet.id} className="flex flex-col items-center gap-1">
+                  <span className="text-xl">{wallet.icon}</span>
+                  <span className="text-[10px] text-text-muted">{wallet.name}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Divider */}
@@ -97,14 +99,18 @@ export default function ConnectPage() {
             </div>
           </div>
 
-          {/* Social Options */}
+          {/* Social Options Info */}
           <div className="grid grid-cols-3 gap-3 mb-6">
-            {socialOptions.map((social) => (
+            {[
+              { id: "google", icon: "G", name: "Google" },
+              { id: "twitter", icon: "𝕏", name: "Twitter" },
+              { id: "email", icon: "✉", name: "Email" },
+            ].map((social) => (
               <button
                 key={social.id}
-                onClick={() => handleConnect(social.id)}
-                disabled={isConnecting}
-                className="flex flex-col items-center gap-2 p-3 rounded-xl bg-bg-tertiary border border-border-secondary hover:border-neon-green/40 transition-all"
+                onClick={handleConnect}
+                disabled={isLoading}
+                className="flex flex-col items-center gap-2 p-3 rounded-xl bg-bg-tertiary border border-border-secondary hover:border-neon-green/40 transition-all disabled:opacity-50"
               >
                 <span className="text-lg font-bold text-text-secondary">{social.icon}</span>
                 <span className="text-xs text-text-muted">{social.name}</span>
@@ -142,9 +148,3 @@ export default function ConnectPage() {
     </div>
   );
 }
-
-const ChevronRightIcon = () => (
-  <svg className="w-4 h-4 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-  </svg>
-);

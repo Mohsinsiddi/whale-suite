@@ -1,22 +1,55 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
+import { useAuth } from "@/lib/privy/hooks";
+import { useWalletChange } from "@/hooks/useWalletChange";
+import { useUI } from "@/store";
 
 interface DashboardLayoutProps {
   children: ReactNode;
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const router = useRouter();
+  const { ready, authenticated, walletAddress, isLoading } = useAuth();
+  const { sidebarOpen, setSidebarOpen } = useUI();
+
+  // Handle wallet changes (critical for data refresh)
+  useWalletChange();
+
+  // Redirect to connect if not authenticated
+  useEffect(() => {
+    if (ready && !authenticated) {
+      router.push("/connect");
+    }
+  }, [ready, authenticated, router]);
+
+  // Show loading while checking auth
+  if (!ready || isLoading) {
+    return (
+      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-2 border-neon-green border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-text-muted">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render dashboard if not authenticated
+  if (!authenticated) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-bg-primary">
       {/* Header */}
       <Header
         variant="app"
-        wallet="0x4f2e8a3b9c1d5e6f7a0b2c3d4e5f6a7b8c9d0e1f"
+        wallet={walletAddress || undefined}
         notifications={3}
       />
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode } from "react";
 import { TierBadge } from "../ui/Badge";
+import { useUser, useWallet } from "@/store";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -12,6 +13,13 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const { userNumber, badgeTier, privacyScore } = useUser();
+  const { wallet } = useWallet();
+
+  // Format wallet address for display
+  const shortWallet = wallet
+    ? `${wallet.slice(0, 4)}...${wallet.slice(-4)}`
+    : "...";
 
   const navItems = [
     { href: "/dashboard", icon: <DashboardIcon />, label: "Dashboard" },
@@ -71,14 +79,18 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           <div className="p-3 rounded-xl bg-gradient-to-br from-bg-tertiary to-bg-elevated border border-border-primary">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-green to-neon-cyan flex items-center justify-center text-bg-primary font-bold">
-                W
+                {badgeTier !== 'none' ? badgeTier.charAt(0).toUpperCase() : 'W'}
               </div>
               <div>
-                <p className="text-sm font-semibold text-text-primary">Whale #999</p>
-                <p className="text-xs text-text-muted">0x4f2...8a3</p>
+                <p className="text-sm font-semibold text-text-primary">
+                  {userNumber ? `Whale #${userNumber}` : 'Loading...'}
+                </p>
+                <p className="text-xs text-text-muted">{shortWallet}</p>
               </div>
             </div>
-            <TierBadge tier="gold" size="sm" />
+            {badgeTier && badgeTier !== 'none' && (
+              <TierBadge tier={badgeTier as "bronze" | "silver" | "gold" | "diamond" | "legendary"} size="sm" />
+            )}
           </div>
         </div>
 
@@ -122,11 +134,13 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           <div className="flex items-center gap-2">
             <div className="flex-1 h-1.5 bg-bg-primary rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-neon-green to-neon-cyan rounded-full"
-                style={{ width: "75%" }}
+                className="h-full bg-gradient-to-r from-neon-green to-neon-cyan rounded-full transition-all duration-500"
+                style={{ width: `${(privacyScore / 1000) * 100}%` }}
               />
             </div>
-            <span className="text-xs font-semibold text-neon-green">750</span>
+            <span className="text-xs font-semibold text-neon-green">
+              {privacyScore || 0}
+            </span>
           </div>
         </div>
       </aside>
