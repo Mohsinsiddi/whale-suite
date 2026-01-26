@@ -8,6 +8,9 @@
 
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 
+// Token Program ID
+const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+
 const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
 const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 const HELIUS_API = `https://api.helius.xyz/v0`;
@@ -371,6 +374,83 @@ class HeliusService {
 
     const metadata = await this.getTokenMetadata(mintAddress);
     return metadata?.decimals ?? 9; // Default to 9 if unknown
+  }
+
+  /**
+   * Get token balance directly from RPC (real-time, no indexing delay)
+   */
+  async getTokenBalanceFromRPC(walletAddress: string, mintAddress: string): Promise<number> {
+    try {
+      const wallet = new PublicKey(walletAddress);
+      const mint = new PublicKey(mintAddress);
+
+      // Get token accounts for this wallet and mint
+      const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(wallet, {
+        mint: mint,
+      });
+
+      if (tokenAccounts.value.length === 0) {
+        return 0;
+      }
+
+      // Get balance from first account
+      const balance = tokenAccounts.value[0].account.data.parsed.info.tokenAmount;
+      return balance.uiAmount || 0;
+    } catch (error) {
+      console.error('Error fetching token balance from RPC:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Get all balances directly from RPC (real-time)
+   */
+  async getBalancesFromRPC(walletAddress: string): Promise<WalletBalances> {
+    try {
+      const wallet = new PublicKey(walletAddress);
+
+      // Get SOL balance
+      const solBalance = await this.connection.getBalance(wallet);
+      const sol = solBalance / LAMPORTS_PER_SOL;
+
+      // Get all token accounts
+      const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(wallet, {
+        programId: TOKEN_PROGRAM_ID,
+      });
+
+      const tokens: TokenBalance[] = tokenAccounts.value.map((account) => {
+        const parsed = account.account.data.parsed.info;
+        const tokenAmount = parsed.tokenAmount;
+
+        return {
+          mint: parsed.mint,
+          amount: Number(tokenAmount.amount),
+          decimals: tokenAmount.decimals,
+          uiAmount: tokenAmount.uiAmount || 0,
+          // Metadata will be filled from known tokens
+          symbol: undefined,
+          name: undefined,
+          logoURI: undefined,
+        };
+      });
+
+      // Add metadata for known tokens
+      for (const token of tokens) {
+        if (KNOWN_DECIMALS[token.mint]) {
+          const metadata = await this.getTokenMetadata(token.mint);
+          if (metadata) {
+            token.symbol = metadata.symbol;
+            token.name = metadata.name;
+            token.logoURI = metadata.logoURI;
+          }
+        }
+      }
+
+      return { sol, tokens };
+    } catch (error) {
+      console.error('Error fetching balances from RPC:', error);
+      return { sol: 0, tokens: [] };
+    }
   }
 
   /**

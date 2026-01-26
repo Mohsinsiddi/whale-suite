@@ -48,8 +48,22 @@ export function useWalletBalances(walletAddress: string | null) {
   }, [walletAddress, fetchBalances]);
 
   /**
+   * Fetch balances directly from RPC (real-time, no indexing delay)
+   */
+  const fetchBalancesFromRPC = useCallback(async () => {
+    if (!walletAddress) return;
+
+    try {
+      const data = await heliusService.getBalancesFromRPC(walletAddress);
+      setBalances(data);
+    } catch (err) {
+      console.error('Error fetching RPC balances:', err);
+    }
+  }, [walletAddress]);
+
+  /**
    * Optimistic update after swap
-   * Immediately updates local state, then syncs with blockchain
+   * Immediately updates local state, then syncs with blockchain via RPC
    */
   const optimisticSwapUpdate = useCallback((
     fromMint: string,
@@ -94,15 +108,16 @@ export function useWalletBalances(walletAddress: string | null) {
       };
     });
 
-    // Background sync after 3 seconds
-    setTimeout(fetchBalances, 3000);
-  }, [fetchBalances]);
+    // Sync with RPC after 2 seconds (real-time data)
+    setTimeout(fetchBalancesFromRPC, 2000);
+  }, [fetchBalancesFromRPC]);
 
   return {
     balances,
     loading,
     error,
-    refetch: fetchBalances,
+    refetch: fetchBalancesFromRPC, // Use RPC for manual refresh (real-time)
+    refetchFromAPI: fetchBalances, // Use Helius API (has indexing delay)
     optimisticSwapUpdate,
   };
 }
