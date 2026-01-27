@@ -337,6 +337,9 @@ Track any changes made during development here.
 | 2026-01-27 | Balance Updates | Added optimistic updates + RPC fetch | Helius API has indexing delay |
 | 2026-01-27 | Header Sync | Added balance refresh trigger to Zustand | Header uses separate hook from swap page |
 | 2026-01-27 | ShadowWire SDK | Full integration with @radr/shadowwire | $15k Radr Labs bounty - Bulletproof ZK transfers |
+| 2026-01-27 | Enhanced Modals | TransactionModal with ZK proof indicators | Better UX for ZK proof generation (30-45s) |
+| 2026-01-27 | Privacy Cash UX | Enhanced modals + operation type tracking | Fixed success message showing wrong operation |
+| 2026-01-27 | Fee Reserve | Reduced to 0.05 SOL for deposits | Allow more SOL to be deposited |
 | | | | |
 
 ---

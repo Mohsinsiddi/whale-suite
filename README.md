@@ -9,12 +9,14 @@ Privacy-First Trading Platform for Solana Whales | Solana Privacy Hack 2026
 | Feature | Status | Description |
 |---------|--------|-------------|
 | Privacy Cash Integration | **COMPLETE** | Deposit & Withdraw SOL to/from shielded ZK pool |
+| ShadowWire Integration | **COMPLETE** | Bulletproof ZK private transfers ($15k bounty) |
 | Jupiter Swap Integration | **COMPLETE** | Token swaps with best routes via Jupiter aggregator |
 | Helius Token Balances | **COMPLETE** | Fetch all wallet token balances via Helius API |
 | ZK Proof Generation | **COMPLETE** | WASM-based proof generation with Light Protocol |
 | Privy Wallet Integration | **COMPLETE** | Sign messages & transactions with Privy |
 | Balance Validation | **COMPLETE** | Lamports-based validation (no floating point issues) |
 | Error Handling | **COMPLETE** | User-friendly error messages for common issues |
+| Enhanced Transaction Modals | **COMPLETE** | Animated progress with ZK proof indicators |
 | UI/UX | **COMPLETE** | Dark cyberpunk theme with responsive design |
 
 ---
@@ -40,7 +42,35 @@ Successfully integrated `privacycash` SDK v1.1.11 for:
 
 ---
 
-## 2. Jupiter Swap Integration (Swap API v1)
+## 2. ShadowWire SDK Integration ($15k Bounty)
+
+Successfully integrated `@radr/shadowwire` SDK for private transfers on Solana:
+
+- **Deposit to Pool**: Transfer SOL from public wallet to shielded pool
+  - Minimum: 0.1 SOL (anti-spam)
+  - Balance reflects in 30-60 seconds
+
+- **Withdraw from Pool**: Transfer SOL from shielded pool back to public wallet
+  - Minimum: 0.1 SOL
+  - SDK handles transaction signing and submission
+
+- **Internal Transfer** (Hidden Amount):
+  - Amount hidden via Bulletproof zero-knowledge proofs
+  - Both sender and recipient visible
+  - ZK proof generation takes 30-45 seconds
+
+- **External Transfer** (Anonymous Sender):
+  - Sender identity hidden
+  - Recipient receives SOL from pool without knowing sender
+
+**Key Files:**
+- `src/lib/privacy-sdks/shadow-wire.ts` - ShadowWire SDK wrapper
+- `src/hooks/useShadowWire.ts` - React hook with Privy integration
+- `src/app/(dashboard)/transfer/page.tsx` - Ghost Send UI
+
+---
+
+## 3. Jupiter Swap Integration (Swap API v1)
 
 Successfully integrated Jupiter Swap API v1 for token swaps:
 
@@ -70,7 +100,7 @@ Successfully integrated Jupiter Swap API v1 for token swaps:
 
 ---
 
-## 3. Helius Integration
+## 4. Helius Integration
 
 Helius API + Direct RPC integration for:
 
@@ -97,14 +127,18 @@ Helius API + Direct RPC integration for:
 src/
 ├── lib/privacy-sdks/
 │   ├── privacy-cash.ts      # Privacy Cash (ZK deposits/withdrawals)
+│   ├── shadow-wire.ts       # ShadowWire (Bulletproof ZK transfers)
 │   ├── jupiter.ts           # Jupiter Swap API v1 (token swaps)
 │   ├── helius.ts            # Helius API + RPC (balances, metadata)
 │   └── index.ts             # Barrel exports
 ├── hooks/
 │   ├── usePrivacyCash.ts    # Privacy Cash hook with Privy signing
+│   ├── useShadowWire.ts     # ShadowWire hook with Privy signing
 │   ├── useSwap.ts           # Jupiter swap hook with Privy signing
 │   ├── useHelius.ts         # Helius data hooks (optimistic updates)
 │   └── useWalletBalance.ts  # Header balance hook (store integration)
+├── components/ui/
+│   └── Modal.tsx            # TransactionModal + SuccessModal (enhanced)
 ├── store/
 │   ├── index.ts             # Zustand store with all slices
 │   └── slices/
@@ -113,8 +147,10 @@ src/
 │       ├── user.ts          # User profile state
 │       └── ui.ts            # UI state (modals, sidebar)
 └── app/(dashboard)/
-    ├── privacy/page.tsx     # Shield/Unshield UI
-    └── swap/page.tsx        # Token swap UI
+    ├── privacy/page.tsx     # Shield/Unshield UI (Privacy Cash)
+    ├── transfer/page.tsx    # Ghost Send UI (ShadowWire)
+    ├── swap/page.tsx        # Token swap UI (Jupiter)
+    └── dashboard/page.tsx   # Command center with pool stats
 ```
 
 ---
@@ -155,6 +191,14 @@ Get Jupiter API key at: https://portal.jup.ag
    - Min deposit: 0.001 SOL
    - Min withdrawal: 0.007 SOL (must be > relay fee)
 
+### ShadowWire (Private Transfers)
+1. **Minimum Amount**: 0.1 SOL for all operations (deposit, withdraw, transfer)
+2. **ZK Proof Time**: Bulletproof proof generation takes 30-45 seconds
+3. **Balance Delay**: Pool balance may take 30-60 seconds to reflect
+4. **Internal Transfer**: Amount hidden via ZK proof, both parties visible
+5. **External Transfer**: Sender anonymous, recipient receives from pool
+6. **Fees**: ~0.1% protocol fee calculated by SDK
+
 ### Jupiter Swap (Public)
 1. **Quote Debouncing**: Quotes fetch after 500ms typing delay
 2. **Slippage**: Default 0.5%, adjustable (0.1%, 0.5%, 1.0%)
@@ -171,7 +215,10 @@ Get Jupiter API key at: https://portal.jup.ag
 
 - **Frontend**: Next.js 14, TypeScript, Tailwind CSS
 - **Wallet**: Privy (embedded + external wallets)
-- **Privacy**: Privacy Cash SDK, Light Protocol WASM
+- **Privacy**:
+  - Privacy Cash SDK (shield/unshield)
+  - ShadowWire SDK (Bulletproof ZK transfers)
+  - Light Protocol WASM
 - **Swaps**: Jupiter Aggregator API
 - **Data**: Helius Enhanced API
 - **Database**: MongoDB with Mongoose
@@ -183,6 +230,9 @@ Get Jupiter API key at: https://portal.jup.ag
 
 | Bounty | Amount | Status |
 |--------|--------|--------|
+| ShadowWire Integration (Radr Labs) | $15,000 | **COMPLETE** |
 | Privacy Cash Integration | $15,000 | **COMPLETE** |
 | Jupiter Integration | - | **COMPLETE** |
 | Helius Integration | - | **COMPLETE** |
+| Light Protocol | TBD | Pending |
+| PNP Exchange | TBD | Pending |
