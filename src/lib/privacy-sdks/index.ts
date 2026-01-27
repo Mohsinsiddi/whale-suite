@@ -22,3 +22,4 @@ export {
   type WalletAdapter,
   type ZKProofData,
 } from './shadow-wire';
+// PNP uses dynamic imports - import directly from './pnp' where needed

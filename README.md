@@ -10,6 +10,7 @@ Privacy-First Trading Platform for Solana Whales | Solana Privacy Hack 2026
 |---------|--------|-------------|
 | Privacy Cash Integration | **COMPLETE** | Deposit & Withdraw SOL to/from shielded ZK pool |
 | ShadowWire Integration | **COMPLETE** | Bulletproof ZK private transfers ($15k bounty) |
+| PNP Exchange Integration | **COMPLETE** | Prediction markets with anonymous betting ($2.5k bounty) |
 | Jupiter Swap Integration | **COMPLETE** | Token swaps with best routes via Jupiter aggregator |
 | Helius Token Balances | **COMPLETE** | Fetch all wallet token balances via Helius API |
 | ZK Proof Generation | **COMPLETE** | WASM-based proof generation with Light Protocol |
@@ -17,6 +18,7 @@ Privacy-First Trading Platform for Solana Whales | Solana Privacy Hack 2026
 | Balance Validation | **COMPLETE** | Lamports-based validation (no floating point issues) |
 | Error Handling | **COMPLETE** | User-friendly error messages for common issues |
 | Enhanced Transaction Modals | **COMPLETE** | Animated progress with ZK proof indicators |
+| Enhanced Sidebar | **COMPLETE** | Section grouping, bounty badges, stealth rating |
 | UI/UX | **COMPLETE** | Dark cyberpunk theme with responsive design |
 
 ---
@@ -100,7 +102,32 @@ Successfully integrated Jupiter Swap API v1 for token swaps:
 
 ---
 
-## 4. Helius Integration
+## 4. PNP Exchange Integration ($2.5k Bounty)
+
+Successfully integrated `pnp-sdk` v0.2.8 for prediction markets:
+
+- **Market Listing**: Fetch all active prediction markets
+- **Real-time Prices**: YES/NO token prices calculated from supply
+- **Market Metadata**: Volume, liquidity, end dates via batch API
+- **Trading Interface**: Buy YES/NO tokens modal with price estimates
+- **Position Tracking**: View user positions per market
+- **Status Filtering**: Filter by Active, Ended, Resolved markets
+- **Auto-refresh**: Markets refresh every 30 seconds
+
+**Key Features:**
+- Anonymous betting (wallet address not revealed to other users)
+- USDC-based trading
+- Real-time price updates
+- Loading skeletons for better UX
+
+**Key Files:**
+- `src/lib/privacy-sdks/pnp.ts` - PNP SDK service wrapper
+- `src/hooks/usePNP.ts` - React hook with trading functions
+- `src/app/(dashboard)/markets/page.tsx` - Prediction Markets UI
+
+---
+
+## 5. Helius Integration
 
 Helius API + Direct RPC integration for:
 
@@ -128,17 +155,23 @@ src/
 ├── lib/privacy-sdks/
 │   ├── privacy-cash.ts      # Privacy Cash (ZK deposits/withdrawals)
 │   ├── shadow-wire.ts       # ShadowWire (Bulletproof ZK transfers)
+│   ├── pnp.ts               # PNP Exchange (prediction markets)
 │   ├── jupiter.ts           # Jupiter Swap API v1 (token swaps)
 │   ├── helius.ts            # Helius API + RPC (balances, metadata)
 │   └── index.ts             # Barrel exports
 ├── hooks/
 │   ├── usePrivacyCash.ts    # Privacy Cash hook with Privy signing
 │   ├── useShadowWire.ts     # ShadowWire hook with Privy signing
+│   ├── usePNP.ts            # PNP Exchange hook with trading
 │   ├── useSwap.ts           # Jupiter swap hook with Privy signing
 │   ├── useHelius.ts         # Helius data hooks (optimistic updates)
 │   └── useWalletBalance.ts  # Header balance hook (store integration)
-├── components/ui/
-│   └── Modal.tsx            # TransactionModal + SuccessModal (enhanced)
+├── components/
+│   ├── ui/
+│   │   └── Modal.tsx        # TransactionModal + SuccessModal (enhanced)
+│   └── layout/
+│       ├── Sidebar.tsx      # Enhanced sidebar with section grouping
+│       └── DashboardLayout  # Loading skeleton, responsive layout
 ├── store/
 │   ├── index.ts             # Zustand store with all slices
 │   └── slices/
@@ -149,6 +182,7 @@ src/
 └── app/(dashboard)/
     ├── privacy/page.tsx     # Shield/Unshield UI (Privacy Cash)
     ├── transfer/page.tsx    # Ghost Send UI (ShadowWire)
+    ├── markets/page.tsx     # Prediction Markets UI (PNP Exchange)
     ├── swap/page.tsx        # Token swap UI (Jupiter)
     └── dashboard/page.tsx   # Command center with pool stats
 ```
@@ -209,6 +243,15 @@ Get Jupiter API key at: https://portal.jup.ag
 7. **Header Sync**: Global store triggers header balance refresh
 8. **Public Transactions**: All Jupiter swaps are visible on-chain (Private Swap coming soon)
 
+### PNP Exchange (Prediction Markets)
+1. **Auto-refresh**: Markets refresh every 30 seconds
+2. **Price Calculation**: YES/NO prices derived from token supply ratios
+3. **USDC Trading**: All trades denominated in USDC
+4. **Market Status**: Active, Ended, or Resolved states
+5. **Volume Display**: Total volume fetched from PNP metadata API
+6. **Anonymous Betting**: Wallet addresses not exposed to other users
+7. **Loading Skeletons**: Smooth loading states while fetching markets
+
 ---
 
 ## Tech Stack
@@ -219,6 +262,7 @@ Get Jupiter API key at: https://portal.jup.ag
   - Privacy Cash SDK (shield/unshield)
   - ShadowWire SDK (Bulletproof ZK transfers)
   - Light Protocol WASM
+- **Markets**: PNP SDK v0.2.8 (prediction markets)
 - **Swaps**: Jupiter Aggregator API
 - **Data**: Helius Enhanced API
 - **Database**: MongoDB with Mongoose
@@ -232,7 +276,10 @@ Get Jupiter API key at: https://portal.jup.ag
 |--------|--------|--------|
 | ShadowWire Integration (Radr Labs) | $15,000 | **COMPLETE** |
 | Privacy Cash Integration | $15,000 | **COMPLETE** |
+| PNP Exchange Integration | $2,500 | **COMPLETE** |
 | Jupiter Integration | - | **COMPLETE** |
 | Helius Integration | - | **COMPLETE** |
 | Light Protocol | TBD | Pending |
-| PNP Exchange | TBD | Pending |
+| Anoncoin | $10,000 | Pending |
+
+**Total Bounty Potential: $32,500+**

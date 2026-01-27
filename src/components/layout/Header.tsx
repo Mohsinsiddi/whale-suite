@@ -19,7 +19,7 @@ interface HeaderProps {
 export default function Header({ variant = "landing", wallet, notifications = 0 }: HeaderProps) {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { logout, walletAddress } = useAuth();
+  const { logout, walletAddress, authenticated, login } = useAuth();
   const { userNumber, badgeTier, privacyScore } = useUser();
   const { hiddenBalance } = useWallet();
   const { toggleSidebar } = useUI();
@@ -35,10 +35,17 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
 
   const handleDisconnect = async () => {
     try {
+      console.log('Disconnecting wallet...');
       await logout();
-      router.push('/connect');
+      // Clear all local storage
+      localStorage.removeItem('whale-suite-welcome-seen');
+      localStorage.removeItem('whale-suite-storage');
+      // Force full page reload to clear all state
+      window.location.href = '/';
     } catch (error) {
       console.error('Logout error:', error);
+      // Force reload anyway
+      window.location.href = '/';
     }
   };
 
@@ -84,12 +91,12 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
           <div className="flex items-center gap-2 sm:gap-3">
             {variant === "landing" ? (
               <Link
-                href="/connect"
+                href="/dashboard"
                 className="px-4 py-1.5 text-sm font-semibold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-lg hover:shadow-glow-sm transition-all"
               >
                 Launch App
               </Link>
-            ) : (
+            ) : authenticated ? (
               <>
                 {/* Balance Display */}
                 <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border-primary">
@@ -115,6 +122,15 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
                     </>
                   )}
                 </div>
+
+                {/* Quick Disconnect Button */}
+                <button
+                  onClick={handleDisconnect}
+                  className="p-2 rounded-lg hover:bg-error/10 transition-colors group"
+                  title="Disconnect Wallet"
+                >
+                  <DisconnectIcon className="w-4 h-4 text-text-muted group-hover:text-error" />
+                </button>
 
                 {/* Notifications */}
                 <Dropdown
@@ -217,6 +233,14 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
                   </DropdownItem>
                 </Dropdown>
               </>
+            ) : (
+              /* Connect Wallet Button for unauthenticated users */
+              <button
+                onClick={() => login()}
+                className="px-4 py-1.5 text-sm font-semibold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-lg hover:shadow-glow-sm transition-all"
+              >
+                Connect Wallet
+              </button>
             )}
 
             {/* Mobile Menu Button (Landing only) */}
@@ -328,5 +352,11 @@ const SettingsIcon = () => (
 const LogoutIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+  </svg>
+);
+
+const DisconnectIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5.636 5.636a9 9 0 1012.728 0M12 3v9" />
   </svg>
 );

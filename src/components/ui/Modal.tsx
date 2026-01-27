@@ -391,11 +391,7 @@ const SpinnerIcon = ({ className = "w-4 h-4" }) => (
   </svg>
 );
 
-const CircleIcon = ({ className = "w-4 h-4" }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <circle cx="12" cy="12" r="10" strokeWidth={2} />
-  </svg>
-);
+// CircleIcon removed - was unused
 
 const ErrorIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">

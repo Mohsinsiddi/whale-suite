@@ -19,3 +19,4 @@ export {
   useWhaleFeed as useHeliusWhaleFeed,
   useWalletSubscription,
 } from './useHelius';
+// PNP uses dynamic imports - import directly: import { usePNP } from '@/hooks/usePNP'

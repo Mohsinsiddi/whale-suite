@@ -21,17 +21,42 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     ? `${wallet.slice(0, 4)}...${wallet.slice(-4)}`
     : "...";
 
-  const navItems = [
-    { href: "/dashboard", icon: <DashboardIcon />, label: "Dashboard" },
-    { href: "/privacy", icon: <PrivacyIcon />, label: "Privacy Cash", badge: "NEW" },
-    { href: "/vaults", icon: <VaultIcon />, label: "Shadow Vaults" },
-    { href: "/transfer", icon: <TransferIcon />, label: "Ghost Send" },
-    { href: "/swap", icon: <SwapIcon />, label: "Dark Pool" },
-    { href: "/markets", icon: <MarketsIcon />, label: "Markets" },
-    { href: "/intelligence", icon: <IntelligenceIcon />, label: "Whale Intel" },
-    { href: "/portfolio", icon: <PortfolioIcon />, label: "Portfolio" },
-    { href: "/badges", icon: <BadgeIcon />, label: "Badges" },
-    { href: "/affiliate", icon: <AffiliateIcon />, label: "Affiliate" },
+  // Navigation groups for better organization
+  const navGroups = [
+    {
+      title: "Overview",
+      items: [
+        { href: "/dashboard", icon: <DashboardIcon />, label: "Command Center" },
+      ],
+    },
+    {
+      title: "Privacy Tools",
+      items: [
+        { href: "/privacy", icon: <ShieldIcon />, label: "Privacy Cash", badge: "$15K", badgeColor: "green" },
+        { href: "/transfer", icon: <GhostIcon />, label: "Ghost Send", badge: "$15K", badgeColor: "green" },
+        { href: "/swap", icon: <SwapIcon />, label: "Jupiter Swap" },
+      ],
+    },
+    {
+      title: "Predictions",
+      items: [
+        { href: "/markets", icon: <MarketsIcon />, label: "PNP Markets", badge: "$2.5K", badgeColor: "cyan" },
+      ],
+    },
+    {
+      title: "Intelligence",
+      items: [
+        { href: "/intelligence", icon: <IntelligenceIcon />, label: "Whale Intel" },
+        { href: "/portfolio", icon: <PortfolioIcon />, label: "Portfolio" },
+      ],
+    },
+    {
+      title: "Premium",
+      items: [
+        { href: "/badges", icon: <BadgeIcon />, label: "NFT Badges" },
+        { href: "/affiliate", icon: <AffiliateIcon />, label: "Affiliate" },
+      ],
+    },
   ];
 
   const bottomItems = [
@@ -53,10 +78,11 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       <aside
         className={`
           fixed top-0 left-0 z-50 h-full w-64
-          bg-bg-secondary border-r border-border-primary
+          bg-bg-secondary/95 backdrop-blur-xl border-r border-border-primary
           transform transition-transform duration-300 ease-out
           lg:translate-x-0 lg:top-14
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
+          flex flex-col
         `}
       >
         {/* Mobile Header */}
@@ -76,17 +102,17 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         </div>
 
         {/* User Card */}
-        <div className="p-4">
-          <div className="p-3 rounded-xl bg-gradient-to-br from-bg-tertiary to-bg-elevated border border-border-primary">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-green to-neon-cyan flex items-center justify-center text-bg-primary font-bold">
+        <div className="p-4 lg:pt-4">
+          <div className="p-3 rounded-xl bg-gradient-to-br from-bg-tertiary to-bg-elevated border border-border-primary hover:border-neon-green/30 transition-colors">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-green to-neon-cyan flex items-center justify-center text-bg-primary font-bold text-sm">
                 {badgeTier !== 'none' ? badgeTier.charAt(0).toUpperCase() : 'W'}
               </div>
-              <div>
-                <p className="text-sm font-semibold text-text-primary">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-text-primary truncate">
                   {userNumber ? `Whale #${userNumber}` : 'Loading...'}
                 </p>
-                <p className="text-xs text-text-muted">{shortWallet}</p>
+                <p className="text-xs text-text-muted font-mono">{shortWallet}</p>
               </div>
             </div>
             {badgeTier && badgeTier !== 'none' && (
@@ -96,26 +122,39 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-2 overflow-y-auto">
-          <div className="space-y-1">
-            {navItems.map((item) => (
-              <SidebarLink
-                key={item.href}
-                href={item.href}
-                icon={item.icon}
-                label={item.label}
-                badge={item.badge}
-                isActive={pathname === item.href}
-                onClick={onClose}
-              />
-            ))}
-          </div>
+        <nav className="flex-1 px-3 py-2 overflow-y-auto scrollbar-thin scrollbar-thumb-border-primary scrollbar-track-transparent">
+          {navGroups.map((group, groupIndex) => (
+            <div key={group.title} className={groupIndex > 0 ? "mt-4" : ""}>
+              {/* Section Label */}
+              <div className="px-3 mb-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted/70">
+                  {group.title}
+                </span>
+              </div>
+
+              {/* Section Items */}
+              <div className="space-y-0.5">
+                {group.items.map((item) => (
+                  <SidebarLink
+                    key={item.href}
+                    href={item.href}
+                    icon={item.icon}
+                    label={item.label}
+                    badge={item.badge}
+                    badgeColor={item.badgeColor}
+                    isActive={pathname === item.href}
+                    onClick={onClose}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
 
           {/* Divider */}
-          <div className="my-4 h-px bg-border-secondary" />
+          <div className="my-4 h-px bg-border-secondary/50" />
 
           {/* Bottom Items */}
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {bottomItems.map((item) => (
               <SidebarLink
                 key={item.href}
@@ -130,18 +169,33 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         </nav>
 
         {/* Stealth Rating */}
-        <div className="p-4 border-t border-border-primary">
-          <div className="text-xs text-text-muted mb-1.5">Stealth Rating</div>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 h-1.5 bg-bg-primary rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-neon-green to-neon-cyan rounded-full transition-all duration-500"
-                style={{ width: `${(privacyScore / 1000) * 100}%` }}
-              />
-            </div>
-            <span className="text-xs font-semibold text-neon-green">
-              {privacyScore || 0}
+        <div className="p-4 border-t border-border-primary bg-bg-primary/30">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-text-muted">Stealth Rating</span>
+            <span className="text-xs font-bold text-neon-green">
+              {privacyScore || 0}/1000
             </span>
+          </div>
+          <div className="h-2 bg-bg-primary rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-neon-green via-neon-cyan to-neon-green rounded-full transition-all duration-500 relative"
+              style={{ width: `${(privacyScore / 1000) * 100}%` }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+            </div>
+          </div>
+          <p className="text-[10px] text-text-muted mt-2">
+            Use privacy tools to increase your rating
+          </p>
+        </div>
+
+        {/* Version Badge */}
+        <div className="px-4 pb-4">
+          <div className="flex items-center justify-center gap-2 py-2 rounded-lg bg-bg-primary/50 text-[10px] text-text-muted">
+            <span className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
+            <span>Mainnet</span>
+            <span className="text-text-muted/50">|</span>
+            <span>v1.0.0</span>
           </div>
         </div>
       </aside>
@@ -155,29 +209,40 @@ interface SidebarLinkProps {
   icon: ReactNode;
   label: string;
   badge?: string;
+  badgeColor?: string;
   isActive?: boolean;
   onClick?: () => void;
 }
 
-function SidebarLink({ href, icon, label, badge, isActive, onClick }: SidebarLinkProps) {
+function SidebarLink({ href, icon, label, badge, badgeColor = "green", isActive, onClick }: SidebarLinkProps) {
   return (
     <Link
       href={href}
       onClick={onClick}
       className={`
-        flex items-center gap-3 px-3 py-2 rounded-lg
+        group flex items-center gap-3 px-3 py-2.5 rounded-lg
         text-sm font-medium transition-all duration-200
         ${
           isActive
-            ? "bg-neon-green/10 text-neon-green border-l-2 border-neon-green"
-            : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary"
+            ? "bg-neon-green/10 text-neon-green border-l-2 border-neon-green shadow-[0_0_10px_rgba(0,255,136,0.1)]"
+            : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/70 border-l-2 border-transparent"
         }
       `}
     >
-      <span className={isActive ? "text-neon-green" : "text-text-muted"}>{icon}</span>
+      <span className={`transition-colors ${isActive ? "text-neon-green" : "text-text-muted group-hover:text-text-primary"}`}>
+        {icon}
+      </span>
       <span className="flex-1">{label}</span>
       {badge && (
-        <span className="px-1.5 py-0.5 text-[10px] font-bold bg-neon-green text-bg-primary rounded">
+        <span className={`
+          px-1.5 py-0.5 text-[9px] font-bold rounded
+          ${badgeColor === "green"
+            ? "bg-neon-green/20 text-neon-green"
+            : badgeColor === "cyan"
+            ? "bg-neon-cyan/20 text-neon-cyan"
+            : "bg-warning/20 text-warning"
+          }
+        `}>
           {badge}
         </span>
       )}
@@ -198,13 +263,13 @@ const DashboardIcon = () => (
   </svg>
 );
 
-const VaultIcon = () => (
+const ShieldIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
   </svg>
 );
 
-const TransferIcon = () => (
+const GhostIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
   </svg>
@@ -257,11 +322,5 @@ const SettingsIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-  </svg>
-);
-
-const PrivacyIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
   </svg>
 );

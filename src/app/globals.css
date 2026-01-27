@@ -251,6 +251,11 @@
   100% { background-position: 200% 0; }
 }
 
+@keyframes shimmer-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
 @keyframes borderGlow {
   0%, 100% { border-color: rgba(0, 255, 136, 0.2); }
   50% { border-color: rgba(0, 255, 136, 0.6); }
@@ -302,6 +307,11 @@
 @keyframes successBounce {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.1); }
+}
+
+@keyframes grid-move {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(30px, 30px); }
 }
 
 /* Animation Classes */
@@ -1213,6 +1223,44 @@
 
   .animate-spin {
     animation: spin 1s linear infinite;
+  }
+
+  /* Animation Delays */
+  .animation-delay-100 {
+    animation-delay: 100ms;
+  }
+
+  .animation-delay-200 {
+    animation-delay: 200ms;
+  }
+
+  .animation-delay-300 {
+    animation-delay: 300ms;
+  }
+
+  .animation-delay-400 {
+    animation-delay: 400ms;
+  }
+
+  .animation-delay-500 {
+    animation-delay: 500ms;
+  }
+
+  .animation-delay-600 {
+    animation-delay: 600ms;
+  }
+
+  .animation-delay-700 {
+    animation-delay: 700ms;
+  }
+
+  .animation-delay-800 {
+    animation-delay: 800ms;
+  }
+
+  /* Animation Fill Mode - keeps end state */
+  .animation-fill-both {
+    animation-fill-mode: both;
   }
 
   /* Glow Effects */

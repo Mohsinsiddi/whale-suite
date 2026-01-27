@@ -79,10 +79,10 @@ const features = [
 ];
 
 const stats = [
-  { value: "$23K+", label: "Bounty Pool" },
-  { value: "4", label: "Privacy SDKs" },
+  { value: "$32K+", label: "Bounty Pool" },
+  { value: "5", label: "Privacy SDKs" },
   { value: "100%", label: "Anonymous" },
-  { value: "⚡", label: "Instant" },
+  { value: "Live", label: "Mainnet" },
 ];
 
 export default function LandingPage() {
@@ -118,17 +118,17 @@ export default function LandingPage() {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-12">
             <Link
-              href="/connect"
-              className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-lg hover:shadow-glow-md hover:-translate-y-0.5 transition-all"
+              href="/dashboard"
+              className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-lg hover:shadow-glow-md hover:-translate-y-0.5 transition-all text-center"
             >
               Get Started Free
             </Link>
-            <Link
+            <a
               href="#features"
-              className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold border border-neon-green text-neon-green rounded-lg hover:bg-neon-green/10 transition-all"
+              className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold border border-neon-green text-neon-green rounded-lg hover:bg-neon-green/10 transition-all text-center"
             >
-              Watch Demo
-            </Link>
+              Learn More
+            </a>
           </div>
 
           {/* Stats */}
@@ -230,9 +230,12 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <button className="w-full py-2 text-sm font-semibold border border-neon-green text-neon-green rounded-lg hover:bg-neon-green/10 transition-colors">
+              <Link
+                href="/dashboard"
+                className="block w-full py-2 text-sm font-semibold border border-neon-green text-neon-green rounded-lg hover:bg-neon-green/10 transition-colors text-center"
+              >
                 Start Free
-              </button>
+              </Link>
             </div>
 
             {/* Premium - Featured */}
@@ -251,9 +254,12 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <button className="w-full py-2 text-sm font-semibold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-lg hover:shadow-glow-md transition-all">
+              <Link
+                href="/dashboard"
+                className="block w-full py-2 text-sm font-semibold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-lg hover:shadow-glow-md transition-all text-center"
+              >
                 Go Premium
-              </button>
+              </Link>
             </div>
 
             {/* Gold Badge */}
@@ -269,9 +275,12 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <button className="w-full py-2 text-sm font-semibold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-lg hover:shadow-glow-md transition-all">
+              <Link
+                href="/dashboard"
+                className="block w-full py-2 text-sm font-semibold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-lg hover:shadow-glow-md transition-all text-center"
+              >
                 Claim Badge
-              </button>
+              </Link>
             </div>
           </div>
         </div>
@@ -290,7 +299,7 @@ export default function LandingPage() {
             Join the elite traders who value privacy. Your movements should be yours alone.
           </p>
           <Link
-            href="/connect"
+            href="/dashboard"
             className="inline-flex items-center gap-2 px-8 py-3 text-sm font-semibold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-xl hover:shadow-glow-md hover:-translate-y-0.5 transition-all"
           >
             Launch App
