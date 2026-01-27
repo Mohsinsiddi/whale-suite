@@ -2,14 +2,16 @@
  * usePNP Hook
  * React hook for PNP Exchange integration
  * Supports pagination, category filtering, and market stats
+ * Uses ShadowWire pattern: signTransaction → sendRawTransaction
  * Bounty: $2,500
  */
 
 "use client";
 
-import { useState, useCallback } from "react";
-import { useWallets } from "@privy-io/react-auth";
-import { pnpService, PNPMarket, UserPosition, TradeParams, TradeResult } from "@/lib/privacy-sdks/pnp";
+import { useState, useCallback, useMemo } from "react";
+import { useWallets, useSignTransaction } from "@privy-io/react-auth/solana";
+import { Transaction, VersionedTransaction } from "@solana/web3.js";
+import { pnpService, PNPMarket, UserPosition, TradeParams, TradeResult, TransactionSigner } from "@/lib/privacy-sdks/pnp";
 
 export type MarketCategory = "all" | "v2" | "p2p";
 
@@ -21,29 +23,55 @@ interface MarketStats {
   hasMore: boolean;
 }
 
+export interface CreateMarketParams {
+  question: string;
+  initialLiquidity: number; // in USDC
+  endTime: Date;
+  marketType: "v2" | "p2p";
+  side?: "yes" | "no"; // For P2P markets
+}
+
+export interface CreateMarketResult {
+  signature: string;
+  market: string;
+  success: boolean;
+  error?: string;
+}
+
 interface UsePNPReturn {
   // State
   markets: PNPMarket[];
+  allMarkets: PNPMarket[]; // Full cache of all markets
   loading: boolean;
   error: string | null;
   selectedMarket: PNPMarket | null;
   userPosition: UserPosition | null;
   trading: boolean;
+  creating: boolean;
   stats: MarketStats;
   category: MarketCategory;
+  walletConnected: boolean;
+  walletAddress: string | null;
+  sdkReady: boolean;
 
   // Actions
   fetchMarkets: (options?: { limit?: number; reset?: boolean }) => Promise<void>;
+  fetchMyMarkets: () => Promise<PNPMarket[]>; // Fetch markets by connected wallet
   loadMore: (limit?: number) => Promise<void>;
   setCategory: (category: MarketCategory) => void;
   fetchMarket: (address: string) => Promise<PNPMarket | null>;
   selectMarket: (market: PNPMarket | null) => void;
   buyTokens: (params: TradeParams) => Promise<TradeResult>;
+  buyTokensV2: (marketAddress: string, side: "yes" | "no", amountUsdc: number) => Promise<TradeResult>;
+  buyTokensP2P: (marketAddress: string, side: "yes" | "no", amountUsdc: number) => Promise<TradeResult>;
   sellTokens: (params: { marketPubkey: string; side: "yes" | "no"; amount: number }) => Promise<TradeResult>;
   fetchUserPosition: (marketAddress: string) => Promise<void>;
   redeemPosition: (marketAddress: string) => Promise<{ signature: string; success: boolean; error?: string }>;
+  redeemPositionV2: (marketAddress: string) => Promise<{ signature: string; success: boolean; error?: string }>;
+  redeemPositionP2P: (marketAddress: string) => Promise<{ signature: string; success: boolean; error?: string }>;
   refreshPrices: (marketAddress: string) => Promise<void>;
   refreshStats: () => Promise<void>;
+  createMarket: (params: CreateMarketParams) => Promise<CreateMarketResult>;
 
   // Utilities
   formatVolume: (volume: number) => string;
@@ -56,8 +84,62 @@ const DEFAULT_LIMIT = 20;
 
 export function usePNP(): UsePNPReturn {
   const { wallets } = useWallets();
-  const _embeddedWallet = wallets?.find((w) => w.walletClientType === "privy");
-  void _embeddedWallet;
+  const { signTransaction: privySignTransaction } = useSignTransaction();
+
+  // Get first available Solana wallet
+  const solanaWallet = wallets?.[0];
+
+  // Get wallet address
+  const walletAddress = useMemo(() => {
+    return solanaWallet?.address || null;
+  }, [solanaWallet]);
+
+  const walletConnected = useMemo(() => {
+    return !!solanaWallet && !!walletAddress;
+  }, [solanaWallet, walletAddress]);
+
+  /**
+   * Sign transaction using Privy (ShadowWire pattern)
+   * This is passed to pnpService direct methods
+   */
+  const signTransaction: TransactionSigner = useCallback(
+    async (tx: Transaction | VersionedTransaction): Promise<Transaction | VersionedTransaction> => {
+      if (!solanaWallet) {
+        throw new Error("Wallet not connected");
+      }
+
+      console.log("[PNP] Signing transaction with Privy...");
+
+      // Serialize the transaction
+      const serialized = tx.serialize({ requireAllSignatures: false });
+
+      // Sign with Privy
+      const result = await privySignTransaction({
+        transaction: serialized,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        wallet: solanaWallet as any,
+      });
+
+      console.log("[PNP] Privy signing successful");
+
+      // Deserialize back
+      try {
+        return VersionedTransaction.deserialize(result.signedTransaction);
+      } catch {
+        return Transaction.from(result.signedTransaction);
+      }
+    },
+    [solanaWallet, privySignTransaction]
+  );
+
+  // SDK ready when wallet is connected
+  const sdkReady = useMemo(() => {
+    return !!walletAddress && !!solanaWallet;
+  }, [walletAddress, solanaWallet]);
+
+  // Placeholder for backward compatibility (direct methods don't need this)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _pnpClient = walletAddress ? { connected: true } : null;
 
   // State
   const [markets, setMarkets] = useState<PNPMarket[]>([]);
@@ -66,6 +148,7 @@ export function usePNP(): UsePNPReturn {
   const [selectedMarket, setSelectedMarket] = useState<PNPMarket | null>(null);
   const [userPosition, setUserPosition] = useState<UserPosition | null>(null);
   const [trading, setTrading] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [category, setCategory] = useState<MarketCategory>("all");
   const [offset, setOffset] = useState(0);
   const [stats, setStats] = useState<MarketStats>({
@@ -93,8 +176,12 @@ export function usePNP(): UsePNPReturn {
     }
   }, []);
 
+  // Cache for all markets (to avoid refetching)
+  const [allMarketsCache, setAllMarketsCache] = useState<PNPMarket[]>([]);
+
   /**
-   * Fetch markets with category and pagination
+   * Fetch ALL markets from SDK (recommended - gets creator info)
+   * Then apply client-side filtering for category/pagination
    */
   const fetchMarkets = useCallback(async (options?: { limit?: number; reset?: boolean }) => {
     const limit = options?.limit || DEFAULT_LIMIT;
@@ -110,38 +197,52 @@ export function usePNP(): UsePNPReturn {
         setOffset(0);
       }
 
-      let fetchedMarkets: PNPMarket[] = [];
+      let allFetched: PNPMarket[];
 
-      // Fetch based on category
-      if (category === "v2") {
-        fetchedMarkets = await pnpService.fetchV2Markets(limit, currentOffset);
-      } else if (category === "p2p") {
-        fetchedMarkets = await pnpService.fetchP2PMarkets(limit, currentOffset);
+      // Use cache if available and not resetting
+      if (allMarketsCache.length > 0 && !shouldReset) {
+        allFetched = allMarketsCache;
       } else {
-        fetchedMarkets = await pnpService.fetchAllMarkets(limit, currentOffset);
+        // Fetch ALL markets from SDK (includes creator info)
+        console.log("[usePNP] Fetching all markets from SDK...");
+        allFetched = await pnpService.fetchAllMarketsFromSDK();
+        setAllMarketsCache(allFetched);
+        console.log(`[usePNP] Cached ${allFetched.length} markets`);
       }
+
+      // Filter by category
+      let filteredByCategory = allFetched;
+      if (category === "v2") {
+        filteredByCategory = allFetched.filter(m => m.marketType === "v2");
+      } else if (category === "p2p") {
+        filteredByCategory = allFetched.filter(m => m.marketType === "p2p");
+      }
+
+      // Apply pagination
+      const paginatedMarkets = filteredByCategory.slice(currentOffset, currentOffset + limit);
 
       // Update markets
       if (shouldReset) {
-        setMarkets(fetchedMarkets);
+        setMarkets(paginatedMarkets);
       } else {
-        setMarkets((prev) => [...prev, ...fetchedMarkets]);
+        setMarkets((prev) => [...prev, ...paginatedMarkets]);
       }
 
       // Update stats
-      const counts = await pnpService.getMarketCounts();
-      const totalForCategory = category === "v2" ? counts.v2 : category === "p2p" ? counts.p2p : counts.total;
-      const loadedCount = shouldReset ? fetchedMarkets.length : markets.length + fetchedMarkets.length;
+      const v2Count = allFetched.filter(m => m.marketType === "v2").length;
+      const p2pCount = allFetched.filter(m => m.marketType === "p2p").length;
+      const totalForCategory = category === "v2" ? v2Count : category === "p2p" ? p2pCount : allFetched.length;
+      const loadedCount = shouldReset ? paginatedMarkets.length : markets.length + paginatedMarkets.length;
 
       setStats({
-        v2Count: counts.v2,
-        p2pCount: counts.p2p,
-        totalCount: counts.total,
+        v2Count,
+        p2pCount,
+        totalCount: allFetched.length,
         loadedCount,
         hasMore: loadedCount < totalForCategory,
       });
 
-      setOffset(currentOffset + fetchedMarkets.length);
+      setOffset(currentOffset + paginatedMarkets.length);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to fetch markets";
       setError(message);
@@ -149,7 +250,7 @@ export function usePNP(): UsePNPReturn {
     } finally {
       setLoading(false);
     }
-  }, [category, offset, markets.length]);
+  }, [category, offset, markets.length, allMarketsCache]);
 
   /**
    * Load more markets (pagination)
@@ -158,6 +259,27 @@ export function usePNP(): UsePNPReturn {
     if (loading || !stats.hasMore) return;
     await fetchMarkets({ limit, reset: false });
   }, [fetchMarkets, loading, stats.hasMore]);
+
+  /**
+   * Fetch markets created by the connected wallet
+   * Uses cached data if available, otherwise fetches from SDK
+   */
+  const fetchMyMarkets = useCallback(async (): Promise<PNPMarket[]> => {
+    if (!walletAddress) return [];
+
+    try {
+      // Use cache if available
+      if (allMarketsCache.length > 0) {
+        return allMarketsCache.filter(m => m.creator === walletAddress);
+      }
+
+      // Otherwise fetch from SDK
+      return await pnpService.fetchMarketsByCreator(walletAddress);
+    } catch (e) {
+      console.error("fetchMyMarkets error:", e);
+      return [];
+    }
+  }, [walletAddress, allMarketsCache]);
 
   /**
    * Change category and reset markets
@@ -210,7 +332,7 @@ export function usePNP(): UsePNPReturn {
   }, []);
 
   /**
-   * Buy tokens
+   * Buy tokens (legacy - uses service)
    */
   const buyTokens = useCallback(async (params: TradeParams): Promise<TradeResult> => {
     setTrading(true);
@@ -237,6 +359,67 @@ export function usePNP(): UsePNPReturn {
       setTrading(false);
     }
   }, [fetchMarket, fetchUserPosition]);
+
+  /**
+   * Buy tokens on V2 AMM market
+   * Uses direct signing pattern (ShadowWire style) - sign → sendRawTransaction
+   */
+  const buyTokensV2 = useCallback(async (
+    marketAddress: string,
+    side: "yes" | "no",
+    amountUsdc: number
+  ): Promise<TradeResult> => {
+    if (!walletAddress) {
+      return { signature: "", tokensReceived: 0, success: false, error: "Wallet not connected" };
+    }
+
+    setTrading(true);
+    setError(null);
+
+    try {
+      // Use direct service method with signTransaction
+      const result = await pnpService.buyTokensDirect(
+        marketAddress,
+        side,
+        amountUsdc,
+        walletAddress,
+        signTransaction
+      );
+
+      if (result.success) {
+        await fetchMarket(marketAddress);
+        await fetchUserPosition(marketAddress);
+      } else {
+        setError(result.error || "Trade failed");
+      }
+
+      return result;
+    } catch (e) {
+      let message = e instanceof Error ? e.message : "Trade failed";
+      if (message.includes("403") || message.includes("Access forbidden")) {
+        message += " (Try changing the RPC URL)";
+      } else if (message.includes("0x1778") || message.includes("Market already resolved") || message.includes("MarketResolved")) {
+        message += " (This market has ended or is invalid)";
+      }
+      setError(message);
+      return { signature: "", tokensReceived: 0, success: false, error: message };
+    } finally {
+      setTrading(false);
+    }
+  }, [walletAddress, signTransaction, fetchMarket, fetchUserPosition]);
+
+  /**
+   * Buy tokens on P2P market
+   * Uses same direct signing pattern as V2
+   */
+  const buyTokensP2P = useCallback(async (
+    marketAddress: string,
+    side: "yes" | "no",
+    amountUsdc: number
+  ): Promise<TradeResult> => {
+    // P2P uses same method as V2
+    return buyTokensV2(marketAddress, side, amountUsdc);
+  }, [buyTokensV2]);
 
   /**
    * Sell tokens
@@ -275,7 +458,7 @@ export function usePNP(): UsePNPReturn {
   }, [fetchMarket, fetchUserPosition]);
 
   /**
-   * Redeem winning position
+   * Redeem winning position (legacy - uses service)
    */
   const redeemPosition = useCallback(async (marketAddress: string) => {
     setTrading(true);
@@ -301,6 +484,103 @@ export function usePNP(): UsePNPReturn {
       setTrading(false);
     }
   }, [fetchUserPosition]);
+
+  /**
+   * Redeem V2 position
+   * Uses direct signing pattern (ShadowWire style) - sign → sendRawTransaction
+   */
+  const redeemPositionV2 = useCallback(async (marketAddress: string) => {
+    if (!walletAddress) {
+      return { signature: "", success: false, error: "Wallet not connected" };
+    }
+
+    setTrading(true);
+    setError(null);
+
+    try {
+      // Use direct service method with signTransaction
+      const result = await pnpService.redeemPositionDirect(
+        marketAddress,
+        walletAddress,
+        signTransaction
+      );
+
+      if (result.success) {
+        await fetchUserPosition(marketAddress);
+      } else {
+        setError(result.error || "Redeem failed");
+      }
+
+      return result;
+    } catch (e) {
+      let message = e instanceof Error ? e.message : "Redeem failed";
+      if (message.includes("403") || message.includes("Access forbidden")) {
+        message += " (Try changing the RPC URL)";
+      }
+      setError(message);
+      return { signature: "", success: false, error: message };
+    } finally {
+      setTrading(false);
+    }
+  }, [walletAddress, signTransaction, fetchUserPosition]);
+
+  /**
+   * Redeem P2P position
+   * Uses same direct signing pattern as V2
+   */
+  const redeemPositionP2P = useCallback(async (marketAddress: string) => {
+    // P2P uses same method as V2
+    return redeemPositionV2(marketAddress);
+  }, [redeemPositionV2]);
+
+  /**
+   * Create a new prediction market
+   * Uses direct signing pattern (ShadowWire style) - sign → sendRawTransaction
+   */
+  const createMarket = useCallback(async (params: CreateMarketParams): Promise<CreateMarketResult> => {
+    if (!walletAddress) {
+      return { signature: "", market: "", success: false, error: "Wallet not connected" };
+    }
+
+    setCreating(true);
+    setError(null);
+
+    try {
+      // Convert to base units (USDC has 6 decimals)
+      const liquidityBaseUnits = BigInt(Math.floor(params.initialLiquidity * 1e6));
+      // Convert end time to unix timestamp (seconds)
+      const endTimeUnix = BigInt(Math.floor(params.endTime.getTime() / 1000));
+
+      // Use direct service method with signTransaction (ShadowWire pattern)
+      const result = await pnpService.createV2MarketDirect(
+        {
+          question: params.question,
+          initialLiquidity: liquidityBaseUnits,
+          endTime: endTimeUnix,
+        },
+        walletAddress,
+        signTransaction
+      );
+
+      if (result.success) {
+        // Refresh markets list
+        await fetchMarkets({ reset: true });
+      }
+
+      return result;
+    } catch (e) {
+      let message = e instanceof Error ? e.message : "Failed to create market";
+      if (message.includes("403") || message.includes("Access forbidden")) {
+        message += " (Try changing the RPC URL)";
+      } else if (message.includes("insufficient")) {
+        message = "Insufficient USDC balance for initial liquidity";
+      }
+      setError(message);
+      return { signature: "", market: "", success: false, error: message };
+    } finally {
+      setCreating(false);
+    }
+  }, [walletAddress, signTransaction, fetchMarkets]);
 
   /**
    * Refresh prices for a market
@@ -333,26 +613,37 @@ export function usePNP(): UsePNPReturn {
   return {
     // State
     markets,
+    allMarkets: allMarketsCache,
     loading,
     error,
     selectedMarket,
     userPosition,
     trading,
+    creating,
     stats,
     category,
+    walletConnected,
+    walletAddress,
+    sdkReady,
 
     // Actions
     fetchMarkets,
+    fetchMyMarkets,
     loadMore,
     setCategory: handleSetCategory,
     fetchMarket,
     selectMarket,
     buyTokens,
+    buyTokensV2,
+    buyTokensP2P,
     sellTokens,
     fetchUserPosition,
     redeemPosition,
+    redeemPositionV2,
+    redeemPositionP2P,
     refreshPrices,
     refreshStats,
+    createMarket,
 
     // Utilities
     formatVolume,

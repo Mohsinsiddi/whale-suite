@@ -17,7 +17,7 @@
  * IDL compatibility issues with pnp-sdk npm package.
  */
 
-import { PublicKey, Connection } from "@solana/web3.js";
+import { PublicKey, Connection, Transaction, VersionedTransaction } from "@solana/web3.js";
 
 // RPC URL - mainnet
 const RPC_URL = process.env.NEXT_PUBLIC_HELIUS_RPC_URL ||
@@ -30,6 +30,11 @@ const PROXY_BASE_URL = "/api/pnp";
 
 // USDC Mint on mainnet
 const USDC_MINT = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+
+/**
+ * Transaction signer function type (same pattern as ShadowWire)
+ */
+export type TransactionSigner = (tx: Transaction | VersionedTransaction) => Promise<Transaction | VersionedTransaction>;
 
 // ============ Types ============
 
@@ -260,7 +265,45 @@ class PNPService {
   private sdkInitError: Error | null = null;
 
   constructor() {
-    this.connection = new Connection(RPC_URL);
+    this.connection = new Connection(RPC_URL, "confirmed");
+  }
+
+  /**
+   * Sign and send transaction directly (ShadowWire pattern)
+   * This bypasses SDK's internal send and uses direct sendRawTransaction
+   */
+  private async signAndSendTransaction(
+    tx: Transaction | VersionedTransaction,
+    signTransaction: TransactionSigner
+  ): Promise<string> {
+    console.log("[PNP] Signing transaction...");
+
+    // Sign the transaction
+    const signedTx = await signTransaction(tx);
+
+    console.log("[PNP] Transaction signed, sending raw transaction...");
+
+    // Serialize the signed transaction
+    const serialized = signedTx.serialize();
+
+    // Send directly with skipPreflight to avoid simulation issues
+    const signature = await this.connection.sendRawTransaction(serialized, {
+      skipPreflight: true,
+      preflightCommitment: "confirmed",
+      maxRetries: 3,
+    });
+
+    console.log("[PNP] Transaction sent! Signature:", signature);
+
+    // Confirm the transaction
+    const confirmation = await this.connection.confirmTransaction(signature, "confirmed");
+
+    if (confirmation.value.err) {
+      throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+    }
+
+    console.log("[PNP] Transaction confirmed!");
+    return signature;
   }
 
   /**
@@ -319,6 +362,153 @@ class PNPService {
    */
   isSDKAvailable(): boolean {
     return this.sdkInitialized && this.client !== null;
+  }
+
+  // ============ SDK-based Market Fetching (Recommended) ============
+
+  /**
+   * Fetch ALL markets directly from chain using SDK
+   * This is the recommended method - returns all markets with full data including creator
+   * @returns All markets with creator info for filtering
+   */
+  async fetchAllMarketsFromSDK(): Promise<PNPMarket[]> {
+    try {
+      console.log("[PNP] Fetching all markets from SDK...");
+
+      // Import and create a read-only client
+      const { PNPClient } = await import("pnp-sdk");
+      const readClient = new PNPClient(RPC_URL);
+
+      // Fetch all markets from chain
+      const response = await readClient.fetchMarkets();
+
+      if (!response?.data) {
+        console.warn("[PNP] No markets data from SDK");
+        return [];
+      }
+
+      console.log(`[PNP] Fetched ${response.count} markets from SDK`);
+
+      // Transform SDK response to our PNPMarket format
+      const markets: PNPMarket[] = response.data.map((item) => {
+        const account = item.account;
+
+        // Parse winning token
+        let winningToken: "yes" | "no" | null = null;
+        if (account.winning_token_id !== null && account.winning_token_id !== "none") {
+          if (typeof account.winning_token_id === "object") {
+            if ("yes" in (account.winning_token_id as Record<string, unknown>)) winningToken = "yes";
+            else if ("no" in (account.winning_token_id as Record<string, unknown>)) winningToken = "no";
+          } else if (account.winning_token_id === "yes") {
+            winningToken = "yes";
+          } else if (account.winning_token_id === "no") {
+            winningToken = "no";
+          }
+        }
+
+        // Parse reserves and calculate prices
+        const reserves = Number(account.market_reserves || 0) / 1e6;
+        const yesSupply = Number(account.yes_token_supply_minted || 0);
+        const noSupply = Number(account.no_token_supply_minted || 0);
+        const totalSupply = yesSupply + noSupply;
+
+        let yesPrice = 0.5;
+        let noPrice = 0.5;
+        if (totalSupply > 0) {
+          yesPrice = noSupply / totalSupply;
+          noPrice = yesSupply / totalSupply;
+        }
+
+        // Get creator as string (handle PublicKey objects)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const creatorVal = account.creator as any;
+        const creatorStr = typeof creatorVal === "string"
+          ? creatorVal
+          : creatorVal?.toBase58?.() || creatorVal?.toString?.() || String(creatorVal || "");
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const pubKeyVal = item.publicKey as any;
+        const publicKeyStr = typeof pubKeyVal === "string"
+          ? pubKeyVal
+          : pubKeyVal?.toBase58?.() || pubKeyVal?.toString?.() || String(pubKeyVal || "");
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const yesTokenVal = account.yes_token_mint as any;
+        const yesTokenStr = typeof yesTokenVal === "string"
+          ? yesTokenVal
+          : yesTokenVal?.toBase58?.() || yesTokenVal?.toString?.() || "";
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const noTokenVal = account.no_token_mint as any;
+        const noTokenStr = typeof noTokenVal === "string"
+          ? noTokenVal
+          : noTokenVal?.toBase58?.() || noTokenVal?.toString?.() || "";
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const collateralVal = account.collateral_token as any;
+        const collateralStr = typeof collateralVal === "string"
+          ? collateralVal
+          : collateralVal?.toBase58?.() || collateralVal?.toString?.() || "";
+
+        return {
+          id: String(account.id || publicKeyStr),
+          publicKey: publicKeyStr,
+          question: account.question || "",
+          marketType: "v2" as MarketType,
+          yesPrice,
+          noPrice,
+          yesMultiplier: yesPrice > 0 ? 1 / yesPrice : 2,
+          noMultiplier: noPrice > 0 ? 1 / noPrice : 2,
+          yesTokenMint: yesTokenStr,
+          noTokenMint: noTokenStr,
+          collateralToken: collateralStr,
+          marketReserves: reserves,
+          volume: reserves,
+          liquidity: reserves,
+          endDate: new Date(Number(account.end_time || 0) * 1000),
+          resolved: account.resolved || false,
+          resolvable: account.resolvable || false,
+          winningToken,
+          creator: creatorStr,
+        };
+      });
+
+      // Sort by reserves (highest first)
+      return markets.sort((a, b) => b.marketReserves - a.marketReserves);
+    } catch (error) {
+      console.error("[PNP] Failed to fetch markets from SDK:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch markets by creator wallet address
+   * @param creatorWallet - Wallet address to filter by
+   * @returns Markets created by the specified wallet
+   */
+  async fetchMarketsByCreator(creatorWallet: string): Promise<PNPMarket[]> {
+    try {
+      const allMarkets = await this.fetchAllMarketsFromSDK();
+      return allMarkets.filter(m => m.creator === creatorWallet);
+    } catch (error) {
+      console.error("[PNP] Failed to fetch markets by creator:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch only active markets (not resolved, not ended)
+   * @returns Active markets only
+   */
+  async fetchActiveMarkets(): Promise<PNPMarket[]> {
+    try {
+      const allMarkets = await this.fetchAllMarketsFromSDK();
+      const now = new Date();
+      return allMarkets.filter(m => !m.resolved && m.endDate > now);
+    } catch (error) {
+      console.error("[PNP] Failed to fetch active markets:", error);
+      return [];
+    }
   }
 
   // ============ V2 AMM Markets ============
@@ -599,6 +789,372 @@ class PNPService {
         market: "",
         success: false,
         error: error instanceof Error ? error.message : "Failed to create market",
+      };
+    }
+  }
+
+  /**
+   * Create V2 market with direct signing (ShadowWire pattern)
+   * Uses TransactionSigner and direct sendRawTransaction
+   * @param params - Market creation parameters
+   * @param walletAddress - Wallet address for the signer
+   * @param signTransaction - Function to sign the transaction
+   */
+  async createV2MarketDirect(
+    params: CreateV2MarketParams,
+    walletAddress: string,
+    signTransaction: TransactionSigner
+  ): Promise<CreateMarketResult> {
+    try {
+      console.log("[PNP] Creating V2 market with direct signing...");
+
+      // Import SDK modules
+      const { Client, MarketModule } = await import("pnp-sdk");
+
+      // Create base client
+      const baseClient = new Client({ rpcUrl: RPC_URL });
+
+      // Variable to capture the signature
+      let capturedSignature: string | null = null;
+
+      // Create a signer that captures the transaction and sends it directly
+      const directSigner = {
+        publicKey: new PublicKey(walletAddress),
+        signTransaction: async (tx: Transaction | VersionedTransaction) => {
+          console.log("[PNP] Captured transaction, signing and sending directly...");
+
+          // Sign the transaction
+          const signedTx = await signTransaction(tx);
+
+          // Send directly
+          const serialized = signedTx.serialize();
+          capturedSignature = await this.connection.sendRawTransaction(serialized, {
+            skipPreflight: true,
+            preflightCommitment: "confirmed",
+            maxRetries: 3,
+          });
+
+          console.log("[PNP] Direct send complete, signature:", capturedSignature);
+
+          // Return the signed tx (SDK expects it but we already sent)
+          return signedTx;
+        },
+        signAllTransactions: async (txs: (Transaction | VersionedTransaction)[]) => {
+          const signed = [];
+          for (const tx of txs) {
+            signed.push(await directSigner.signTransaction(tx));
+          }
+          return signed;
+        },
+      };
+
+      // Create MarketModule with our direct signer
+      const market = new MarketModule(baseClient, directSigner);
+
+      // Call createMarket - our signer will intercept and send directly
+      // SDK may throw after our send (it tries to send again), but we already succeeded
+      let result;
+      try {
+        result = await market.createMarket({
+          question: params.question,
+          initialLiquidity: params.initialLiquidity,
+          endTime: params.endTime,
+          baseMint: params.baseMint || USDC_MINT,
+        });
+      } catch (sdkError) {
+        // SDK failed to send (we already sent successfully)
+        // If we have a captured signature, the tx was successful
+        if (capturedSignature) {
+          console.log("[PNP] SDK threw error but we already sent tx:", capturedSignature);
+          // Confirm our transaction
+          console.log("[PNP] Confirming transaction...");
+          const confirmation = await this.connection.confirmTransaction(capturedSignature, "confirmed");
+          if (confirmation.value.err) {
+            return {
+              signature: capturedSignature,
+              market: "",
+              success: false,
+              error: `Transaction failed on chain: ${JSON.stringify(confirmation.value.err)}`,
+            };
+          }
+          console.log("[PNP] Transaction confirmed!");
+          return {
+            signature: capturedSignature,
+            market: "", // We don't have market address from SDK, but tx succeeded
+            success: true,
+          };
+        }
+        // No captured signature means we failed before sending
+        throw sdkError;
+      }
+
+      // Use our captured signature if available, otherwise use SDK's
+      const finalSignature = capturedSignature || result.signature;
+
+      // Confirm the transaction if we sent it directly
+      if (capturedSignature) {
+        console.log("[PNP] Confirming transaction...");
+        const confirmation = await this.connection.confirmTransaction(capturedSignature, "confirmed");
+        if (confirmation.value.err) {
+          return {
+            signature: capturedSignature,
+            market: "",
+            success: false,
+            error: `Transaction failed on chain: ${JSON.stringify(confirmation.value.err)}`,
+          };
+        }
+        console.log("[PNP] Transaction confirmed!");
+      }
+
+      return {
+        signature: finalSignature || "",
+        market: typeof result.market === "string" ? result.market : result.market.toBase58(),
+        success: true,
+      };
+    } catch (error) {
+      console.error("[PNP] Failed to create V2 market:", error);
+      return {
+        signature: "",
+        market: "",
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to create market",
+      };
+    }
+  }
+
+  /**
+   * Create P2P market with direct signing (ShadowWire pattern)
+   * Note: P2P uses same pattern as V2 for now
+   */
+  async createP2PMarketDirect(
+    params: CreateP2PMarketParams,
+    walletAddress: string,
+    signTransaction: TransactionSigner
+  ): Promise<CreateMarketResult> {
+    // P2P markets use same direct signing pattern as V2
+    // Convert P2P params to work with MarketModule
+    return this.createV2MarketDirect(
+      {
+        question: params.question,
+        initialLiquidity: params.initialAmount,
+        endTime: params.endTime,
+        baseMint: params.collateralTokenMint,
+      },
+      walletAddress,
+      signTransaction
+    );
+  }
+
+  /**
+   * Buy tokens with direct signing (ShadowWire pattern)
+   */
+  async buyTokensDirect(
+    marketAddress: string,
+    side: "yes" | "no",
+    amountUsdc: number,
+    walletAddress: string,
+    signTransaction: TransactionSigner
+  ): Promise<TradeResult> {
+    try {
+      console.log("[PNP] Buying tokens with direct signing...");
+
+      const { Client, TradingModule } = await import("pnp-sdk");
+      const baseClient = new Client({ rpcUrl: RPC_URL });
+
+      let capturedSignature: string | null = null;
+
+      const directSigner = {
+        publicKey: new PublicKey(walletAddress),
+        signTransaction: async (tx: Transaction | VersionedTransaction) => {
+          console.log("[PNP] Captured trade transaction, signing and sending directly...");
+
+          const signedTx = await signTransaction(tx);
+          const serialized = signedTx.serialize();
+
+          capturedSignature = await this.connection.sendRawTransaction(serialized, {
+            skipPreflight: true,
+            preflightCommitment: "confirmed",
+            maxRetries: 3,
+          });
+
+          console.log("[PNP] Trade direct send complete, signature:", capturedSignature);
+          return signedTx;
+        },
+        signAllTransactions: async (txs: (Transaction | VersionedTransaction)[]) => {
+          const signed = [];
+          for (const tx of txs) {
+            signed.push(await directSigner.signTransaction(tx));
+          }
+          return signed;
+        },
+      };
+
+      const trading = new TradingModule(baseClient, directSigner);
+
+      // SDK may throw after our send, but we already succeeded
+      let result;
+      try {
+        result = await trading.mintDecisionTokensDerived({
+          market: new PublicKey(marketAddress),
+          amount: BigInt(Math.floor(amountUsdc * 1e6)),
+          buyYesToken: side === "yes",
+          minimumOut: BigInt(0),
+        });
+      } catch (sdkError) {
+        // SDK failed but we may have already sent successfully
+        if (capturedSignature) {
+          console.log("[PNP] SDK threw error but we already sent tx:", capturedSignature);
+          console.log("[PNP] Confirming trade transaction...");
+          const confirmation = await this.connection.confirmTransaction(capturedSignature, "confirmed");
+          if (confirmation.value.err) {
+            return {
+              signature: capturedSignature,
+              tokensReceived: 0,
+              success: false,
+              error: `Transaction failed on chain: ${JSON.stringify(confirmation.value.err)}`,
+            };
+          }
+          console.log("[PNP] Trade confirmed!");
+          return {
+            signature: capturedSignature,
+            tokensReceived: 0,
+            success: true,
+          };
+        }
+        throw sdkError;
+      }
+
+      const finalSignature = capturedSignature || result.signature;
+
+      if (capturedSignature) {
+        console.log("[PNP] Confirming trade transaction...");
+        const confirmation = await this.connection.confirmTransaction(capturedSignature, "confirmed");
+        if (confirmation.value.err) {
+          return {
+            signature: capturedSignature,
+            tokensReceived: 0,
+            success: false,
+            error: `Transaction failed on chain: ${JSON.stringify(confirmation.value.err)}`,
+          };
+        }
+        console.log("[PNP] Trade confirmed!");
+      }
+
+      return {
+        signature: finalSignature || "",
+        tokensReceived: 0,
+        success: true,
+      };
+    } catch (error) {
+      console.error("[PNP] Failed to buy tokens:", error);
+      return {
+        signature: "",
+        tokensReceived: 0,
+        success: false,
+        error: error instanceof Error ? error.message : "Trade failed",
+      };
+    }
+  }
+
+  /**
+   * Redeem position with direct signing (ShadowWire pattern)
+   */
+  async redeemPositionDirect(
+    marketAddress: string,
+    walletAddress: string,
+    signTransaction: TransactionSigner
+  ): Promise<{ signature: string; success: boolean; error?: string }> {
+    try {
+      console.log("[PNP] Redeeming position with direct signing...");
+
+      const { Client, RedemptionModule } = await import("pnp-sdk");
+      const baseClient = new Client({ rpcUrl: RPC_URL });
+
+      let capturedSignature: string | null = null;
+
+      const directSigner = {
+        publicKey: new PublicKey(walletAddress),
+        signTransaction: async (tx: Transaction | VersionedTransaction) => {
+          console.log("[PNP] Captured redeem transaction, signing and sending directly...");
+
+          const signedTx = await signTransaction(tx);
+          const serialized = signedTx.serialize();
+
+          capturedSignature = await this.connection.sendRawTransaction(serialized, {
+            skipPreflight: true,
+            preflightCommitment: "confirmed",
+            maxRetries: 3,
+          });
+
+          console.log("[PNP] Redeem direct send complete, signature:", capturedSignature);
+          return signedTx;
+        },
+        signAllTransactions: async (txs: (Transaction | VersionedTransaction)[]) => {
+          const signed = [];
+          for (const tx of txs) {
+            signed.push(await directSigner.signTransaction(tx));
+          }
+          return signed;
+        },
+      };
+
+      const redemption = new RedemptionModule(baseClient, directSigner);
+
+      // SDK may throw after our send, but we already succeeded
+      let result;
+      try {
+        result = await redemption.redeemPosition({
+          market: new PublicKey(marketAddress),
+          position: new PublicKey(walletAddress),
+          amount: BigInt(0), // 0 = redeem all
+        });
+      } catch (sdkError) {
+        // SDK failed but we may have already sent successfully
+        if (capturedSignature) {
+          console.log("[PNP] SDK threw error but we already sent tx:", capturedSignature);
+          console.log("[PNP] Confirming redeem transaction...");
+          const confirmation = await this.connection.confirmTransaction(capturedSignature, "confirmed");
+          if (confirmation.value.err) {
+            return {
+              signature: capturedSignature,
+              success: false,
+              error: `Transaction failed on chain: ${JSON.stringify(confirmation.value.err)}`,
+            };
+          }
+          console.log("[PNP] Redeem confirmed!");
+          return {
+            signature: capturedSignature,
+            success: true,
+          };
+        }
+        throw sdkError;
+      }
+
+      const finalSignature = capturedSignature || result.signature;
+
+      if (capturedSignature) {
+        console.log("[PNP] Confirming redeem transaction...");
+        const confirmation = await this.connection.confirmTransaction(capturedSignature, "confirmed");
+        if (confirmation.value.err) {
+          return {
+            signature: capturedSignature,
+            success: false,
+            error: `Transaction failed on chain: ${JSON.stringify(confirmation.value.err)}`,
+          };
+        }
+        console.log("[PNP] Redeem confirmed!");
+      }
+
+      return {
+        signature: finalSignature || "",
+        success: true,
+      };
+    } catch (error) {
+      console.error("[PNP] Failed to redeem position:", error);
+      return {
+        signature: "",
+        success: false,
+        error: error instanceof Error ? error.message : "Redeem failed",
       };
     }
   }

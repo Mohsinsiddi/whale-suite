@@ -10,7 +10,7 @@ import { useStore } from '@/store';
 const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
 const SOLANA_RPC = HELIUS_API_KEY
   ? `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`
-  : process.env.NEXT_PUBLIC_SOLANA_RPC || 'https://api.devnet.solana.com'; // Fallback to devnet for testing
+  : process.env.NEXT_PUBLIC_SOLANA_RPC || 'https://api.mainnet-beta.solana.com'; // Mainnet only
 
 interface WalletBalance {
   balance: number; // In SOL
