@@ -530,19 +530,36 @@ export default function TransferPage() {
                       </span>
                     </div>
                     <div className="flex gap-2">
-                      <input
-                        type="number"
-                        value={depositAmount}
-                        onChange={(e) => setDepositAmount(e.target.value)}
-                        placeholder={`Min ${MIN_DEPOSIT_AMOUNT} SOL`}
-                        min={MIN_DEPOSIT_AMOUNT}
-                        step="0.1"
-                        className={`flex-1 px-3 py-2 rounded-lg bg-bg-elevated border text-sm text-text-primary placeholder:text-text-muted focus:outline-none ${
-                          depositError
-                            ? 'border-error/50 focus:border-error'
-                            : 'border-border-secondary focus:border-neon-green'
-                        }`}
-                      />
+                      <div className="flex-1 relative">
+                        <input
+                          type="number"
+                          value={depositAmount}
+                          onChange={(e) => setDepositAmount(e.target.value)}
+                          placeholder={`Min ${MIN_DEPOSIT_AMOUNT} SOL`}
+                          min={MIN_DEPOSIT_AMOUNT}
+                          step="0.1"
+                          className={`w-full px-3 py-2 pr-16 rounded-lg bg-bg-elevated border text-sm text-text-primary placeholder:text-text-muted focus:outline-none ${
+                            depositError
+                              ? 'border-error/50 focus:border-error'
+                              : 'border-border-secondary focus:border-neon-green'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Leave some for gas fees (0.005 SOL)
+                            const maxDeposit = Math.max(0, balance - 0.005);
+                            if (maxDeposit >= MIN_DEPOSIT_AMOUNT) {
+                              setDepositAmount(maxDeposit.toFixed(4));
+                            } else {
+                              setDepositAmount(balance.toFixed(4));
+                            }
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 text-[10px] font-medium text-neon-green hover:bg-neon-green/10 rounded transition-colors"
+                        >
+                          MAX
+                        </button>
+                      </div>
                       <Button
                         size="sm"
                         onClick={handleDeposit}
@@ -579,20 +596,29 @@ export default function TransferPage() {
                       </span>
                     </div>
                     <div className="flex gap-2">
-                      <input
-                        type="number"
-                        value={withdrawAmount}
-                        onChange={(e) => setWithdrawAmount(e.target.value)}
-                        placeholder={`Min ${MIN_DEPOSIT_AMOUNT} SOL`}
-                        min={MIN_DEPOSIT_AMOUNT}
-                        max={shieldedBalanceSOL}
-                        step="0.1"
-                        className={`flex-1 px-3 py-2 rounded-lg bg-bg-elevated border text-sm text-text-primary placeholder:text-text-muted focus:outline-none ${
-                          withdrawError
-                            ? 'border-error/50 focus:border-error'
-                            : 'border-border-secondary focus:border-neon-cyan'
-                        }`}
-                      />
+                      <div className="flex-1 relative">
+                        <input
+                          type="number"
+                          value={withdrawAmount}
+                          onChange={(e) => setWithdrawAmount(e.target.value)}
+                          placeholder={`Min ${MIN_DEPOSIT_AMOUNT} SOL`}
+                          min={MIN_DEPOSIT_AMOUNT}
+                          max={shieldedBalanceSOL}
+                          step="0.1"
+                          className={`w-full px-3 py-2 pr-16 rounded-lg bg-bg-elevated border text-sm text-text-primary placeholder:text-text-muted focus:outline-none ${
+                            withdrawError
+                              ? 'border-error/50 focus:border-error'
+                              : 'border-border-secondary focus:border-neon-cyan'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setWithdrawAmount(shieldedBalanceSOL.toFixed(4))}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 text-[10px] font-medium text-neon-cyan hover:bg-neon-cyan/10 rounded transition-colors"
+                        >
+                          MAX
+                        </button>
+                      </div>
                       <Button
                         size="sm"
                         variant="secondary"
@@ -602,14 +628,6 @@ export default function TransferPage() {
                       >
                         Withdraw
                       </Button>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <button
-                        onClick={() => setWithdrawAmount(shieldedBalanceSOL.toFixed(4))}
-                        className="text-[10px] text-neon-cyan hover:underline"
-                      >
-                        Withdraw Max
-                      </button>
                     </div>
                     {withdrawError ? (
                       <p className="text-[10px] text-error">{withdrawError}</p>
@@ -700,7 +718,7 @@ export default function TransferPage() {
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     balance={`Pool: ${shieldedBalanceSOL.toFixed(4)} SOL`}
-                    onMaxClick={() => setAmount(Math.max(0, shieldedBalanceSOL - 0.001).toFixed(4))}
+                    onMaxClick={() => setAmount(shieldedBalanceSOL.toFixed(4))}
                     error={amountError || undefined}
                   />
                   {!amountError && parseFloat(amount) > 0 && (
@@ -817,7 +835,7 @@ export default function TransferPage() {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   balance={`${balance.toFixed(4)} SOL`}
-                  onMaxClick={() => setAmount((balance - 0.001).toFixed(4))}
+                  onMaxClick={() => setAmount(Math.max(0, balance - 0.00001).toFixed(4))}
                 />
 
                 {/* Standard Info */}
