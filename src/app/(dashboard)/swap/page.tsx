@@ -252,9 +252,21 @@ export default function SwapPage() {
   };
 
   const txSteps = [
-    { label: "Getting best route", status: getStepStatus(0) },
-    { label: "Signing transaction", status: getStepStatus(1) },
-    { label: "Confirming on chain", status: getStepStatus(2) },
+    {
+      label: "Finding Best Route",
+      status: getStepStatus(0),
+      description: "Scanning Jupiter aggregator for optimal swap path across all DEXs..."
+    },
+    {
+      label: "Signing Transaction",
+      status: getStepStatus(1),
+      description: "Please approve the transaction in your wallet..."
+    },
+    {
+      label: "Confirming on Chain",
+      status: getStepStatus(2),
+      description: "Broadcasting swap transaction to Solana network..."
+    },
   ];
 
   // Get token balance

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
-import Modal from "@/components/ui/Modal";
+import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
 import { usePrivacyCash } from "@/hooks";
 import { useAuth } from "@/lib/privy/hooks";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
@@ -36,24 +36,67 @@ export default function PrivacyCashPage() {
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [progressStep, setProgressStep] = useState(0);
-  const [progressSteps] = useState([
-    "Initializing encryption...",
-    "Generating ZK proof...",
-    "Awaiting signature...",
-    "Submitting to relayer...",
-    "Confirming on-chain...",
-  ]);
+
+  // Track the operation type when transaction starts (not affected by tab switches)
+  const [pendingOperationType, setPendingOperationType] = useState<TabType | null>(null);
+
+  // Track last operation for success modal
+  const [lastOperation, setLastOperation] = useState<{
+    type: 'deposit' | 'withdraw';
+    amount: string;
+    signature: string;
+  } | null>(null);
+
+  const getStepStatus = (stepIndex: number): "pending" | "active" | "completed" => {
+    if (progressStep > stepIndex) return "completed";
+    if (progressStep === stepIndex) return "active";
+    return "pending";
+  };
+
+  const progressSteps = [
+    {
+      label: "Initializing Encryption",
+      status: getStepStatus(0),
+      description: "Setting up secure cryptographic environment..."
+    },
+    {
+      label: "Generating ZK Proof",
+      status: getStepStatus(1),
+      description: "Creating zero-knowledge proof for privacy. This may take 30-60 seconds..."
+    },
+    {
+      label: "Awaiting Signature",
+      status: getStepStatus(2),
+      description: "Please approve the transaction in your wallet..."
+    },
+    {
+      label: "Submitting to Relayer",
+      status: getStepStatus(3),
+      description: "Sending encrypted transaction to privacy relayer..."
+    },
+    {
+      label: "Confirming on Chain",
+      status: getStepStatus(4),
+      description: "Waiting for blockchain confirmation..."
+    },
+  ];
 
   // Handle transaction result
   useEffect(() => {
-    if (result) {
+    if (result && pendingOperationType) {
       setShowProgressModal(false);
       if (result.success) {
+        setLastOperation({
+          type: pendingOperationType,
+          amount: result.amount?.toString() || amount,
+          signature: result.signature || '',
+        });
         setShowSuccessModal(true);
         setAmount("");
       }
+      setPendingOperationType(null);
     }
-  }, [result]);
+  }, [result, pendingOperationType, amount]);
 
   const handleAmountChange = (value: string) => {
     // Only allow valid number input
@@ -62,10 +105,13 @@ export default function PrivacyCashPage() {
     }
   };
 
+  // Reserve for Solana transaction fees
+  const FEE_RESERVE = 0.05;
+
   const getMaxAmount = () => {
     if (activeTab === "deposit") {
-      // Leave some SOL for network fees
-      return walletBalance > 0.01 ? (walletBalance - 0.01).toFixed(4) : "0";
+      // Leave SOL for network fees (0.05 SOL for multiple transactions)
+      return walletBalance > FEE_RESERVE ? (walletBalance - FEE_RESERVE).toFixed(4) : "0";
     }
     // For withdrawal, user can enter their full balance - we deduct fee from what they receive
     const balance = privateBalance?.balance || 0;
@@ -82,19 +128,18 @@ export default function PrivacyCashPage() {
         return validation.error || "Validation failed";
       }
     } else {
-      // Deposit validation - use lamports to avoid floating point issues
-      const LAMPORTS_PER_SOL = 1_000_000_000;
+      // Deposit validation - compare as formatted strings to avoid floating point issues
       const amountNum = parseFloat(amount);
-      const amountLamports = Math.round(amountNum * LAMPORTS_PER_SOL);
-      const reserveForFees = Math.round(0.01 * LAMPORTS_PER_SOL); // 0.01 SOL for network fees
-      const walletLamports = Math.round(walletBalance * LAMPORTS_PER_SOL);
-      const maxDepositLamports = walletLamports - reserveForFees;
+      const maxDeposit = walletBalance - FEE_RESERVE;
 
       if (amountNum < fees.MIN_DEPOSIT) {
         return `Minimum deposit is ${fees.MIN_DEPOSIT} SOL`;
       }
-      if (amountLamports > maxDepositLamports) {
-        return `Insufficient wallet balance. Max: ${(maxDepositLamports / LAMPORTS_PER_SOL).toFixed(4)} SOL`;
+      // Compare formatted values to avoid floating point precision issues
+      const amountFormatted = amountNum.toFixed(4);
+      const maxFormatted = maxDeposit.toFixed(4);
+      if (parseFloat(amountFormatted) > parseFloat(maxFormatted)) {
+        return `Insufficient wallet balance. Max: ${maxFormatted} SOL`;
       }
     }
     return null;
@@ -110,6 +155,7 @@ export default function PrivacyCashPage() {
     if (!amount || parseFloat(amount) <= 0) return;
 
     reset();
+    setPendingOperationType(activeTab); // Capture operation type before it can change
     setShowProgressModal(true);
     setProgressStep(0);
 
@@ -505,73 +551,29 @@ export default function PrivacyCashPage() {
       </div>
 
       {/* Progress Modal */}
-      <Modal
+      <TransactionModal
         isOpen={showProgressModal}
         onClose={() => {}}
-        title={activeTab === "deposit" ? "Shielding SOL" : "Unshielding SOL"}
-        description="Please wait while we process your transaction"
-        size="sm"
-      >
-        <div className="space-y-4">
-          <div className="flex justify-center py-4">
-            <div className="w-16 h-16 rounded-full border-4 border-bg-tertiary border-t-neon-green animate-spin" />
-          </div>
-          <div className="space-y-2">
-            {progressSteps.map((step, index) => (
-              <div
-                key={index}
-                className={`flex items-center gap-2 text-sm ${
-                  index <= progressStep ? "text-neon-green" : "text-text-muted"
-                }`}
-              >
-                {index < progressStep ? (
-                  <CheckIcon className="w-4 h-4" />
-                ) : index === progressStep ? (
-                  <div className="w-4 h-4 rounded-full border-2 border-neon-green border-t-transparent animate-spin" />
-                ) : (
-                  <div className="w-4 h-4 rounded-full border border-text-muted" />
-                )}
-                {step}
-              </div>
-            ))}
-          </div>
-        </div>
-      </Modal>
+        title={activeTab === "deposit" ? "Shielding SOL..." : "Unshielding SOL..."}
+        steps={progressSteps}
+        currentStep={progressStep}
+      />
 
       {/* Success Modal */}
-      <Modal
+      <SuccessModal
         isOpen={showSuccessModal}
-        onClose={() => setShowSuccessModal(false)}
-        title="Transaction Successful!"
-        description={`Your SOL has been ${activeTab === "deposit" ? "shielded" : "unshielded"}`}
-        size="sm"
-      >
-        <div className="space-y-4">
-          <div className="flex justify-center py-4">
-            <div className="w-16 h-16 rounded-full bg-neon-green/10 flex items-center justify-center">
-              <CheckIcon className="w-8 h-8 text-neon-green" />
-            </div>
-          </div>
-          <div className="space-y-2 text-center">
-            <p className="text-lg font-semibold text-text-primary">
-              {result?.amount} SOL
-            </p>
-            {result?.signature && (
-              <a
-                href={`https://solscan.io/tx/${result.signature}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-neon-green hover:underline"
-              >
-                View on Solscan
-              </a>
-            )}
-          </div>
-          <Button fullWidth onClick={() => setShowSuccessModal(false)}>
-            Done
-          </Button>
-        </div>
-      </Modal>
+        onClose={() => {
+          setShowSuccessModal(false);
+          setLastOperation(null);
+        }}
+        title={lastOperation?.type === "deposit" ? "SOL Shielded!" : "SOL Unshielded!"}
+        message={
+          lastOperation?.type === "deposit"
+            ? `Successfully shielded ${lastOperation?.amount || ''} SOL into privacy pool`
+            : `Successfully unshielded ${lastOperation?.amount || ''} SOL to your wallet`
+        }
+        txSignature={lastOperation?.signature || result?.signature || ""}
+      />
     </div>
   );
 }
