@@ -104,26 +104,38 @@ Successfully integrated Jupiter Swap API v1 for token swaps:
 
 ## 4. PNP Exchange Integration ($2.5k Bounty)
 
-Successfully integrated `pnp-sdk` v0.2.8 for prediction markets:
+Successfully integrated `pnp-sdk` v0.2.8 for prediction markets with **full trading functionality**:
 
-- **Market Listing**: Fetch all active prediction markets
-- **Real-time Prices**: YES/NO token prices calculated from supply
-- **Market Metadata**: Volume, liquidity, end dates via batch API
-- **Trading Interface**: Buy YES/NO tokens modal with price estimates
-- **Position Tracking**: View user positions per market
-- **Status Filtering**: Filter by Active, Ended, Resolved markets
-- **Auto-refresh**: Markets refresh every 30 seconds
+### Features
+- **Market Listing**: Fetch all V2 AMM + P2P markets (939+ markets)
+- **Buy Tokens**: Purchase YES/NO decision tokens with USDC
+- **Sell Tokens**: Burn tokens to receive USDC back
+- **Create Markets**: Create V2 AMM or P2P prediction markets
+- **Redeem Positions**: Claim USDC for winning positions on resolved markets
+- **Token Balances**: View YES/NO token holdings in trade modal
+- **Real-time Prices**: Prices calculated from token supply ratios
+- **Transaction Progress**: Animated modals for all trading actions
 
-**Key Features:**
-- Anonymous betting (wallet address not revealed to other users)
-- USDC-based trading
-- Real-time price updates
-- Loading skeletons for better UX
+### SDK Bug Workaround
+The PNP SDK v0.2.8 has a bug where `mintDecisionTokensDerived` passes the wrong token program. We bypass this with **manual instruction building**:
 
-**Key Files:**
-- `src/lib/privacy-sdks/pnp.ts` - PNP SDK service wrapper
-- `src/hooks/usePNP.ts` - React hook with trading functions
-- `src/app/(dashboard)/markets/page.tsx` - Prediction Markets UI
+```typescript
+// Discriminators (sha256("global:<name>")[0..8])
+mint_decision_tokens: [226, 180, 53, 125, 168, 69, 114, 25]
+burn_decision_tokens: [18, 198, 214, 1, 236, 94, 63, 29]
+```
+
+### Trading Flow
+1. User clicks Buy/Sell → Trade modal opens
+2. Token balances fetched automatically
+3. User enters amount and confirms
+4. Transaction progress modal shows: Building → Signing → Confirming
+5. Success modal with Solscan link
+
+### Key Files:
+- `src/lib/privacy-sdks/pnp.ts` - PNP SDK service (manual instruction building)
+- `src/hooks/usePNP.ts` - React hook with Privy signing
+- `src/app/(dashboard)/markets/page.tsx` - Full trading UI
 
 ---
 
@@ -244,13 +256,17 @@ Get Jupiter API key at: https://portal.jup.ag
 8. **Public Transactions**: All Jupiter swaps are visible on-chain (Private Swap coming soon)
 
 ### PNP Exchange (Prediction Markets)
-1. **Auto-refresh**: Markets refresh every 30 seconds
+1. **Market Types**: V2 AMM (automated market maker) + P2P (peer-to-peer)
 2. **Price Calculation**: YES/NO prices derived from token supply ratios
-3. **USDC Trading**: All trades denominated in USDC
-4. **Market Status**: Active, Ended, or Resolved states
-5. **Volume Display**: Total volume fetched from PNP metadata API
-6. **Anonymous Betting**: Wallet addresses not exposed to other users
-7. **Loading Skeletons**: Smooth loading states while fetching markets
+3. **AMM Behavior**: When buying YES, AMM mints BOTH YES and NO tokens
+4. **USDC Trading**: All trades denominated in USDC (6 decimals)
+5. **Token Decimals**: Decision tokens also use 6 decimals
+6. **Buy/Sell**: Full trading with manual instruction building (SDK bug workaround)
+7. **Redeem**: Claim USDC for winning tokens on resolved markets
+8. **Create Markets**: V2 AMM or P2P markets with initial liquidity
+9. **Token Balances**: Displayed in trade modal (YES/NO holdings)
+10. **Progress Modals**: All actions show step-by-step progress
+11. **Market Status**: Active, Ended, or Resolved states
 
 ---
 

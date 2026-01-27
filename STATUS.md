@@ -279,7 +279,7 @@ TOTAL         [████████░░] 85%
 | Privacy Cash | Custom | ✅ Done | `lib/privacy-sdks/privacy-cash.ts` | Deposit/Withdraw shielded pool ($15k bounty) |
 | Transfer | Custom | ✅ Done | `lib/privacy-sdks/transfer.ts` | SOL transfers |
 | ShadowWire | `@radr/shadowwire` | ✅ Done | `lib/privacy-sdks/shadow-wire.ts` | Bulletproof ZK private transfers ($15k bounty) |
-| PNP Exchange | `pnp-sdk` | ✅ Done | `lib/privacy-sdks/pnp.ts` | Prediction markets with anonymous betting ($2.5k bounty) |
+| PNP Exchange | `pnp-sdk` | ✅ Done | `lib/privacy-sdks/pnp.ts` | Prediction markets ($2.5k bounty) - Buy/Sell/Create/Redeem |
 | Light Protocol | `@lightprotocol/stateless.js` | ⬜ Pending | - | Alternative ZK private transfers |
 
 ---
@@ -344,6 +344,12 @@ Track any changes made during development here.
 | 2026-01-27 | Enhanced Sidebar | Section grouping with bounty badges | Overview, Privacy Tools, Predictions, Intelligence, Premium |
 | 2026-01-27 | Dashboard | Connected with all privacy pools + whale feed + PNP preview | Real data from ShadowWire, Privacy Cash, PNP, Helius |
 | 2026-01-27 | Loading States | Added skeleton loading to DashboardLayout | Better UX while auth initializing |
+| 2026-01-27 | PNP Buy/Sell | Manual instruction building for buy/sell | SDK bug passed wrong token program, fixed with manual tx |
+| 2026-01-27 | PNP Token Balances | Display YES/NO token balances in trade modal | Users can see holdings before trading |
+| 2026-01-27 | PNP Redeem | Added redeem functionality for resolved markets | Claim USDC for winning positions |
+| 2026-01-27 | PNP Create Market | V2 AMM + P2P market creation with progress modal | Full market creation flow with transaction progress |
+| 2026-01-27 | PNP P2P Markets | Fixed P2P market fetching | Now fetches both V2 and P2P markets from SDK |
+| 2026-01-27 | Transaction Progress | Enhanced progress modals for all PNP actions | Buy, Sell, Create, Redeem all show step progress |
 | | | | |
 
 ---
@@ -398,7 +404,13 @@ Track any changes made during development here.
 - **Privy Embedded Wallets** = Shadow Vaults (not PDAs)
 - **Privacy Cash** = Dark Pool deposits/withdrawals (ZK proof based)
 - **ShadowWire** = Ghost Send (Bulletproof ZK transfers) - Internal: hidden amount, External: anonymous sender
-- **PNP** = Prediction markets (NOT anonymous)
+- **PNP Exchange** = Prediction markets (V2 AMM + P2P) with full trading functionality:
+  - Buy tokens (mint decision tokens via manual instruction building)
+  - Sell tokens (burn decision tokens)
+  - Create markets (V2 AMM or P2P)
+  - Redeem positions (claim USDC for winning tokens)
+  - Token balances displayed in trade modal
+  - SDK bug workaround: Manual instruction building bypasses wrong token program error
 - **Jupiter Swap API v1** = Swaps (public, not private) with optimistic balance updates
 - **Helius** = Whale intelligence feed + RPC balance fetching (real-time, no indexing delay)
 - **Zustand Store** = Global state with balance refresh trigger for header sync
@@ -499,6 +511,69 @@ Track any changes made during development here.
 ```
 
 **SCHEMA STATUS: ✅ READY**
+
+---
+
+## 🎰 PNP EXCHANGE TECHNICAL DETAILS
+
+### SDK Bug Workaround
+The PNP SDK v0.2.8 has a bug where `mintDecisionTokensDerived` passes the Associated Token Program where the Token Program is expected. We bypass this with manual instruction building.
+
+### Instruction Discriminators
+Calculated as `sha256("global:<instruction_name>")[0..8]`:
+```
+mint_decision_tokens:  [226, 180, 53, 125, 168, 69, 114, 25]
+burn_decision_tokens:  [18, 198, 214, 1, 236, 94, 63, 29]
+```
+
+### Account Order (18 accounts for mint/burn)
+```typescript
+1. buyer (signer, writable)
+2. admin (writable)
+3. marketCreator (writable)
+4. market (writable)
+5. globalConfig (readonly)
+6. yesTokenMint (writable)
+7. noTokenMint (writable)
+8. buyerYesTokenAccount (writable)
+9. buyerNoTokenAccount (writable)
+10. marketReserveVault (writable)
+11. collateralMint (writable)
+12. buyerCollateralTokenAccount (writable)
+13. adminCollateralTokenAccount (writable)
+14. creatorFeeTreasury (writable)
+15. tokenProgramId (readonly) - for decision tokens
+16. tokenProgramId (readonly) - for collateral
+17. ASSOCIATED_TOKEN_PROGRAM_ID (readonly)
+18. SystemProgram.programId (readonly)
+```
+
+### Key Implementation Files
+- **Service**: `src/lib/privacy-sdks/pnp.ts`
+  - `buyTokensDirect()` - Manual instruction building for minting
+  - `sellTokensDirect()` - Manual instruction building for burning
+  - `createV2MarketDirect()` - Create V2 AMM market
+  - `getMarketTokenBalances()` - Fetch user's YES/NO balances
+  - `fetchAllMarketsFromSDK()` - Fetches both V2 and P2P markets
+
+- **Hook**: `src/hooks/usePNP.ts`
+  - `buyTokensV2()` / `buyTokensP2P()` - Buy with Privy signing
+  - `sellTokensV2()` - Sell with Privy signing
+  - `createMarket()` - Create market with Privy signing
+  - `redeemPositionV2()` - Redeem winning tokens
+  - `getMarketTokenBalances()` - Get user's token holdings
+
+- **UI**: `src/app/(dashboard)/markets/page.tsx`
+  - Trade modal with Buy/Sell toggle
+  - Token balance display (YES/NO)
+  - Transaction progress modal
+  - Redeem section for resolved markets
+  - Create market modal (V2/P2P)
+
+### AMM Behavior
+- When buying YES tokens, AMM mints BOTH YES and NO tokens
+- Prices calculated from supply ratio: `yesPrice = noSupply / totalSupply`
+- Token decimals: 6 (same as USDC)
 
 ---
 
