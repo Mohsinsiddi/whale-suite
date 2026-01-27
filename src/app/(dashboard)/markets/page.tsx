@@ -422,7 +422,27 @@ export default function MarketsPage() {
 
     setCreateError(null);
 
+    // Close create modal and show progress modal
+    setCreateModalOpen(false);
+    setTxTitle("Creating Prediction Market");
+    setTxSteps([
+      { label: "Building Transaction", status: "active", description: "Preparing market creation..." },
+      { label: "Awaiting Signature", status: "pending", description: "Please approve in your wallet" },
+      { label: "Confirming on Chain", status: "pending", description: "Waiting for blockchain confirmation" },
+    ]);
+    setTxCurrentStep(0);
+    setTxError(undefined);
+    setTxProgressOpen(true);
+
     try {
+      // Step 1 → Step 2
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setTxSteps(prev => prev.map((s, i) => ({
+        ...s,
+        status: i === 0 ? "completed" : i === 1 ? "active" : "pending"
+      })));
+      setTxCurrentStep(1);
+
       const params: CreateMarketParams = {
         question: createQuestion.trim(),
         initialLiquidity: liquidity,
@@ -433,24 +453,45 @@ export default function MarketsPage() {
 
       const result = await createMarket(params);
 
+      // Step 2 → Step 3
+      setTxSteps(prev => prev.map((s, i) => ({
+        ...s,
+        status: i <= 1 ? "completed" : "active"
+      })));
+      setTxCurrentStep(2);
+
+      await new Promise(resolve => setTimeout(resolve, 800));
+
       if (result.success) {
-        setCreateModalOpen(false);
-        setLastCreatedMarket({
-          market: result.market,
-          signature: result.signature,
-        });
-        setCreateSuccess(true);
-        // Refresh markets list to show the newly created market
+        setTxSteps(prev => prev.map(s => ({ ...s, status: "completed" as const })));
+
         setTimeout(() => {
-          fetchMarkets({ limit: 20, reset: true });
-          setShowMyMarkets(true); // Auto-enable "My Markets" filter
-        }, 2000); // Wait 2s for blockchain to index
+          setTxProgressOpen(false);
+          setLastCreatedMarket({
+            market: result.market,
+            signature: result.signature,
+          });
+          setCreateSuccess(true);
+          // Refresh markets list to show the newly created market
+          setTimeout(() => {
+            fetchMarkets({ limit: 20, reset: true });
+            setShowMyMarkets(true); // Auto-enable "My Markets" filter
+          }, 2000); // Wait 2s for blockchain to index
+        }, 500);
       } else {
-        setCreateError(result.error || "Failed to create market");
+        setTxSteps(prev => prev.map((s, i) => ({
+          ...s,
+          status: i === 2 ? "error" : s.status
+        })));
+        setTxError(result.error || "Failed to create market");
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to create market";
-      setCreateError(message);
+      setTxSteps(prev => prev.map((s) => ({
+        ...s,
+        status: s.status === "active" ? "error" : s.status
+      })));
+      setTxError(message);
     }
   };
 

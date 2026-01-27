@@ -373,108 +373,121 @@ class PNPService {
    */
   async fetchAllMarketsFromSDK(): Promise<PNPMarket[]> {
     try {
-      console.log("[PNP] Fetching all markets from SDK...");
+      console.log("[PNP] Fetching all markets from SDK (V2 + P2P)...");
 
       // Import and create a read-only client
       const { PNPClient } = await import("pnp-sdk");
       const readClient = new PNPClient(RPC_URL);
 
-      // Fetch all markets from chain
-      const response = await readClient.fetchMarkets();
+      // Fetch V2 markets from chain
+      const [v2Response, p2pAddresses] = await Promise.all([
+        readClient.fetchMarkets(),
+        this.fetchP2PMarketAddresses(),
+      ]);
 
-      if (!response?.data) {
-        console.warn("[PNP] No markets data from SDK");
-        return [];
+      const v2Markets: PNPMarket[] = [];
+
+      if (v2Response?.data) {
+        console.log(`[PNP] Fetched ${v2Response.count} V2 markets from SDK`);
+
+        // Transform SDK response to our PNPMarket format
+        v2Response.data.forEach((item) => {
+          const account = item.account;
+
+          // Parse winning token
+          let winningToken: "yes" | "no" | null = null;
+          if (account.winning_token_id !== null && account.winning_token_id !== "none") {
+            if (typeof account.winning_token_id === "object") {
+              if ("yes" in (account.winning_token_id as Record<string, unknown>)) winningToken = "yes";
+              else if ("no" in (account.winning_token_id as Record<string, unknown>)) winningToken = "no";
+            } else if (account.winning_token_id === "yes") {
+              winningToken = "yes";
+            } else if (account.winning_token_id === "no") {
+              winningToken = "no";
+            }
+          }
+
+          // Parse reserves and calculate prices
+          const reserves = Number(account.market_reserves || 0) / 1e6;
+          const yesSupply = Number(account.yes_token_supply_minted || 0);
+          const noSupply = Number(account.no_token_supply_minted || 0);
+          const totalSupply = yesSupply + noSupply;
+
+          let yesPrice = 0.5;
+          let noPrice = 0.5;
+          if (totalSupply > 0) {
+            yesPrice = noSupply / totalSupply;
+            noPrice = yesSupply / totalSupply;
+          }
+
+          // Get creator as string (handle PublicKey objects)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const creatorVal = account.creator as any;
+          const creatorStr = typeof creatorVal === "string"
+            ? creatorVal
+            : creatorVal?.toBase58?.() || creatorVal?.toString?.() || String(creatorVal || "");
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const pubKeyVal = item.publicKey as any;
+          const publicKeyStr = typeof pubKeyVal === "string"
+            ? pubKeyVal
+            : pubKeyVal?.toBase58?.() || pubKeyVal?.toString?.() || String(pubKeyVal || "");
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const yesTokenVal = account.yes_token_mint as any;
+          const yesTokenStr = typeof yesTokenVal === "string"
+            ? yesTokenVal
+            : yesTokenVal?.toBase58?.() || yesTokenVal?.toString?.() || "";
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const noTokenVal = account.no_token_mint as any;
+          const noTokenStr = typeof noTokenVal === "string"
+            ? noTokenVal
+            : noTokenVal?.toBase58?.() || noTokenVal?.toString?.() || "";
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const collateralVal = account.collateral_token as any;
+          const collateralStr = typeof collateralVal === "string"
+            ? collateralVal
+            : collateralVal?.toBase58?.() || collateralVal?.toString?.() || "";
+
+          v2Markets.push({
+            id: String(account.id || publicKeyStr),
+            publicKey: publicKeyStr,
+            question: account.question || "",
+            marketType: "v2" as MarketType,
+            yesPrice,
+            noPrice,
+            yesMultiplier: yesPrice > 0 ? 1 / yesPrice : 2,
+            noMultiplier: noPrice > 0 ? 1 / noPrice : 2,
+            yesTokenMint: yesTokenStr,
+            noTokenMint: noTokenStr,
+            collateralToken: collateralStr,
+            marketReserves: reserves,
+            volume: reserves,
+            liquidity: reserves,
+            endDate: new Date(Number(account.end_time || 0) * 1000),
+            resolved: account.resolved || false,
+            resolvable: account.resolvable || false,
+            winningToken,
+            creator: creatorStr,
+          });
+        });
       }
 
-      console.log(`[PNP] Fetched ${response.count} markets from SDK`);
+      // Fetch P2P markets details
+      let p2pMarkets: PNPMarket[] = [];
+      if (p2pAddresses.length > 0) {
+        console.log(`[PNP] Fetching ${p2pAddresses.length} P2P markets...`);
+        p2pMarkets = await this.fetchP2PMarkets(p2pAddresses.length, 0);
+        console.log(`[PNP] Fetched ${p2pMarkets.length} P2P markets`);
+      }
 
-      // Transform SDK response to our PNPMarket format
-      const markets: PNPMarket[] = response.data.map((item) => {
-        const account = item.account;
+      // Combine and sort by reserves (highest first)
+      const allMarkets = [...v2Markets, ...p2pMarkets];
+      console.log(`[PNP] Total markets: ${allMarkets.length} (V2: ${v2Markets.length}, P2P: ${p2pMarkets.length})`);
 
-        // Parse winning token
-        let winningToken: "yes" | "no" | null = null;
-        if (account.winning_token_id !== null && account.winning_token_id !== "none") {
-          if (typeof account.winning_token_id === "object") {
-            if ("yes" in (account.winning_token_id as Record<string, unknown>)) winningToken = "yes";
-            else if ("no" in (account.winning_token_id as Record<string, unknown>)) winningToken = "no";
-          } else if (account.winning_token_id === "yes") {
-            winningToken = "yes";
-          } else if (account.winning_token_id === "no") {
-            winningToken = "no";
-          }
-        }
-
-        // Parse reserves and calculate prices
-        const reserves = Number(account.market_reserves || 0) / 1e6;
-        const yesSupply = Number(account.yes_token_supply_minted || 0);
-        const noSupply = Number(account.no_token_supply_minted || 0);
-        const totalSupply = yesSupply + noSupply;
-
-        let yesPrice = 0.5;
-        let noPrice = 0.5;
-        if (totalSupply > 0) {
-          yesPrice = noSupply / totalSupply;
-          noPrice = yesSupply / totalSupply;
-        }
-
-        // Get creator as string (handle PublicKey objects)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const creatorVal = account.creator as any;
-        const creatorStr = typeof creatorVal === "string"
-          ? creatorVal
-          : creatorVal?.toBase58?.() || creatorVal?.toString?.() || String(creatorVal || "");
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const pubKeyVal = item.publicKey as any;
-        const publicKeyStr = typeof pubKeyVal === "string"
-          ? pubKeyVal
-          : pubKeyVal?.toBase58?.() || pubKeyVal?.toString?.() || String(pubKeyVal || "");
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const yesTokenVal = account.yes_token_mint as any;
-        const yesTokenStr = typeof yesTokenVal === "string"
-          ? yesTokenVal
-          : yesTokenVal?.toBase58?.() || yesTokenVal?.toString?.() || "";
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const noTokenVal = account.no_token_mint as any;
-        const noTokenStr = typeof noTokenVal === "string"
-          ? noTokenVal
-          : noTokenVal?.toBase58?.() || noTokenVal?.toString?.() || "";
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const collateralVal = account.collateral_token as any;
-        const collateralStr = typeof collateralVal === "string"
-          ? collateralVal
-          : collateralVal?.toBase58?.() || collateralVal?.toString?.() || "";
-
-        return {
-          id: String(account.id || publicKeyStr),
-          publicKey: publicKeyStr,
-          question: account.question || "",
-          marketType: "v2" as MarketType,
-          yesPrice,
-          noPrice,
-          yesMultiplier: yesPrice > 0 ? 1 / yesPrice : 2,
-          noMultiplier: noPrice > 0 ? 1 / noPrice : 2,
-          yesTokenMint: yesTokenStr,
-          noTokenMint: noTokenStr,
-          collateralToken: collateralStr,
-          marketReserves: reserves,
-          volume: reserves,
-          liquidity: reserves,
-          endDate: new Date(Number(account.end_time || 0) * 1000),
-          resolved: account.resolved || false,
-          resolvable: account.resolvable || false,
-          winningToken,
-          creator: creatorStr,
-        };
-      });
-
-      // Sort by reserves (highest first)
-      return markets.sort((a, b) => b.marketReserves - a.marketReserves);
+      return allMarkets.sort((a, b) => b.marketReserves - a.marketReserves);
     } catch (error) {
       console.error("[PNP] Failed to fetch markets from SDK:", error);
       throw error;
