@@ -80,6 +80,7 @@ interface UsePNPReturn {
   formatLiquidity: (liquidity: number) => string;
   isMarketActive: (market: PNPMarket) => boolean;
   getMarketStatus: (market: PNPMarket) => "active" | "ended" | "resolved";
+  getMarketTokenBalances: (marketAddress: string) => Promise<{ yesBalance: number; noBalance: number; yesTokenMint: string; noTokenMint: string }>;
 }
 
 const DEFAULT_LIMIT = 20;
@@ -664,6 +665,19 @@ export function usePNP(): UsePNPReturn {
   const isMarketActive = useCallback((market: PNPMarket) => pnpService.isMarketActive(market), []);
   const getMarketStatus = useCallback((market: PNPMarket) => pnpService.getMarketStatus(market), []);
 
+  /**
+   * Get user's YES/NO token balances for a market
+   */
+  const getMarketTokenBalances = useCallback(
+    async (marketAddress: string) => {
+      if (!walletAddress) {
+        return { yesBalance: 0, noBalance: 0, yesTokenMint: "", noTokenMint: "" };
+      }
+      return pnpService.getMarketTokenBalances(marketAddress, walletAddress);
+    },
+    [walletAddress]
+  );
+
   return {
     // State
     markets,
@@ -706,5 +720,6 @@ export function usePNP(): UsePNPReturn {
     formatLiquidity,
     isMarketActive,
     getMarketStatus,
+    getMarketTokenBalances,
   };
 }

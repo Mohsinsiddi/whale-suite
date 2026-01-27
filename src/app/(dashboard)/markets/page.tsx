@@ -64,6 +64,7 @@ export default function MarketsPage() {
     sellTokensV2,
     getMinimumTradeAmount,
     createMarket,
+    getMarketTokenBalances,
   } = usePNP();
 
   const [statusFilter, setStatusFilter] = useState("all");
@@ -77,6 +78,10 @@ export default function MarketsPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [tradeError, setTradeError] = useState<string | null>(null);
   const [lastTrade, setLastTrade] = useState<{ side: string; amount: string; market: string; signature?: string; mode: string } | null>(null);
+
+  // Token balances for trade modal
+  const [tokenBalances, setTokenBalances] = useState<{ yesBalance: number; noBalance: number }>({ yesBalance: 0, noBalance: 0 });
+  const [loadingBalances, setLoadingBalances] = useState(false);
 
   // View Details Modal
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
@@ -138,13 +143,30 @@ export default function MarketsPage() {
     ? allMarkets.filter((m) => m.creator === walletAddress).length
     : 0;
 
-  const handleTrade = (market: PNPMarket, side: "yes" | "no", mode: "buy" | "sell" = "buy") => {
+  const handleTrade = async (market: PNPMarket, side: "yes" | "no", mode: "buy" | "sell" = "buy") => {
     setSelectedMarket(market);
     setTradeSide(side);
     setTradeMode(mode);
     setTradeAmount("");
     setTradeError(null);
+    setTokenBalances({ yesBalance: 0, noBalance: 0 });
     setTradeModalOpen(true);
+
+    // Fetch token balances if wallet connected
+    if (walletConnected && market.publicKey) {
+      setLoadingBalances(true);
+      try {
+        const balances = await getMarketTokenBalances(market.publicKey);
+        setTokenBalances({
+          yesBalance: balances.yesBalance,
+          noBalance: balances.noBalance,
+        });
+      } catch (e) {
+        console.error("Failed to fetch token balances:", e);
+      } finally {
+        setLoadingBalances(false);
+      }
+    }
   };
 
   const handleViewDetails = (market: PNPMarket) => {
@@ -172,10 +194,23 @@ export default function MarketsPage() {
       return;
     }
 
-    // Check minimum trade amount
-    if (amount < minTradeAmount) {
+    // Check minimum trade amount for buy
+    if (tradeMode === "buy" && amount < minTradeAmount) {
       setTradeError(`Minimum trade amount is $${minTradeAmount.toFixed(2)} USDC`);
       return;
+    }
+
+    // Check sell amount doesn't exceed balance
+    if (tradeMode === "sell") {
+      const maxSellable = tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance;
+      if (amount > maxSellable) {
+        setTradeError(`Insufficient ${tradeSide.toUpperCase()} tokens. You have ${maxSellable.toFixed(2)}`);
+        return;
+      }
+      if (amount <= 0) {
+        setTradeError("Please enter a valid amount to sell");
+        return;
+      }
     }
 
     try {
@@ -599,6 +634,29 @@ export default function MarketsPage() {
               </button>
             </div>
 
+            {/* Your Token Balances */}
+            {walletConnected && (
+              <div className="p-3 rounded-xl bg-bg-elevated border border-border-secondary">
+                <div className="text-xs text-text-muted mb-2">Your Token Balances</div>
+                {loadingBalances ? (
+                  <div className="flex items-center gap-2 text-xs text-text-muted">
+                    <span className="animate-pulse">Loading balances...</span>
+                  </div>
+                ) : (
+                  <div className="flex gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-neon-green font-bold">{tokenBalances.yesBalance.toFixed(2)}</span>
+                      <span className="text-xs text-text-muted">YES</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-error font-bold">{tokenBalances.noBalance.toFixed(2)}</span>
+                      <span className="text-xs text-text-muted">NO</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* YES/NO Selection */}
             <div className="flex gap-2">
               <button
@@ -611,6 +669,9 @@ export default function MarketsPage() {
               >
                 <div className="text-xs mb-0.5">YES</div>
                 <div className="text-lg font-bold">{(selectedMarket.yesPrice * 100).toFixed(0)}¢</div>
+                {tradeMode === "sell" && tokenBalances.yesBalance > 0 && (
+                  <div className="text-xs text-text-muted mt-1">You have: {tokenBalances.yesBalance.toFixed(2)}</div>
+                )}
               </button>
               <button
                 onClick={() => setTradeSide("no")}
@@ -622,40 +683,79 @@ export default function MarketsPage() {
               >
                 <div className="text-xs mb-0.5">NO</div>
                 <div className="text-lg font-bold">{(selectedMarket.noPrice * 100).toFixed(0)}¢</div>
+                {tradeMode === "sell" && tokenBalances.noBalance > 0 && (
+                  <div className="text-xs text-text-muted mt-1">You have: {tokenBalances.noBalance.toFixed(2)}</div>
+                )}
               </button>
             </div>
 
             <div>
-              <label className="block text-xs text-text-secondary mb-1">
-                {tradeMode === "buy" ? "Amount (USDC)" : "Token Amount"}
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-text-secondary">
+                  {tradeMode === "buy" ? "Amount (USDC)" : "Token Amount"}
+                </label>
+                {tradeMode === "sell" && (
+                  <button
+                    onClick={() => {
+                      const maxAmount = tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance;
+                      setTradeAmount(maxAmount.toFixed(6));
+                    }}
+                    className="text-xs text-neon-cyan hover:text-neon-green transition-colors"
+                    disabled={loadingBalances}
+                  >
+                    Max: {(tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance).toFixed(2)}
+                  </button>
+                )}
+              </div>
               <Input
                 type="number"
                 value={tradeAmount}
                 onChange={(e) => setTradeAmount(e.target.value)}
                 placeholder="0.00"
-                min={minTradeAmount.toString()}
+                min={tradeMode === "buy" ? minTradeAmount.toString() : "0"}
                 step="0.01"
               />
               <p className="text-xs text-text-muted mt-1">
-                Min: ${minTradeAmount.toFixed(2)}
+                {tradeMode === "buy"
+                  ? `Min: $${minTradeAmount.toFixed(2)}`
+                  : `Available: ${(tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance).toFixed(2)} ${tradeSide.toUpperCase()} tokens`
+                }
               </p>
             </div>
 
             {tradeAmount && parseFloat(tradeAmount) > 0 && (
               <div className="p-3 rounded-xl bg-bg-elevated text-xs space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-text-muted">Est. Tokens</span>
-                  <span className="text-text-primary">
-                    ~{(parseFloat(tradeAmount) / (tradeSide === "yes" ? selectedMarket.yesPrice : selectedMarket.noPrice)).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-text-muted">Max Payout</span>
-                  <span className="text-neon-green">
-                    ${(parseFloat(tradeAmount) / (tradeSide === "yes" ? selectedMarket.yesPrice : selectedMarket.noPrice)).toFixed(2)}
-                  </span>
-                </div>
+                {tradeMode === "buy" ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Est. Tokens</span>
+                      <span className="text-text-primary">
+                        ~{(parseFloat(tradeAmount) / (tradeSide === "yes" ? selectedMarket.yesPrice : selectedMarket.noPrice)).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Max Payout</span>
+                      <span className="text-neon-green">
+                        ${(parseFloat(tradeAmount) / (tradeSide === "yes" ? selectedMarket.yesPrice : selectedMarket.noPrice)).toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Selling</span>
+                      <span className="text-text-primary">
+                        {parseFloat(tradeAmount).toFixed(2)} {tradeSide.toUpperCase()} tokens
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Est. USDC Return</span>
+                      <span className="text-neon-green">
+                        ~${(parseFloat(tradeAmount) * (tradeSide === "yes" ? selectedMarket.yesPrice : selectedMarket.noPrice)).toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -675,7 +775,13 @@ export default function MarketsPage() {
 
             <Button
               onClick={executeTrade}
-              disabled={!tradeAmount || parseFloat(tradeAmount) <= 0 || trading || !walletConnected}
+              disabled={
+                !tradeAmount ||
+                parseFloat(tradeAmount) <= 0 ||
+                trading ||
+                !walletConnected ||
+                (tradeMode === "sell" && parseFloat(tradeAmount) > (tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance))
+              }
               className="w-full"
             >
               {trading
@@ -684,7 +790,9 @@ export default function MarketsPage() {
                 ? "Connect Wallet to Trade"
                 : tradeMode === "buy"
                 ? `Buy ${tradeSide.toUpperCase()} for $${tradeAmount || "0"}`
-                : `Sell ${tradeSide.toUpperCase()} Tokens`}
+                : tradeMode === "sell" && (tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance) === 0
+                ? `No ${tradeSide.toUpperCase()} tokens to sell`
+                : `Sell ${tradeAmount || "0"} ${tradeSide.toUpperCase()} Tokens`}
             </Button>
 
             <p className="text-xs text-text-muted text-center">

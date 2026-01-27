@@ -1215,7 +1215,7 @@ class PNPService {
   }
 
   /**
-   * Sell tokens with direct signing (ShadowWire pattern)
+   * Sell tokens with manual instruction building (fixes SDK bug)
    * Burns decision tokens and receives USDC back
    */
   async sellTokensDirect(
@@ -1226,55 +1226,198 @@ class PNPService {
     signTransaction: TransactionSigner
   ): Promise<TradeResult> {
     try {
-      console.log("[PNP] Selling tokens with SDK signing...");
+      console.log("[PNP] Selling tokens with manual instruction build...");
       console.log("[PNP] Market:", marketAddress);
       console.log("[PNP] Side:", side, "Amount:", tokenAmount, "tokens");
 
+      const {
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID,
+        getAssociatedTokenAddressSync,
+      } = await import("@solana/spl-token");
+      const {
+        SystemProgram,
+        TransactionMessage,
+        VersionedTransaction,
+        ComputeBudgetProgram,
+        TransactionInstruction,
+      } = await import("@solana/web3.js");
+
+      const buyer = new PublicKey(walletAddress);
+      const market = new PublicKey(marketAddress);
+
+      // Fetch market account data
+      const marketAccountInfo = await this.connection.getAccountInfo(market);
+      if (!marketAccountInfo) {
+        throw new Error("Market not found");
+      }
+
+      // Use SDK to decode the market account
       const { Client, TradingModule } = await import("pnp-sdk");
       const baseClient = new Client({ rpcUrl: RPC_URL });
-
-      // Create a signer that signs with Privy and lets SDK send
-      const sdkSigner = {
-        publicKey: new PublicKey(walletAddress),
-        signTransaction: async (tx: Transaction | VersionedTransaction) => {
-          console.log("[PNP] Signing sell transaction with Privy...");
-          const signedTx = await signTransaction(tx);
-          console.log("[PNP] Transaction signed successfully");
-          return signedTx;
-        },
-        signAllTransactions: async (txs: (Transaction | VersionedTransaction)[]) => {
-          console.log("[PNP] Signing", txs.length, "transactions...");
-          const signed = [];
-          for (const tx of txs) {
-            signed.push(await sdkSigner.signTransaction(tx));
-          }
-          return signed;
-        },
+      const dummySigner = {
+        publicKey: buyer,
+        signTransaction: async (tx: Transaction | VersionedTransaction) => tx,
+        signAllTransactions: async (txs: (Transaction | VersionedTransaction)[]) => txs,
       };
+      const tradingModule = new TradingModule(baseClient, dummySigner);
 
-      const trading = new TradingModule(baseClient, sdkSigner);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawMarketData = (tradingModule as any).decodeMarketAny(marketAccountInfo.data);
 
-      // Use sellTokensBase which uses burnDecisionTokensDerived
-      console.log("[PNP] Calling trading.sellTokensBase...");
-      const result = await trading.sellTokensBase({
-        market: new PublicKey(marketAddress),
-        burnYesToken: side === "yes",
-        amountBaseUnits: BigInt(Math.floor(tokenAmount * 1e6)),
+      if (!rawMarketData) {
+        throw new Error("Failed to decode market data");
+      }
+
+      // Check if market is tradable
+      const nowSec = Math.floor(Date.now() / 1000);
+      const endTimeHex = rawMarketData.end_time || rawMarketData.endTime;
+      const endTime = typeof endTimeHex === 'string' ? parseInt(endTimeHex, 16) : Number(endTimeHex);
+      if (rawMarketData.resolved || nowSec >= endTime) {
+        throw new Error("Market not tradable: " + (rawMarketData.resolved ? "resolved" : "ended"));
+      }
+
+      // Get accounts from decoded data
+      const yesTokenMint = new PublicKey(rawMarketData.yes_token_mint || rawMarketData.yesTokenMint);
+      const noTokenMint = new PublicKey(rawMarketData.no_token_mint || rawMarketData.noTokenMint);
+      const collateralMint = new PublicKey(rawMarketData.collateral_token || rawMarketData.collateralToken);
+      const marketCreator = new PublicKey(rawMarketData.creator);
+      const creatorFeeTreasury = new PublicKey(rawMarketData.creator_fee_treasury || rawMarketData.creatorFeeTreasury);
+
+      console.log("[PNP] creator_fee_treasury:", creatorFeeTreasury.toBase58());
+
+      // Get global config PDA
+      const PNP_PROGRAM_ID = new PublicKey("6fnYZUSyp3vJxTNnayq5S62d363EFaGARnqYux5bqrxb");
+      const [globalConfig] = PublicKey.findProgramAddressSync(
+        [Buffer.from("global_config")],
+        PNP_PROGRAM_ID
+      );
+
+      // Fetch global config to get admin
+      const globalConfigInfo = await this.connection.getAccountInfo(globalConfig);
+      if (!globalConfigInfo) throw new Error("Global config not found");
+
+      const adminBytes = globalConfigInfo.data.slice(8, 40);
+      const admin = new PublicKey(adminBytes);
+
+      // Get token program
+      const yesMintInfo = await this.connection.getAccountInfo(yesTokenMint);
+      const tokenProgramId = yesMintInfo?.owner || TOKEN_PROGRAM_ID;
+
+      // Derive ATAs
+      const buyerYesTokenAccount = getAssociatedTokenAddressSync(yesTokenMint, buyer, false, tokenProgramId);
+      const buyerNoTokenAccount = getAssociatedTokenAddressSync(noTokenMint, buyer, false, tokenProgramId);
+      const buyerCollateralTokenAccount = getAssociatedTokenAddressSync(collateralMint, buyer, false, tokenProgramId);
+      const adminCollateralTokenAccount = getAssociatedTokenAddressSync(collateralMint, admin, false, tokenProgramId);
+      const marketReserveVault = getAssociatedTokenAddressSync(collateralMint, market, true, tokenProgramId);
+
+      // Convert token amount to base units (tokens have 6 decimals)
+      const amountBaseUnits = BigInt(Math.floor(tokenAmount * 1e6));
+      console.log("[PNP] Amount in base units:", amountBaseUnits.toString());
+
+      // Check token balance
+      const tokenAccountToCheck = side === "yes" ? buyerYesTokenAccount : buyerNoTokenAccount;
+      const balanceInfo = await this.connection.getTokenAccountBalance(tokenAccountToCheck).catch(() => null);
+      if (!balanceInfo) {
+        throw new Error(`No ${side.toUpperCase()} token account found`);
+      }
+      const balance = BigInt(balanceInfo.value.amount);
+      if (balance < amountBaseUnits) {
+        throw new Error(`Insufficient ${side.toUpperCase()} token balance: have ${balanceInfo.value.uiAmountString}, need ${tokenAmount}`);
+      }
+
+      // Build burn_decision_tokens instruction
+      // Discriminator = sha256("global:burn_decision_tokens")[0..8]
+      const burnDecisionTokensDiscriminator = Buffer.from([18, 198, 214, 1, 236, 94, 63, 29]);
+
+      // Encode args: amount (u64), burn_yes_token (bool)
+      const amountBuffer = Buffer.alloc(8);
+      amountBuffer.writeBigUInt64LE(amountBaseUnits);
+      const burnYesTokenByte = Buffer.from([side === "yes" ? 1 : 0]);
+
+      const instructionData = Buffer.concat([
+        burnDecisionTokensDiscriminator,
+        amountBuffer,
+        burnYesTokenByte,
+      ]);
+
+      // Account metas - same structure as mint but for burn
+      const accountMetas = [
+        { pubkey: buyer, isSigner: true, isWritable: true },
+        { pubkey: admin, isSigner: false, isWritable: true },
+        { pubkey: marketCreator, isSigner: false, isWritable: true },
+        { pubkey: market, isSigner: false, isWritable: true },
+        { pubkey: globalConfig, isSigner: false, isWritable: false },
+        { pubkey: yesTokenMint, isSigner: false, isWritable: true },
+        { pubkey: noTokenMint, isSigner: false, isWritable: true },
+        { pubkey: buyerYesTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: buyerNoTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: marketReserveVault, isSigner: false, isWritable: true },
+        { pubkey: collateralMint, isSigner: false, isWritable: true },
+        { pubkey: buyerCollateralTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: adminCollateralTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: creatorFeeTreasury, isSigner: false, isWritable: true },
+        { pubkey: tokenProgramId, isSigner: false, isWritable: false },
+        { pubkey: tokenProgramId, isSigner: false, isWritable: false },
+        { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ];
+
+      const burnIx = new TransactionInstruction({
+        programId: PNP_PROGRAM_ID,
+        keys: accountMetas,
+        data: instructionData,
       });
 
-      console.log("[PNP] Sell complete! Signature:", result.signature);
-      console.log("[PNP] USDC received:", result.usdcReceived || 0);
+      // Add compute budget
+      const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 600000 });
+
+      // Build transaction
+      const latestBlockhash = await this.connection.getLatestBlockhash("confirmed");
+      const message = new TransactionMessage({
+        payerKey: buyer,
+        recentBlockhash: latestBlockhash.blockhash,
+        instructions: [computeBudgetIx, burnIx],
+      }).compileToV0Message();
+
+      const tx = new VersionedTransaction(message);
+
+      // Sign and send
+      console.log("[PNP] Signing sell transaction...");
+      const signedTx = await signTransaction(tx);
+
+      console.log("[PNP] Sending sell transaction...");
+      const signature = await this.connection.sendRawTransaction(signedTx.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: "confirmed",
+        maxRetries: 3,
+      });
+
+      console.log("[PNP] Sell transaction sent! Signature:", signature);
+
+      // Wait for confirmation
+      console.log("[PNP] Confirming sell transaction...");
+      const confirmation = await this.connection.confirmTransaction({
+        signature,
+        blockhash: latestBlockhash.blockhash,
+        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+      }, "confirmed");
+
+      if (confirmation.value.err) {
+        throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+      }
+
+      console.log("[PNP] Sell successful!");
 
       return {
-        signature: result.signature || "",
-        tokensReceived: result.usdcReceived || 0,
+        signature,
+        tokensReceived: Number(amountBaseUnits) / 1e6,
         success: true,
       };
     } catch (error) {
       console.error("[PNP] Failed to sell tokens:", error);
       const errorMsg = error instanceof Error ? error.message : "Sell failed";
 
-      // Check for common errors
       if (errorMsg.includes("Market not tradable")) {
         return {
           signature: "",
@@ -1283,12 +1426,12 @@ class PNPService {
           error: "Market has ended or is resolved",
         };
       }
-      if (errorMsg.includes("Insufficient") || errorMsg.includes("balance")) {
+      if (errorMsg.includes("Insufficient")) {
         return {
           signature: "",
           tokensReceived: 0,
           success: false,
-          error: "Insufficient token balance",
+          error: errorMsg,
         };
       }
 
@@ -1309,6 +1452,104 @@ class PNPService {
     // Minimum 0.01 USDC or 1% of liquidity, whichever is higher
     const minFromLiquidity = marketLiquidity * 0.01;
     return Math.max(0.01, minFromLiquidity);
+  }
+
+  /**
+   * Get user's token balances for a specific market
+   * Returns YES and NO token balances
+   */
+  async getMarketTokenBalances(
+    marketAddress: string,
+    walletAddress: string
+  ): Promise<{ yesBalance: number; noBalance: number; yesTokenMint: string; noTokenMint: string }> {
+    try {
+      const {
+        TOKEN_PROGRAM_ID,
+        getAssociatedTokenAddressSync,
+      } = await import("@solana/spl-token");
+
+      const market = new PublicKey(marketAddress);
+      const wallet = new PublicKey(walletAddress);
+
+      console.log("[PNP] Getting token balances for market:", marketAddress);
+      console.log("[PNP] Wallet:", walletAddress);
+
+      // Fetch market data
+      const marketAccountInfo = await this.connection.getAccountInfo(market);
+      if (!marketAccountInfo) {
+        throw new Error("Market not found");
+      }
+
+      // Decode market to get token mints
+      const { Client, TradingModule } = await import("pnp-sdk");
+      const baseClient = new Client({ rpcUrl: RPC_URL });
+      const dummySigner = {
+        publicKey: wallet,
+        signTransaction: async (tx: Transaction | VersionedTransaction) => tx,
+        signAllTransactions: async (txs: (Transaction | VersionedTransaction)[]) => txs,
+      };
+      const tradingModule = new TradingModule(baseClient, dummySigner);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawMarketData = (tradingModule as any).decodeMarketAny(marketAccountInfo.data);
+
+      const yesTokenMint = new PublicKey(rawMarketData.yes_token_mint || rawMarketData.yesTokenMint);
+      const noTokenMint = new PublicKey(rawMarketData.no_token_mint || rawMarketData.noTokenMint);
+
+      console.log("[PNP] YES Token Mint:", yesTokenMint.toBase58());
+      console.log("[PNP] NO Token Mint:", noTokenMint.toBase58());
+
+      // Get token program for these mints
+      const yesMintInfo = await this.connection.getAccountInfo(yesTokenMint);
+      const tokenProgramId = yesMintInfo?.owner || TOKEN_PROGRAM_ID;
+      console.log("[PNP] Token Program:", tokenProgramId.toBase58());
+
+      // Derive ATAs
+      const yesTokenAccount = getAssociatedTokenAddressSync(yesTokenMint, wallet, false, tokenProgramId);
+      const noTokenAccount = getAssociatedTokenAddressSync(noTokenMint, wallet, false, tokenProgramId);
+
+      console.log("[PNP] YES ATA:", yesTokenAccount.toBase58());
+      console.log("[PNP] NO ATA:", noTokenAccount.toBase58());
+
+      // Fetch balances
+      let yesBalance = 0;
+      let noBalance = 0;
+
+      try {
+        const yesInfo = await this.connection.getTokenAccountBalance(yesTokenAccount);
+        console.log("[PNP] YES Balance raw:", yesInfo.value);
+        yesBalance = yesInfo.value.uiAmount || 0;
+      } catch (e) {
+        console.log("[PNP] YES ATA doesn't exist:", e);
+        // Account doesn't exist, balance is 0
+      }
+
+      try {
+        const noInfo = await this.connection.getTokenAccountBalance(noTokenAccount);
+        console.log("[PNP] NO Balance raw:", noInfo.value);
+        noBalance = noInfo.value.uiAmount || 0;
+      } catch (e) {
+        console.log("[PNP] NO ATA doesn't exist:", e);
+        // Account doesn't exist, balance is 0
+      }
+
+      console.log("[PNP] Final balances - YES:", yesBalance, "NO:", noBalance);
+
+      return {
+        yesBalance,
+        noBalance,
+        yesTokenMint: yesTokenMint.toBase58(),
+        noTokenMint: noTokenMint.toBase58(),
+      };
+    } catch (error) {
+      console.error("[PNP] Failed to get token balances:", error);
+      return {
+        yesBalance: 0,
+        noBalance: 0,
+        yesTokenMint: "",
+        noTokenMint: "",
+      };
+    }
   }
 
   /**
