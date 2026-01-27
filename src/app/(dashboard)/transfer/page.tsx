@@ -71,6 +71,9 @@ export default function TransferPage() {
     token: string;
   } | null>(null);
 
+  // Track current operation type for modal
+  const [currentOperation, setCurrentOperation] = useState<'deposit' | 'withdraw' | 'transfer'>('transfer');
+
   // Fetch shielded balance when wallet changes
   useEffect(() => {
     if (walletAddress && activeTab === "private") {
@@ -168,15 +171,58 @@ export default function TransferPage() {
 
   const txSteps = activeTab === "private"
     ? [
-        { label: "Initializing ZK proofs...", status: getStepStatus(0) },
-        { label: "Generating Bulletproof range proof...", status: getStepStatus(1) },
-        { label: "Broadcasting to ShadowWire...", status: getStepStatus(2) },
+        {
+          label: "Initializing ZK Environment",
+          status: getStepStatus(0),
+          description: "Loading WebAssembly cryptographic modules..."
+        },
+        {
+          label: "Generating Bulletproof ZK Proof",
+          status: getStepStatus(1),
+          description: "Creating cryptographic proof to hide your transaction amount. This takes 30-45 seconds."
+        },
+        {
+          label: "Broadcasting to ShadowWire",
+          status: getStepStatus(2),
+          description: "Submitting your private transaction to the network..."
+        },
       ]
     : [
-        { label: "Building transaction", status: getStepStatus(0) },
-        { label: "Signing with wallet", status: getStepStatus(1) },
-        { label: "Confirming on chain", status: getStepStatus(2) },
+        {
+          label: "Building Transaction",
+          status: getStepStatus(0),
+          description: "Preparing transaction data..."
+        },
+        {
+          label: "Signing with Wallet",
+          status: getStepStatus(1),
+          description: "Please approve the transaction in your wallet..."
+        },
+        {
+          label: "Confirming on Chain",
+          status: getStepStatus(2),
+          description: "Waiting for blockchain confirmation..."
+        },
       ];
+
+  // Steps for deposit/withdraw operations
+  const depositWithdrawSteps = [
+    {
+      label: "Preparing Transaction",
+      status: getStepStatus(0),
+      description: "Building pool transaction..."
+    },
+    {
+      label: "Signing Transaction",
+      status: getStepStatus(1),
+      description: "Please approve in your wallet..."
+    },
+    {
+      label: "Confirming on Chain",
+      status: getStepStatus(2),
+      description: "Finalizing your transaction..."
+    },
+  ];
 
   const handleSend = async () => {
     if (!amount || !recipient || recipientError) return;
@@ -196,6 +242,7 @@ export default function TransferPage() {
       }
     }
 
+    setCurrentOperation('transfer');
     setShowTxModal(true);
     setCurrentStep(0);
 
@@ -301,6 +348,7 @@ export default function TransferPage() {
       return;
     }
 
+    setCurrentOperation('deposit');
     setShowTxModal(true);
     setCurrentStep(0);
 
@@ -352,6 +400,7 @@ export default function TransferPage() {
       return;
     }
 
+    setCurrentOperation('withdraw');
     setShowTxModal(true);
     setCurrentStep(0);
 
@@ -867,8 +916,12 @@ export default function TransferPage() {
       <TransactionModal
         isOpen={showTxModal}
         onClose={() => setShowTxModal(false)}
-        title="Sending Privately..."
-        steps={txSteps}
+        title={
+          currentOperation === 'deposit' ? 'Depositing to Pool...' :
+          currentOperation === 'withdraw' ? 'Withdrawing from Pool...' :
+          activeTab === 'private' ? 'Private Transfer in Progress...' : 'Sending...'
+        }
+        steps={currentOperation === 'transfer' ? txSteps : depositWithdrawSteps}
         currentStep={currentStep}
       />
 

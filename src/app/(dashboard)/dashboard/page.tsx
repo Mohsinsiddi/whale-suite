@@ -1,26 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Card, { CardHeader, CardTitle } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { StealthRating } from "@/components/ui/Progress";
 import Badge, { TierBadge } from "@/components/ui/Badge";
+import { useShadowWire, useWalletBalance } from "@/hooks";
+import { useAuth } from "@/lib/privy/hooks";
 
-// Mock data
-const quickActions = [
-  { icon: "🔒", label: "Deposit", desc: "Hide SOL" },
-  { icon: "👻", label: "Transfer", desc: "Ghost Send" },
-  { icon: "💱", label: "Swap", desc: "Dark Pool" },
-  { icon: "🎲", label: "Bet", desc: "Anonymous" },
-];
-
-const recentActivity = [
-  { type: "deposit", amount: "50 SOL", time: "2m ago", status: "success" },
-  { type: "transfer", amount: "10 SOL", time: "1h ago", status: "success" },
-  { type: "swap", amount: "100 USDC", time: "3h ago", status: "success" },
-  { type: "withdraw", amount: "25 SOL", time: "1d ago", status: "pending" },
-];
-
+// Mock data for whale feed
 const whaleFeed = [
   { whale: "Whale #A34F", action: "deposited", amount: "500 SOL", time: "5m ago" },
   { whale: "Whale #B7C2", action: "transferred", amount: "1,200 SOL", time: "12m ago" },
@@ -29,7 +18,36 @@ const whaleFeed = [
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const { walletAddress } = useAuth();
+  const { balance: publicBalance, loading: balanceLoading } = useWalletBalance(walletAddress);
+  const {
+    shieldedBalance,
+    fetchShieldedBalance,
+    loading: shadowWireLoading,
+  } = useShadowWire();
+
   const [selectedPeriod, setSelectedPeriod] = useState("24h");
+
+  // Fetch shielded balance on mount
+  useEffect(() => {
+    if (walletAddress) {
+      fetchShieldedBalance();
+    }
+  }, [walletAddress, fetchShieldedBalance]);
+
+  // Calculate balances
+  const shieldedBalanceSOL = shieldedBalance?.available ? shieldedBalance.available / 1e9 : 0;
+  const totalBalance = publicBalance + shieldedBalanceSOL;
+  const hiddenPercentage = totalBalance > 0 ? ((shieldedBalanceSOL / totalBalance) * 100).toFixed(0) : 0;
+
+  // Quick actions with navigation
+  const quickActions = [
+    { icon: "🔒", label: "Deposit", desc: "Hide SOL", href: "/transfer" },
+    { icon: "👻", label: "Transfer", desc: "Ghost Send", href: "/transfer" },
+    { icon: "💱", label: "Swap", desc: "Dark Pool", href: "/swap" },
+    { icon: "🎲", label: "Bet", desc: "Anonymous", href: "/markets" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -37,7 +55,9 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-text-primary">Command Center</h1>
-          <p className="text-sm text-text-secondary">Welcome back, Whale #999</p>
+          <p className="text-sm text-text-secondary">
+            {walletAddress ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : 'Connect wallet'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <TierBadge tier="gold" size="sm" />
@@ -51,32 +71,90 @@ export default function DashboardPage() {
         <Card variant="default" padding="md">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs text-text-muted">Public Balance</span>
-            <span className="text-xs text-warning">⚠️ Visible</span>
+            <span className="text-xs text-warning">⚠️ Visible on-chain</span>
           </div>
-          <div className="text-2xl font-bold text-text-primary mb-1">124.5 SOL</div>
-          <div className="text-xs text-text-secondary">≈ $18,675</div>
+          <div className="text-2xl font-bold text-text-primary mb-1">
+            {balanceLoading ? '...' : `${publicBalance.toFixed(4)} SOL`}
+          </div>
+          <div className="text-xs text-text-secondary">Anyone can see this balance</div>
         </Card>
 
-        {/* Hidden Balance */}
+        {/* Hidden Balance - ShadowWire Pool */}
         <Card variant="glow" padding="md">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-text-muted">Hidden Balance</span>
+            <span className="text-xs text-text-muted">ShadowWire Pool</span>
             <span className="text-xs text-neon-green">🔒 Private</span>
           </div>
-          <div className="text-2xl font-bold text-neon-green mb-1">850.0 SOL</div>
-          <div className="text-xs text-text-secondary">≈ $127,500</div>
+          <div className="text-2xl font-bold text-neon-green mb-1">
+            {shadowWireLoading ? '...' : `${shieldedBalanceSOL.toFixed(4)} SOL`}
+          </div>
+          <div className="text-xs text-text-secondary">Hidden from public view</div>
+          <button
+            onClick={() => fetchShieldedBalance()}
+            className="text-[10px] text-neon-cyan hover:underline mt-1"
+          >
+            Refresh balance
+          </button>
         </Card>
 
         {/* Total Portfolio */}
         <Card variant="default" padding="md">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs text-text-muted">Total Portfolio</span>
-            <Badge size="xs" variant="success">+12.5%</Badge>
+            <Badge size="xs" variant="success">{hiddenPercentage}% Hidden</Badge>
           </div>
-          <div className="text-2xl font-bold text-text-primary mb-1">974.5 SOL</div>
-          <div className="text-xs text-text-secondary">≈ $146,175</div>
+          <div className="text-2xl font-bold text-text-primary mb-1">
+            {balanceLoading || shadowWireLoading ? '...' : `${totalBalance.toFixed(4)} SOL`}
+          </div>
+          <div className="text-xs text-text-secondary">Public + Shielded</div>
         </Card>
       </div>
+
+      {/* ShadowWire Info Card */}
+      <Card variant="default" padding="md" className="border-neon-green/30">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-neon-green/20 to-neon-cyan/20 flex items-center justify-center flex-shrink-0">
+            <ShieldIcon className="w-6 h-6 text-neon-green" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-text-primary mb-2">How ShadowWire Works</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-text-secondary">
+              <div className="space-y-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-neon-green font-bold">1.</span>
+                  <div>
+                    <span className="text-text-primary font-medium">Deposit</span> - Move SOL from public wallet to shielded pool
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-neon-green font-bold">2.</span>
+                  <div>
+                    <span className="text-text-primary font-medium">Transfer</span> - Send privately using ZK proofs
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="p-2 rounded-lg bg-neon-green/5 border border-neon-green/20">
+                  <div className="text-neon-green font-medium mb-1">Amount Hidden</div>
+                  <div className="text-[10px]">Transaction amount hidden via Bulletproof ZK proofs. Both parties see each other.</div>
+                </div>
+                <div className="p-2 rounded-lg bg-neon-cyan/5 border border-neon-cyan/20">
+                  <div className="text-neon-cyan font-medium mb-1">Sender Anonymous</div>
+                  <div className="text-[10px]">Your identity hidden. Recipient gets SOL in their public wallet.</div>
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Button size="xs" onClick={() => router.push('/transfer')}>
+                Go to Transfer
+              </Button>
+              <Button size="xs" variant="ghost">
+                Learn More
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {/* Quick Actions & Stealth Rating */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -89,6 +167,7 @@ export default function DashboardPage() {
             {quickActions.map((action, i) => (
               <button
                 key={i}
+                onClick={() => router.push(action.href)}
                 className="p-4 rounded-xl bg-bg-tertiary border border-border-secondary hover:border-neon-green/40 hover:bg-bg-elevated transition-all text-center group"
               >
                 <div className="text-2xl mb-2 group-hover:scale-110 transition-transform">
@@ -107,61 +186,85 @@ export default function DashboardPage() {
             <CardTitle>Stealth Rating</CardTitle>
           </CardHeader>
           <div className="space-y-4">
-            <StealthRating score={750} />
+            <StealthRating score={shieldedBalanceSOL > 0 ? 750 : 250} />
             <div className="grid grid-cols-2 gap-2 text-center">
               <div className="p-2 rounded-lg bg-bg-tertiary">
-                <div className="text-sm font-semibold text-neon-green">87%</div>
+                <div className="text-sm font-semibold text-neon-green">{hiddenPercentage}%</div>
                 <div className="text-[10px] text-text-muted">Hidden</div>
               </div>
               <div className="p-2 rounded-lg bg-bg-tertiary">
-                <div className="text-sm font-semibold text-neon-cyan">42</div>
-                <div className="text-[10px] text-text-muted">Private Txs</div>
+                <div className="text-sm font-semibold text-neon-cyan">{shieldedBalanceSOL > 0 ? '1+' : '0'}</div>
+                <div className="text-[10px] text-text-muted">Pool Txs</div>
               </div>
             </div>
+            {shieldedBalanceSOL === 0 && (
+              <div className="p-2 rounded-lg bg-warning/10 border border-warning/20">
+                <p className="text-[10px] text-warning text-center">
+                  Deposit SOL to increase your stealth rating
+                </p>
+              </div>
+            )}
           </div>
         </Card>
       </div>
 
-      {/* Activity & Whale Feed */}
+      {/* Pool Stats & Whale Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Recent Activity */}
+        {/* Pool Statistics */}
         <Card variant="default" padding="md">
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <Button variant="ghost" size="xs">View All</Button>
+            <CardTitle>Your Pool Stats</CardTitle>
+            <Button variant="ghost" size="xs" onClick={() => fetchShieldedBalance()}>
+              Refresh
+            </Button>
           </CardHeader>
-          <div className="space-y-2">
-            {recentActivity.map((activity, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary hover:bg-bg-elevated transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${
-                    activity.type === "deposit" ? "bg-neon-green/10 text-neon-green" :
-                    activity.type === "withdraw" ? "bg-warning/10 text-warning" :
-                    activity.type === "transfer" ? "bg-neon-cyan/10 text-neon-cyan" :
-                    "bg-purple-500/10 text-purple-400"
-                  }`}>
-                    {activity.type === "deposit" ? "↓" :
-                     activity.type === "withdraw" ? "↑" :
-                     activity.type === "transfer" ? "→" : "↔"}
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-text-primary capitalize">
-                      {activity.type}
-                    </div>
-                    <div className="text-xs text-text-muted">{activity.time}</div>
-                  </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-neon-green/10 flex items-center justify-center">
+                  <span className="text-neon-green">↓</span>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm font-medium text-text-primary">{activity.amount}</div>
-                  <Badge size="xs" variant={activity.status === "success" ? "success" : "warning"}>
-                    {activity.status}
-                  </Badge>
+                <div>
+                  <div className="text-sm font-medium text-text-primary">Total Deposited</div>
+                  <div className="text-xs text-text-muted">Into shielded pool</div>
                 </div>
               </div>
-            ))}
+              <div className="text-sm font-medium text-neon-green">
+                {shieldedBalance?.deposited ? (shieldedBalance.deposited / 1e9).toFixed(4) : '0.0000'} SOL
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-neon-cyan/10 flex items-center justify-center">
+                  <span className="text-neon-cyan">◎</span>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-text-primary">Available Balance</div>
+                  <div className="text-xs text-text-muted">Ready for private transfers</div>
+                </div>
+              </div>
+              <div className="text-sm font-medium text-neon-cyan">
+                {shieldedBalanceSOL.toFixed(4)} SOL
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                  <span className="text-purple-400">⚡</span>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-text-primary">Pool Address</div>
+                  <div className="text-xs text-text-muted">ShadowWire contract</div>
+                </div>
+              </div>
+              <div className="text-xs font-mono text-text-secondary">
+                {shieldedBalance?.pool_address
+                  ? `${shieldedBalance.pool_address.slice(0, 4)}...${shieldedBalance.pool_address.slice(-4)}`
+                  : 'N/A'}
+              </div>
+            </div>
           </div>
         </Card>
 
@@ -210,23 +313,26 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "24h Volume", value: "$12.5K", change: "+15%" },
-          { label: "Total Txs", value: "156", change: "+8" },
-          { label: "Gas Saved", value: "2.3 SOL", change: "-12%" },
-          { label: "Referrals", value: "12", change: "+3" },
-        ].map((stat, i) => (
-          <Card key={i} variant="stat" padding="sm">
-            <div className="text-xs text-text-muted mb-1">{stat.label}</div>
-            <div className="text-lg font-bold text-text-primary">{stat.value}</div>
-            <div className={`text-xs ${stat.change.startsWith("+") ? "text-neon-green" : "text-error"}`}>
-              {stat.change}
-            </div>
-          </Card>
-        ))}
-      </div>
+      {/* Important Info */}
+      <Card variant="default" padding="sm" className="border-warning/30 bg-warning/5">
+        <div className="flex items-center gap-3">
+          <span className="text-lg">⚠️</span>
+          <div className="flex-1">
+            <p className="text-xs text-warning font-medium">Important: Minimum 0.1 SOL per transaction</p>
+            <p className="text-[10px] text-text-muted">
+              ShadowWire requires minimum 0.1 SOL for deposits, withdrawals, and transfers (anti-spam protection).
+              Balance updates may take 30-60 seconds to reflect.
+            </p>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }
+
+// Shield Icon
+const ShieldIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+  </svg>
+);

@@ -121,7 +121,7 @@ interface TransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  steps: { label: string; status: "pending" | "active" | "completed" | "error" }[];
+  steps: { label: string; status: "pending" | "active" | "completed" | "error"; description?: string }[];
   currentStep: number;
   error?: string;
 }
@@ -135,20 +135,56 @@ export function TransactionModal({
   error,
 }: TransactionModalProps) {
   const progress = ((currentStep + 1) / steps.length) * 100;
+  const activeStep = steps[currentStep];
+  const isZKStep = activeStep?.label?.toLowerCase().includes('proof') ||
+                   activeStep?.label?.toLowerCase().includes('bulletproof') ||
+                   activeStep?.label?.toLowerCase().includes('zk');
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm" closeOnOverlay={false}>
-      <div className="space-y-4">
+    <Modal isOpen={isOpen} onClose={onClose} size="sm" closeOnOverlay={false} showClose={false}>
+      <div className="space-y-5">
+        {/* Header with animation */}
+        <div className="text-center">
+          <div className="relative w-20 h-20 mx-auto mb-4">
+            {/* Outer rotating ring */}
+            <div className="absolute inset-0 rounded-full border-2 border-neon-green/20 animate-pulse" />
+            <div className="absolute inset-1 rounded-full border-2 border-transparent border-t-neon-green border-r-neon-cyan animate-spin" style={{ animationDuration: '2s' }} />
+            <div className="absolute inset-3 rounded-full border border-transparent border-t-neon-cyan animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
+
+            {/* Center icon */}
+            <div className="absolute inset-4 rounded-full bg-gradient-to-br from-neon-green/20 to-neon-cyan/20 flex items-center justify-center">
+              {isZKStep ? (
+                <ZKProofIcon className="w-6 h-6 text-neon-green" />
+              ) : (
+                <SpinnerIcon className="w-6 h-6 text-neon-green animate-spin" />
+              )}
+            </div>
+          </div>
+
+          <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
+          {isZKStep && (
+            <p className="text-xs text-neon-cyan mt-1 animate-pulse">
+              Generating zero-knowledge proof • 30-45 seconds
+            </p>
+          )}
+        </div>
+
         {/* Progress bar */}
-        <div className="relative h-1.5 bg-bg-primary rounded-full overflow-hidden">
-          <div
-            className="absolute inset-y-0 left-0 bg-gradient-to-r from-neon-green to-neon-cyan rounded-full transition-all duration-500"
-            style={{ width: `${progress}%` }}
-          />
-          <div
-            className="absolute inset-y-0 left-0 bg-gradient-to-r from-neon-green to-neon-cyan rounded-full blur-sm opacity-50 transition-all duration-500"
-            style={{ width: `${progress}%` }}
-          />
+        <div className="space-y-2">
+          <div className="flex justify-between text-xs text-text-muted">
+            <span>Progress</span>
+            <span>{Math.round(progress)}%</span>
+          </div>
+          <div className="relative h-2 bg-bg-primary rounded-full overflow-hidden">
+            <div
+              className="absolute inset-y-0 left-0 bg-gradient-to-r from-neon-green via-neon-cyan to-neon-green rounded-full transition-all duration-500"
+              style={{ width: `${progress}%`, backgroundSize: '200% 100%', animation: 'shimmer 2s linear infinite' }}
+            />
+            <div
+              className="absolute inset-y-0 left-0 bg-gradient-to-r from-neon-green to-neon-cyan rounded-full blur-md opacity-50 transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
 
         {/* Steps */}
@@ -157,36 +193,91 @@ export function TransactionModal({
             <div
               key={index}
               className={`
-                flex items-center gap-3 p-2.5 rounded-lg transition-all duration-300
-                ${step.status === "active" ? "bg-neon-green/10 border border-neon-green/30" : ""}
-                ${step.status === "completed" ? "opacity-60" : ""}
+                relative flex items-start gap-3 p-3 rounded-xl transition-all duration-500
+                ${step.status === "active" ? "bg-gradient-to-r from-neon-green/10 to-neon-cyan/5 border border-neon-green/30 shadow-lg shadow-neon-green/5" : ""}
+                ${step.status === "completed" ? "bg-bg-tertiary/50" : ""}
+                ${step.status === "pending" ? "opacity-40" : ""}
                 ${step.status === "error" ? "bg-error/10 border border-error/30" : ""}
               `}
             >
-              <div className="flex-shrink-0">
-                {step.status === "completed" && <CheckIcon className="w-4 h-4 text-neon-green" />}
-                {step.status === "active" && <SpinnerIcon className="w-4 h-4 text-neon-green animate-spin" />}
-                {step.status === "pending" && <CircleIcon className="w-4 h-4 text-text-muted" />}
-                {step.status === "error" && <ErrorIcon className="w-4 h-4 text-error" />}
+              {/* Step number/icon */}
+              <div className={`
+                flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold
+                ${step.status === "completed" ? "bg-neon-green text-bg-primary" : ""}
+                ${step.status === "active" ? "bg-neon-green/20 text-neon-green border border-neon-green/50" : ""}
+                ${step.status === "pending" ? "bg-bg-tertiary text-text-muted border border-border-secondary" : ""}
+                ${step.status === "error" ? "bg-error text-white" : ""}
+              `}>
+                {step.status === "completed" && <CheckIcon className="w-4 h-4" />}
+                {step.status === "active" && <SpinnerIcon className="w-4 h-4 animate-spin" />}
+                {step.status === "pending" && <span>{index + 1}</span>}
+                {step.status === "error" && <ErrorIcon className="w-4 h-4" />}
               </div>
-              <span
-                className={`text-sm ${
-                  step.status === "active" ? "text-neon-green font-medium" : "text-text-secondary"
-                }`}
-              >
-                {step.label}
-              </span>
+
+              <div className="flex-1 min-w-0">
+                <div className={`text-sm font-medium ${
+                  step.status === "active" ? "text-neon-green" :
+                  step.status === "completed" ? "text-text-secondary" : "text-text-muted"
+                }`}>
+                  {step.label}
+                </div>
+                {step.status === "active" && step.description && (
+                  <p className="text-xs text-text-muted mt-0.5 animate-fade-in">
+                    {step.description}
+                  </p>
+                )}
+                {step.status === "active" && isZKStep && index === currentStep && (
+                  <div className="mt-2 space-y-1">
+                    <div className="flex items-center gap-2 text-[10px] text-neon-cyan">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-neon-cyan animate-pulse" />
+                      Computing Bulletproof range proof...
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-text-muted">
+                      <LockIcon className="w-3 h-3" />
+                      Your transaction amount will be cryptographically hidden
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
 
+        {/* Info box for ZK proofs */}
+        {isZKStep && (
+          <div className="p-3 rounded-xl bg-gradient-to-r from-neon-green/5 to-neon-cyan/5 border border-neon-green/20">
+            <div className="flex items-start gap-2">
+              <ShieldLockIcon className="w-4 h-4 text-neon-green mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-neon-green">Privacy in Progress</p>
+                <p className="text-[10px] text-text-muted mt-0.5">
+                  Bulletproof ZK proofs ensure your transaction amount remains completely private on-chain.
+                  This computation happens locally in your browser.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Error message */}
         {error && (
-          <div className="p-3 rounded-lg bg-error/10 border border-error/30">
+          <div className="p-3 rounded-xl bg-error/10 border border-error/30">
             <p className="text-xs text-error">{error}</p>
           </div>
         )}
+
+        {/* Cancel hint */}
+        <p className="text-center text-[10px] text-text-muted">
+          Please do not close this window
+        </p>
       </div>
+
+      <style jsx>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
     </Modal>
   );
 }
@@ -315,5 +406,23 @@ const ErrorIcon = ({ className = "w-4 h-4" }) => (
 const ExternalLinkIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+  </svg>
+);
+
+const ZKProofIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611l-4.819.855a6.025 6.025 0 01-6.632 0l-4.82-.855c-1.715-.293-2.298-2.379-1.066-3.611L5 14.5" />
+  </svg>
+);
+
+const LockIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+  </svg>
+);
+
+const ShieldLockIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
   </svg>
 );
