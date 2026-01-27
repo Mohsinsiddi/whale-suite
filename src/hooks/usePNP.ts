@@ -1,6 +1,7 @@
 /**
  * usePNP Hook
  * React hook for PNP Exchange integration
+ * Supports pagination, category filtering, and market stats
  * Bounty: $2,500
  */
 
@@ -10,6 +11,16 @@ import { useState, useCallback } from "react";
 import { useWallets } from "@privy-io/react-auth";
 import { pnpService, PNPMarket, UserPosition, TradeParams, TradeResult } from "@/lib/privacy-sdks/pnp";
 
+export type MarketCategory = "all" | "v2" | "p2p";
+
+interface MarketStats {
+  v2Count: number;
+  p2pCount: number;
+  totalCount: number;
+  loadedCount: number;
+  hasMore: boolean;
+}
+
 interface UsePNPReturn {
   // State
   markets: PNPMarket[];
@@ -18,9 +29,13 @@ interface UsePNPReturn {
   selectedMarket: PNPMarket | null;
   userPosition: UserPosition | null;
   trading: boolean;
+  stats: MarketStats;
+  category: MarketCategory;
 
   // Actions
-  fetchMarkets: () => Promise<void>;
+  fetchMarkets: (options?: { limit?: number; reset?: boolean }) => Promise<void>;
+  loadMore: (limit?: number) => Promise<void>;
+  setCategory: (category: MarketCategory) => void;
   fetchMarket: (address: string) => Promise<PNPMarket | null>;
   selectMarket: (market: PNPMarket | null) => void;
   buyTokens: (params: TradeParams) => Promise<TradeResult>;
@@ -28,6 +43,7 @@ interface UsePNPReturn {
   fetchUserPosition: (marketAddress: string) => Promise<void>;
   redeemPosition: (marketAddress: string) => Promise<{ signature: string; success: boolean; error?: string }>;
   refreshPrices: (marketAddress: string) => Promise<void>;
+  refreshStats: () => Promise<void>;
 
   // Utilities
   formatVolume: (volume: number) => string;
@@ -36,11 +52,12 @@ interface UsePNPReturn {
   getMarketStatus: (market: PNPMarket) => "active" | "ended" | "resolved";
 }
 
+const DEFAULT_LIMIT = 20;
+
 export function usePNP(): UsePNPReturn {
   const { wallets } = useWallets();
-  // Embedded wallet for future trading integration
   const _embeddedWallet = wallets?.find((w) => w.walletClientType === "privy");
-  void _embeddedWallet; // Suppress unused variable warning
+  void _embeddedWallet;
 
   // State
   const [markets, setMarkets] = useState<PNPMarket[]>([]);
@@ -49,17 +66,82 @@ export function usePNP(): UsePNPReturn {
   const [selectedMarket, setSelectedMarket] = useState<PNPMarket | null>(null);
   const [userPosition, setUserPosition] = useState<UserPosition | null>(null);
   const [trading, setTrading] = useState(false);
+  const [category, setCategory] = useState<MarketCategory>("all");
+  const [offset, setOffset] = useState(0);
+  const [stats, setStats] = useState<MarketStats>({
+    v2Count: 0,
+    p2pCount: 0,
+    totalCount: 0,
+    loadedCount: 0,
+    hasMore: true,
+  });
 
   /**
-   * Fetch all markets
+   * Refresh market stats/counts
    */
-  const fetchMarkets = useCallback(async () => {
+  const refreshStats = useCallback(async () => {
+    try {
+      const counts = await pnpService.getMarketCounts();
+      setStats((prev) => ({
+        ...prev,
+        v2Count: counts.v2,
+        p2pCount: counts.p2p,
+        totalCount: counts.total,
+      }));
+    } catch (e) {
+      console.error("Failed to refresh stats:", e);
+    }
+  }, []);
+
+  /**
+   * Fetch markets with category and pagination
+   */
+  const fetchMarkets = useCallback(async (options?: { limit?: number; reset?: boolean }) => {
+    const limit = options?.limit || DEFAULT_LIMIT;
+    const shouldReset = options?.reset !== false;
+
     setLoading(true);
     setError(null);
 
     try {
-      const fetchedMarkets = await pnpService.fetchMarkets();
-      setMarkets(fetchedMarkets);
+      // Reset offset if needed
+      const currentOffset = shouldReset ? 0 : offset;
+      if (shouldReset) {
+        setOffset(0);
+      }
+
+      let fetchedMarkets: PNPMarket[] = [];
+
+      // Fetch based on category
+      if (category === "v2") {
+        fetchedMarkets = await pnpService.fetchV2Markets(limit, currentOffset);
+      } else if (category === "p2p") {
+        fetchedMarkets = await pnpService.fetchP2PMarkets(limit, currentOffset);
+      } else {
+        fetchedMarkets = await pnpService.fetchAllMarkets(limit, currentOffset);
+      }
+
+      // Update markets
+      if (shouldReset) {
+        setMarkets(fetchedMarkets);
+      } else {
+        setMarkets((prev) => [...prev, ...fetchedMarkets]);
+      }
+
+      // Update stats
+      const counts = await pnpService.getMarketCounts();
+      const totalForCategory = category === "v2" ? counts.v2 : category === "p2p" ? counts.p2p : counts.total;
+      const loadedCount = shouldReset ? fetchedMarkets.length : markets.length + fetchedMarkets.length;
+
+      setStats({
+        v2Count: counts.v2,
+        p2pCount: counts.p2p,
+        totalCount: counts.total,
+        loadedCount,
+        hasMore: loadedCount < totalForCategory,
+      });
+
+      setOffset(currentOffset + fetchedMarkets.length);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to fetch markets";
       setError(message);
@@ -67,7 +149,26 @@ export function usePNP(): UsePNPReturn {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [category, offset, markets.length]);
+
+  /**
+   * Load more markets (pagination)
+   */
+  const loadMore = useCallback(async (limit: number = DEFAULT_LIMIT) => {
+    if (loading || !stats.hasMore) return;
+    await fetchMarkets({ limit, reset: false });
+  }, [fetchMarkets, loading, stats.hasMore]);
+
+  /**
+   * Change category and reset markets
+   */
+  const handleSetCategory = useCallback((newCategory: MarketCategory) => {
+    if (newCategory === category) return;
+    setCategory(newCategory);
+    setMarkets([]);
+    setOffset(0);
+    setStats((prev) => ({ ...prev, loadedCount: 0, hasMore: true }));
+  }, [category]);
 
   /**
    * Fetch a single market
@@ -76,7 +177,6 @@ export function usePNP(): UsePNPReturn {
     try {
       const market = await pnpService.fetchMarket(address);
       if (market) {
-        // Update in list if exists
         setMarkets((prev) =>
           prev.map((m) => (m.publicKey === address ? market : m))
         );
@@ -101,7 +201,8 @@ export function usePNP(): UsePNPReturn {
    */
   const fetchUserPosition = useCallback(async (marketAddress: string) => {
     try {
-      const position = await pnpService.getUserPositions(marketAddress);
+      const positions = await pnpService.getUserPositions(marketAddress);
+      const position = positions.find((p) => p.marketId === marketAddress) || null;
       setUserPosition(position);
     } catch (e) {
       console.error("fetchUserPosition error:", e);
@@ -122,7 +223,6 @@ export function usePNP(): UsePNPReturn {
         setError(result.error || "Trade failed");
       }
 
-      // Refresh market data after trade
       if (result.success) {
         await fetchMarket(params.marketPubkey);
         await fetchUserPosition(params.marketPubkey);
@@ -150,13 +250,15 @@ export function usePNP(): UsePNPReturn {
     setError(null);
 
     try {
-      const result = await pnpService.sellTokens(params);
+      const result = await pnpService.sellTokens({
+        ...params,
+        tokenAmount: params.amount,
+      });
 
       if (!result.success) {
         setError(result.error || "Trade failed");
       }
 
-      // Refresh market data after trade
       if (result.success) {
         await fetchMarket(params.marketPubkey);
         await fetchUserPosition(params.marketPubkey);
@@ -186,7 +288,6 @@ export function usePNP(): UsePNPReturn {
         setError(result.error || "Redeem failed");
       }
 
-      // Refresh position after redeem
       if (result.success) {
         await fetchUserPosition(marketAddress);
       }
@@ -237,9 +338,13 @@ export function usePNP(): UsePNPReturn {
     selectedMarket,
     userPosition,
     trading,
+    stats,
+    category,
 
     // Actions
     fetchMarkets,
+    loadMore,
+    setCategory: handleSetCategory,
     fetchMarket,
     selectMarket,
     buyTokens,
@@ -247,6 +352,7 @@ export function usePNP(): UsePNPReturn {
     fetchUserPosition,
     redeemPosition,
     refreshPrices,
+    refreshStats,
 
     // Utilities
     formatVolume,

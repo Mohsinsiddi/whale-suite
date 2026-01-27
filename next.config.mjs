@@ -1,3 +1,8 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
@@ -6,7 +11,19 @@ const nextConfig = {
   },
 
   // Webpack configuration
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, webpack }) => {
+    // Use NormalModuleReplacementPlugin to replace anchor with our shim
+    // Only when imported by pnp-sdk
+    config.plugins.push(
+      new webpack.NormalModuleReplacementPlugin(
+        /@coral-xyz\/anchor$/,
+        (resource) => {
+          // Replace anchor with our shim that includes Wallet
+          resource.request = path.resolve(__dirname, 'src/lib/anchor-shim.mjs');
+        }
+      )
+    );
+
     if (!isServer) {
       // Don't resolve mongodb/mongoose on client side
       config.resolve.fallback = {

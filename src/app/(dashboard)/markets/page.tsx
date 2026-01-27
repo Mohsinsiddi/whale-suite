@@ -7,7 +7,7 @@ import Badge from "@/components/ui/Badge";
 import Tabs from "@/components/ui/Tabs";
 import Input, { SearchInput } from "@/components/ui/Input";
 import Modal, { SuccessModal } from "@/components/ui/Modal";
-import { usePNP } from "@/hooks/usePNP";
+import { usePNP, MarketCategory } from "@/hooks/usePNP";
 import { PNPMarket } from "@/lib/privacy-sdks/pnp";
 
 // Loading skeleton component
@@ -42,15 +42,18 @@ export default function MarketsPage() {
     markets,
     loading,
     error,
+    stats,
+    category,
     fetchMarkets,
+    loadMore,
+    setCategory,
     formatVolume,
     formatLiquidity,
-    isMarketActive,
     getMarketStatus,
     trading,
   } = usePNP();
 
-  const [activeTab, setActiveTab] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMarket, setSelectedMarket] = useState<PNPMarket | null>(null);
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
@@ -59,38 +62,35 @@ export default function MarketsPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [lastTrade, setLastTrade] = useState<{ side: string; amount: string; market: string } | null>(null);
 
-  // Fetch markets on mount
+  // Fetch markets on mount and when category changes
   useEffect(() => {
-    fetchMarkets();
-  }, [fetchMarkets]);
+    fetchMarkets({ limit: 20, reset: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category]);
 
-  // Auto-refresh every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchMarkets();
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [fetchMarkets]);
+  // Category tabs (V2 AMM vs P2P)
+  const categoryTabs = [
+    { id: "all", label: `All (${stats.totalCount})` },
+    { id: "v2", label: `V2 AMM (${stats.v2Count})` },
+    { id: "p2p", label: `P2P (${stats.p2pCount})` },
+  ];
 
-  const tabs = [
-    { id: "all", label: "All Markets" },
+  // Status tabs
+  const statusTabs = [
+    { id: "all", label: "All" },
     { id: "active", label: "Active" },
     { id: "ended", label: "Ended" },
     { id: "resolved", label: "Resolved" },
   ];
 
-  // Filter markets
+  // Filter markets by status and search
   const filteredMarkets = markets.filter((m) => {
     const matchesSearch = m.question.toLowerCase().includes(searchQuery.toLowerCase());
     const status = getMarketStatus(m);
 
-    if (activeTab === "all") return matchesSearch;
-    return matchesSearch && status === activeTab;
+    if (statusFilter === "all") return matchesSearch;
+    return matchesSearch && status === statusFilter;
   });
-
-  // Stats
-  const totalVolume = markets.reduce((sum, m) => sum + m.volume, 0);
-  const activeMarkets = markets.filter((m) => isMarketActive(m)).length;
 
   const handleTrade = (market: PNPMarket, side: "yes" | "no") => {
     setSelectedMarket(market);
@@ -103,7 +103,6 @@ export default function MarketsPage() {
     if (!selectedMarket || !tradeAmount) return;
 
     // TODO: Implement actual trading when wallet is connected
-    // For now, show success modal as demo
     setTradeModalOpen(false);
     setLastTrade({
       side: tradeSide.toUpperCase(),
@@ -119,6 +118,10 @@ export default function MarketsPage() {
       day: "numeric",
       year: "numeric",
     }).format(date);
+  };
+
+  const handleCategoryChange = (newCategory: string) => {
+    setCategory(newCategory as MarketCategory);
   };
 
   return (
@@ -141,29 +144,34 @@ export default function MarketsPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Global Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
-          { label: "Total Volume", value: formatVolume(totalVolume), loading },
-          { label: "Active Markets", value: activeMarkets.toString(), loading },
-          { label: "Total Markets", value: markets.length.toString(), loading },
-          { label: "Status", value: error ? "Error" : "Connected", positive: !error, loading: false },
+          { label: "Total Markets", value: stats.totalCount.toLocaleString(), highlight: true },
+          { label: "V2 AMM", value: stats.v2Count.toLocaleString() },
+          { label: "P2P Markets", value: stats.p2pCount.toLocaleString() },
+          { label: "Loaded", value: `${stats.loadedCount} / ${category === "v2" ? stats.v2Count : category === "p2p" ? stats.p2pCount : stats.totalCount}` },
+          { label: "Status", value: error ? "Error" : loading ? "Loading..." : "Connected", positive: !error && !loading },
         ].map((stat, i) => (
           <Card key={i} variant="stat" padding="sm">
             <div className="text-xs text-text-muted mb-1">{stat.label}</div>
-            {stat.loading ? (
-              <div className="h-6 w-16 bg-bg-elevated rounded animate-pulse" />
-            ) : (
-              <div
-                className={`text-lg font-bold ${
-                  stat.positive === false ? "text-error" : stat.positive ? "text-neon-green" : "text-text-primary"
-                }`}
-              >
-                {stat.value}
-              </div>
-            )}
+            <div
+              className={`text-lg font-bold ${
+                stat.positive === false ? "text-error" : stat.highlight ? "text-neon-cyan" : stat.positive ? "text-neon-green" : "text-text-primary"
+              }`}
+            >
+              {stat.value}
+            </div>
           </Card>
         ))}
+      </div>
+
+      {/* Category Filter */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+        <div>
+          <span className="text-xs text-text-muted mr-2">Market Type:</span>
+          <Tabs tabs={categoryTabs} activeTab={category} onChange={handleCategoryChange} size="sm" />
+        </div>
       </div>
 
       {/* Error Message */}
@@ -175,16 +183,16 @@ export default function MarketsPage() {
               <p className="text-sm font-medium text-error">Failed to fetch markets</p>
               <p className="text-xs text-text-secondary">{error}</p>
             </div>
-            <Button size="sm" variant="secondary" onClick={fetchMarkets} className="ml-auto">
+            <Button size="sm" variant="secondary" onClick={() => fetchMarkets({ reset: true })} className="ml-auto">
               Retry
             </Button>
           </div>
         </Card>
       )}
 
-      {/* Filters */}
+      {/* Status Filter + Search */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} size="sm" />
+        <Tabs tabs={statusTabs} activeTab={statusFilter} onChange={setStatusFilter} size="sm" />
         <div className="sm:ml-auto w-full sm:w-64">
           <SearchInput
             value={searchQuery}
@@ -233,6 +241,9 @@ export default function MarketsPage() {
                   {/* Question */}
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <Badge size="xs" variant={market.marketType === "v2" ? "cyan" : "warning"}>
+                        {market.marketType.toUpperCase()}
+                      </Badge>
                       {market.volume > 10000 && (
                         <Badge size="xs" variant="warning">
                           🔥 Hot
@@ -298,6 +309,19 @@ export default function MarketsPage() {
           })
         )}
       </div>
+
+      {/* Load More Button */}
+      {stats.hasMore && markets.length > 0 && (
+        <div className="flex justify-center">
+          <Button
+            variant="secondary"
+            onClick={() => loadMore(20)}
+            disabled={loading}
+          >
+            {loading ? "Loading..." : `Load More (${stats.loadedCount} / ${category === "v2" ? stats.v2Count : category === "p2p" ? stats.p2pCount : stats.totalCount})`}
+          </Button>
+        </div>
+      )}
 
       {/* Privacy Notice */}
       <Card variant="default" padding="md">
