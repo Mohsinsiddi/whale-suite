@@ -2,6 +2,7 @@
 
 import { ReactNode } from 'react';
 import { PrivyProvider } from '@/lib/privy';
+import { NetworkProvider } from '@/providers/NetworkProvider';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -10,7 +11,9 @@ interface ProvidersProps {
 export function Providers({ children }: ProvidersProps) {
   return (
     <PrivyProvider>
-      {children}
+      <NetworkProvider>
+        {children}
+      </NetworkProvider>
     </PrivyProvider>
   );
 }

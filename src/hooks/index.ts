@@ -1,3 +1,8 @@
+// Network Hooks (Global network state)
+export { useNetwork, useConnection, useFeatureAvailable } from './useNetwork';
+export type { NetworkType, FeatureKey } from './useNetwork';
+export { FEATURE_NETWORK_SUPPORT } from './useNetwork';
+
 // User & Data Hooks
 export { useUserData, useSyncUser } from './useUserData';
 export { useWhaleFeed, useWhaleFeedInfinite, type WhaleFeedEvent } from './useWhaleFeed';
@@ -19,4 +24,9 @@ export {
   useWhaleFeed as useHeliusWhaleFeed,
   useWalletSubscription,
 } from './useHelius';
+
+// Network-aware SDK Hooks (use these for network-safe SDK calls)
+export { useHeliusService } from './useHeliusService';
+export { useJupiterService, TOKEN_MINTS } from './useJupiterService';
+
 // PNP uses dynamic imports - import directly: import { usePNP } from '@/hooks/usePNP'

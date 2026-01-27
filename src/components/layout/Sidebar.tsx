@@ -2,62 +2,95 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode } from "react";
+import { ReactNode, useMemo } from "react";
 import { TierBadge } from "../ui/Badge";
 import { useUser, useWallet } from "@/store";
+import { useNetwork, type FeatureKey } from "@/hooks/useNetwork";
 
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
 }
 
+interface NavItem {
+  href: string;
+  icon: ReactNode;
+  label: string;
+  badge?: string;
+  badgeColor?: string;
+  featureKey?: FeatureKey;
+}
+
+interface NavGroup {
+  title: string;
+  items: NavItem[];
+}
+
 export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { userNumber, badgeTier, privacyScore } = useUser();
   const { wallet } = useWallet();
+  const { network, isFeatureAvailable } = useNetwork();
 
   // Format wallet address for display
   const shortWallet = wallet
     ? `${wallet.slice(0, 4)}...${wallet.slice(-4)}`
     : "...";
 
-  // Navigation groups for better organization
-  const navGroups = [
-    {
-      title: "Overview",
-      items: [
-        { href: "/dashboard", icon: <DashboardIcon />, label: "Command Center" },
-      ],
-    },
-    {
-      title: "Privacy Tools",
-      items: [
-        { href: "/privacy", icon: <ShieldIcon />, label: "Privacy Cash", badge: "$15K", badgeColor: "green" },
-        { href: "/transfer", icon: <GhostIcon />, label: "Ghost Send", badge: "$15K", badgeColor: "green" },
-        { href: "/swap", icon: <SwapIcon />, label: "Jupiter Swap" },
-      ],
-    },
-    {
-      title: "Predictions",
-      items: [
-        { href: "/markets", icon: <MarketsIcon />, label: "PNP Markets", badge: "$2.5K", badgeColor: "cyan" },
-      ],
-    },
-    {
-      title: "Intelligence",
-      items: [
-        { href: "/intelligence", icon: <IntelligenceIcon />, label: "Whale Intel" },
-        { href: "/portfolio", icon: <PortfolioIcon />, label: "Portfolio" },
-      ],
-    },
-    {
-      title: "Premium",
-      items: [
-        { href: "/badges", icon: <BadgeIcon />, label: "NFT Badges" },
-        { href: "/affiliate", icon: <AffiliateIcon />, label: "Affiliate" },
-      ],
-    },
-  ];
+  // Sort items within each group: available first, then unavailable
+  // Network-aware navigation groups with sorting
+  const navGroups = useMemo(() => {
+    const baseNavGroups: NavGroup[] = [
+      {
+        title: "Overview",
+        items: [
+          { href: "/dashboard", icon: <DashboardIcon />, label: "Command Center" },
+        ],
+      },
+      {
+        title: "Privacy Tools",
+        items: [
+          { href: "/privacy", icon: <ShieldIcon />, label: "Privacy Cash", badge: "$15K", badgeColor: "green", featureKey: 'privacy-cash' },
+          { href: "/transfer", icon: <GhostIcon />, label: "Ghost Send", badge: "$15K", badgeColor: "green", featureKey: 'shadow-wire' },
+          { href: "/swap", icon: <SwapIcon />, label: "Jupiter Swap", featureKey: 'jupiter-swap' },
+          { href: "/dark-pool", icon: <DarkPoolIcon />, label: "Dark Pool", badge: "Beta", badgeColor: "warning", featureKey: 'dark-pool' },
+        ],
+      },
+      {
+        title: "Predictions",
+        items: [
+          { href: "/markets", icon: <MarketsIcon />, label: "PNP Markets", badge: "$2.5K", badgeColor: "cyan", featureKey: 'pnp-markets' },
+        ],
+      },
+      {
+        title: "Intelligence",
+        items: [
+          { href: "/intelligence", icon: <IntelligenceIcon />, label: "Whale Intel", featureKey: 'whale-feed' },
+          { href: "/portfolio", icon: <PortfolioIcon />, label: "Portfolio" },
+        ],
+      },
+      {
+        title: "Premium",
+        items: [
+          { href: "/badges", icon: <BadgeIcon />, label: "NFT Badges" },
+          { href: "/affiliate", icon: <AffiliateIcon />, label: "Affiliate" },
+        ],
+      },
+    ];
+
+    return baseNavGroups.map(group => ({
+      ...group,
+      items: [...group.items].sort((a, b) => {
+        const aAvailable = a.featureKey ? isFeatureAvailable(a.featureKey) : true;
+        const bAvailable = b.featureKey ? isFeatureAvailable(b.featureKey) : true;
+        // Available items come first
+        if (aAvailable && !bAvailable) return -1;
+        if (!aAvailable && bAvailable) return 1;
+        return 0;
+      }),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [network]);
 
   const bottomItems = [
     { href: "/profile", icon: <ProfileIcon />, label: "Profile" },
@@ -132,20 +165,28 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 </span>
               </div>
 
-              {/* Section Items */}
-              <div className="space-y-0.5">
-                {group.items.map((item) => (
-                  <SidebarLink
-                    key={item.href}
-                    href={item.href}
-                    icon={item.icon}
-                    label={item.label}
-                    badge={item.badge}
-                    badgeColor={item.badgeColor}
-                    isActive={pathname === item.href}
-                    onClick={onClose}
-                  />
-                ))}
+              {/* Section Items - with transition for reordering */}
+              <div className="space-y-0.5 relative">
+                {group.items.map((item, itemIndex) => {
+                  const isAvailable = item.featureKey ? isFeatureAvailable(item.featureKey) : true;
+                  return (
+                    <SidebarLink
+                      key={item.href}
+                      href={item.href}
+                      icon={item.icon}
+                      label={item.label}
+                      badge={item.badge}
+                      badgeColor={item.badgeColor}
+                      isActive={pathname === item.href}
+                      isDisabled={!isAvailable}
+                      network={network}
+                      onClick={onClose}
+                      style={{
+                        transitionDelay: `${itemIndex * 50}ms`,
+                      }}
+                    />
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -189,11 +230,21 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           </p>
         </div>
 
-        {/* Version Badge */}
+        {/* Version Badge - Network Aware */}
         <div className="px-4 pb-4">
-          <div className="flex items-center justify-center gap-2 py-2 rounded-lg bg-bg-primary/50 text-[10px] text-text-muted">
-            <span className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
-            <span>Mainnet</span>
+          <div className={`flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] text-text-muted transition-all duration-500 ${
+            network === 'mainnet'
+              ? 'bg-neon-green/5 border border-neon-green/20'
+              : 'bg-warning/5 border border-warning/20'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full animate-pulse transition-colors duration-500 ${
+              network === 'mainnet' ? 'bg-neon-green' : 'bg-warning'
+            }`} />
+            <span className={`transition-colors duration-500 ${
+              network === 'mainnet' ? 'text-neon-green' : 'text-warning'
+            }`}>
+              {network === 'mainnet' ? 'Mainnet' : 'Devnet'}
+            </span>
             <span className="text-text-muted/50">|</span>
             <span>v1.0.0</span>
           </div>
@@ -211,31 +262,70 @@ interface SidebarLinkProps {
   badge?: string;
   badgeColor?: string;
   isActive?: boolean;
+  isDisabled?: boolean;
+  network?: 'mainnet' | 'devnet';
   onClick?: () => void;
+  style?: React.CSSProperties;
 }
 
-function SidebarLink({ href, icon, label, badge, badgeColor = "green", isActive, onClick }: SidebarLinkProps) {
+function SidebarLink({ href, icon, label, badge, badgeColor = "green", isActive, isDisabled, network, onClick, style }: SidebarLinkProps) {
+  // If disabled, show as non-clickable with visual feedback
+  if (isDisabled) {
+    return (
+      <div
+        className={`
+          group flex items-center gap-3 px-3 py-2.5 rounded-lg
+          text-sm font-medium
+          text-text-muted/50 border-l-2 border-transparent
+          cursor-not-allowed select-none
+          transition-all duration-500 ease-out
+          opacity-50 hover:opacity-60
+          transform translate-y-0
+        `}
+        style={style}
+        title={`Not available on ${network}`}
+      >
+        <span className="transition-all duration-500 text-text-muted/40">
+          {icon}
+        </span>
+        <span className="flex-1 line-through decoration-text-muted/30">{label}</span>
+        {badge && (
+          <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-bg-tertiary/50 text-text-muted/50">
+            {badge}
+          </span>
+        )}
+        <span className="text-[8px] uppercase tracking-wider text-text-muted/40">
+          {network === 'mainnet' ? 'devnet' : 'mainnet'}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <Link
       href={href}
       onClick={onClick}
       className={`
         group flex items-center gap-3 px-3 py-2.5 rounded-lg
-        text-sm font-medium transition-all duration-200
+        text-sm font-medium
+        transition-all duration-500 ease-out
+        transform translate-y-0
         ${
           isActive
             ? "bg-neon-green/10 text-neon-green border-l-2 border-neon-green shadow-[0_0_10px_rgba(0,255,136,0.1)]"
             : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/70 border-l-2 border-transparent"
         }
       `}
+      style={style}
     >
-      <span className={`transition-colors ${isActive ? "text-neon-green" : "text-text-muted group-hover:text-text-primary"}`}>
+      <span className={`transition-all duration-500 ${isActive ? "text-neon-green" : "text-text-muted group-hover:text-text-primary"}`}>
         {icon}
       </span>
       <span className="flex-1">{label}</span>
       {badge && (
         <span className={`
           px-1.5 py-0.5 text-[9px] font-bold rounded
+          transition-all duration-500
           ${badgeColor === "green"
             ? "bg-neon-green/20 text-neon-green"
             : badgeColor === "cyan"
@@ -278,6 +368,12 @@ const GhostIcon = () => (
 const SwapIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+  </svg>
+);
+
+const DarkPoolIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
   </svg>
 );
 

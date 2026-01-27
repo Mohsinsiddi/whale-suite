@@ -6,9 +6,11 @@ import { useState } from "react";
 import { WalletAvatar } from "../ui/Avatar";
 import Dropdown, { DropdownItem, DropdownDivider } from "../ui/Dropdown";
 import { CountBadge, TierBadge } from "../ui/Badge";
+import NetworkSelectModal from "../ui/NetworkSelectModal";
 import { useAuth } from "@/lib/privy/hooks";
 import { useUser, useWallet, useUI } from "@/store";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { useNetwork, FEATURE_NETWORK_SUPPORT, type FeatureKey } from "@/hooks/useNetwork";
 
 interface HeaderProps {
   variant?: "landing" | "app";
@@ -17,12 +19,15 @@ interface HeaderProps {
 }
 
 export default function Header({ variant = "landing", wallet, notifications = 0 }: HeaderProps) {
-  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [networkModalOpen, setNetworkModalOpen] = useState(false);
   const { logout, walletAddress, authenticated, login } = useAuth();
   const { userNumber, badgeTier, privacyScore } = useUser();
   const { hiddenBalance } = useWallet();
   const { toggleSidebar } = useUI();
+
+  // Use network context - rpcPing comes from provider
+  const { network, rpcPing, isFeatureAvailable } = useNetwork();
 
   // Fetch real SOL balance from blockchain
   const displayWalletAddr = wallet || walletAddress;
@@ -37,14 +42,11 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
     try {
       console.log('Disconnecting wallet...');
       await logout();
-      // Clear all local storage
       localStorage.removeItem('whale-suite-welcome-seen');
       localStorage.removeItem('whale-suite-storage');
-      // Force full page reload to clear all state
       window.location.href = '/';
     } catch (error) {
       console.error('Logout error:', error);
-      // Force reload anyway
       window.location.href = '/';
     }
   };
@@ -70,6 +72,15 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
                 WHALE SUITE
               </span>
             </Link>
+
+            {/* Network Toggle - Show in app variant */}
+            {variant === "app" && (
+              <NetworkToggle
+                network={network}
+                ping={rpcPing}
+                onClick={() => setNetworkModalOpen(true)}
+              />
+            )}
           </div>
 
           {/* Nav Links - Desktop (Landing only) */}
@@ -98,39 +109,13 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
               </Link>
             ) : authenticated ? (
               <>
-                {/* Balance Display */}
-                <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border-primary">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-text-muted">Balance:</span>
-                    {balanceLoading ? (
-                      <span className="text-sm font-semibold text-text-muted animate-pulse">...</span>
-                    ) : (
-                      <span className="text-sm font-semibold text-neon-green">
-                        {balance.toFixed(4)} SOL
-                      </span>
-                    )}
-                  </div>
-                  {hiddenBalance > 0 && (
-                    <>
-                      <div className="w-px h-4 bg-border-primary" />
-                      <div className="flex items-center gap-1.5">
-                        <EyeOffIcon className="w-3 h-3 text-neon-cyan" />
-                        <span className="text-sm font-semibold text-neon-cyan">
-                          {hiddenBalance.toFixed(2)}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Quick Disconnect Button */}
-                <button
-                  onClick={handleDisconnect}
-                  className="p-2 rounded-lg hover:bg-error/10 transition-colors group"
-                  title="Disconnect Wallet"
-                >
-                  <DisconnectIcon className="w-4 h-4 text-text-muted group-hover:text-error" />
-                </button>
+                {/* Wallet/Balance Dropdown */}
+                <WalletDropdown
+                  balance={balance}
+                  balanceLoading={balanceLoading}
+                  hiddenBalance={hiddenBalance}
+                  network={network}
+                />
 
                 {/* Notifications */}
                 <Dropdown
@@ -162,79 +147,22 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
                   </div>
                 </Dropdown>
 
-                {/* Profile Dropdown */}
-                <Dropdown
-                  trigger={
-                    <button className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-bg-tertiary transition-colors border border-transparent hover:border-border-primary">
-                      <WalletAvatar address={displayWallet || "0x0000"} size="sm" showAddress={false} />
-                      <div className="hidden sm:flex flex-col items-start">
-                        <span className="text-xs font-medium text-text-primary">
-                          {userNumber ? `Whale #${userNumber}` : shortWallet}
-                        </span>
-                        <span className="text-[10px] text-text-muted">{shortWallet}</span>
-                      </div>
-                      <ChevronDownIcon className="w-3 h-3 text-text-muted" />
-                    </button>
-                  }
-                >
-                  {/* User Info Header */}
-                  <div className="px-3 py-2 border-b border-border-primary">
-                    <div className="flex items-center gap-2">
-                      <WalletAvatar address={displayWallet || "0x0000"} size="md" showAddress={false} />
-                      <div>
-                        <p className="text-sm font-semibold text-text-primary">
-                          {userNumber ? `Whale #${userNumber}` : 'New Whale'}
-                        </p>
-                        <p className="text-xs text-text-muted">{shortWallet}</p>
-                      </div>
-                    </div>
-                    {badgeTier && badgeTier !== 'none' && (
-                      <div className="mt-2">
-                        <TierBadge tier={badgeTier as "bronze" | "silver" | "gold" | "diamond" | "legendary"} size="sm" />
-                      </div>
-                    )}
-                    <div className="mt-2 flex items-center gap-2 text-xs">
-                      <span className="text-text-muted">Privacy Score:</span>
-                      <span className="font-semibold text-neon-green">{privacyScore || 0}</span>
-                    </div>
-                  </div>
-
-                  {/* Mobile Balance */}
-                  <div className="sm:hidden px-3 py-2 border-b border-border-primary">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-text-muted">Balance</span>
-                      {balanceLoading ? (
-                        <span className="text-sm font-semibold text-text-muted animate-pulse">...</span>
-                      ) : (
-                        <span className="text-sm font-semibold text-neon-green">
-                          {balance.toFixed(4)} SOL
-                        </span>
-                      )}
-                    </div>
-                    {hiddenBalance > 0 && (
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-xs text-text-muted">Hidden</span>
-                        <span className="text-sm font-semibold text-neon-cyan">
-                          {hiddenBalance.toFixed(2)} SOL
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <DropdownItem icon={<UserIcon />} onClick={() => router.push('/profile')}>
-                    Profile
-                  </DropdownItem>
-                  <DropdownItem icon={<SettingsIcon />} onClick={() => router.push('/settings')}>
-                    Settings
-                  </DropdownItem>
-                  <DropdownDivider />
-                  <DropdownItem icon={<LogoutIcon />} variant="danger" onClick={handleDisconnect}>
-                    Disconnect
-                  </DropdownItem>
-                </Dropdown>
+                {/* Profile Dropdown - Enhanced */}
+                <ProfileDropdown
+                  displayWallet={displayWallet}
+                  shortWallet={shortWallet}
+                  userNumber={userNumber}
+                  badgeTier={badgeTier}
+                  privacyScore={privacyScore}
+                  network={network}
+                  balance={balance}
+                  balanceLoading={balanceLoading}
+                  hiddenBalance={hiddenBalance}
+                  onDisconnect={handleDisconnect}
+                  isFeatureAvailable={isFeatureAvailable}
+                />
               </>
             ) : (
-              /* Connect Wallet Button for unauthenticated users */
               <button
                 onClick={() => login()}
                 className="px-4 py-1.5 text-sm font-semibold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-lg hover:shadow-glow-sm transition-all"
@@ -288,7 +216,322 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
           </nav>
         </div>
       )}
+
+      {/* Network Select Modal */}
+      <NetworkSelectModal
+        isOpen={networkModalOpen}
+        onClose={() => setNetworkModalOpen(false)}
+      />
     </header>
+  );
+}
+
+// Network Toggle Component with Ping
+function NetworkToggle({
+  network,
+  ping,
+  onClick
+}: {
+  network: 'mainnet' | 'devnet';
+  ping: number | null;
+  onClick: () => void;
+}) {
+  const pingStatus = ping === null
+    ? 'loading'
+    : ping < 0
+    ? 'error'
+    : ping < 200
+    ? 'excellent'
+    : ping < 500
+    ? 'good'
+    : 'slow';
+
+  return (
+    <button
+      onClick={onClick}
+      className={`group flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-[1.02] ${
+        network === 'mainnet'
+          ? 'bg-neon-green/10 text-neon-green border border-neon-green/30 hover:bg-neon-green/15 hover:border-neon-green/50'
+          : 'bg-warning/10 text-warning border border-warning/30 hover:bg-warning/15 hover:border-warning/50'
+      }`}
+    >
+      {/* Network indicator */}
+      <span className={`w-2 h-2 rounded-full transition-all ${
+        network === 'mainnet' ? 'bg-neon-green' : 'bg-warning'
+      } ${ping !== null && ping >= 0 ? 'animate-pulse' : ''}`} />
+
+      {/* Network name */}
+      <span className="font-semibold">
+        {network === 'mainnet' ? 'Mainnet' : 'Devnet'}
+      </span>
+
+      {/* Ping indicator */}
+      <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] ${
+        pingStatus === 'loading'
+          ? 'bg-bg-tertiary text-text-muted'
+          : pingStatus === 'error'
+          ? 'bg-error/20 text-error'
+          : pingStatus === 'excellent'
+          ? 'bg-neon-green/20 text-neon-green'
+          : pingStatus === 'good'
+          ? 'bg-warning/20 text-warning'
+          : 'bg-error/20 text-error'
+      }`}>
+        <SignalIcon className="w-2.5 h-2.5" />
+        {pingStatus === 'loading' ? '...' : pingStatus === 'error' ? 'err' : `${ping}ms`}
+      </span>
+
+      {/* Chevron */}
+      <ChevronUpDownIcon className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+    </button>
+  );
+}
+
+// Signal Icon for ping
+const SignalIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.348 14.651a3.75 3.75 0 010-5.303m5.304 0a3.75 3.75 0 010 5.303m-7.425 2.122a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546" />
+  </svg>
+);
+
+// Wallet/Balance Dropdown
+function WalletDropdown({
+  balance,
+  balanceLoading,
+  hiddenBalance,
+  network
+}: {
+  balance: number;
+  balanceLoading: boolean;
+  hiddenBalance: number;
+  network: 'mainnet' | 'devnet';
+}) {
+  return (
+    <Dropdown
+      trigger={
+        <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border-primary hover:border-neon-green/30 transition-all">
+          <WalletIcon className="w-4 h-4 text-neon-green" />
+          {balanceLoading ? (
+            <span className="text-sm font-medium text-text-muted animate-pulse">...</span>
+          ) : (
+            <span className="text-sm font-medium text-text-primary">
+              {balance.toFixed(2)} <span className="text-text-muted">SOL</span>
+            </span>
+          )}
+          <ChevronDownIcon className="w-3 h-3 text-text-muted" />
+        </button>
+      }
+    >
+      <div className="w-64 p-3">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">Balances</span>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+            network === 'mainnet'
+              ? 'bg-neon-green/10 text-neon-green'
+              : 'bg-warning/10 text-warning'
+          }`}>
+            {network}
+          </span>
+        </div>
+
+        {/* Main Balance */}
+        <div className="p-3 rounded-lg bg-bg-elevated border border-border-primary mb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#9945FF] to-[#14F195] flex items-center justify-center">
+                <span className="text-sm">◎</span>
+              </div>
+              <div>
+                <p className="text-xs text-text-muted">Solana</p>
+                <p className="text-sm font-semibold text-text-primary">SOL</p>
+              </div>
+            </div>
+            <div className="text-right">
+              {balanceLoading ? (
+                <p className="text-sm font-semibold text-text-muted animate-pulse">...</p>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-text-primary">{balance.toFixed(4)}</p>
+                  <p className="text-xs text-text-muted">${(balance * 230).toFixed(2)}</p>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Hidden Balance */}
+        {hiddenBalance > 0 && (
+          <div className="p-3 rounded-lg bg-neon-cyan/5 border border-neon-cyan/20 mb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-neon-cyan/20 flex items-center justify-center">
+                  <EyeOffIcon className="w-4 h-4 text-neon-cyan" />
+                </div>
+                <div>
+                  <p className="text-xs text-text-muted">Shielded</p>
+                  <p className="text-sm font-semibold text-neon-cyan">Hidden</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-semibold text-neon-cyan">{hiddenBalance.toFixed(4)}</p>
+                <p className="text-xs text-text-muted">${(hiddenBalance * 230).toFixed(2)}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Total */}
+        <div className="flex items-center justify-between pt-2 border-t border-border-primary mt-2">
+          <span className="text-xs text-text-muted">Total Value</span>
+          <span className="text-sm font-semibold text-neon-green">
+            ${((balance + hiddenBalance) * 230).toFixed(2)}
+          </span>
+        </div>
+      </div>
+    </Dropdown>
+  );
+}
+
+// Profile Dropdown - Enhanced
+function ProfileDropdown({
+  displayWallet,
+  shortWallet,
+  userNumber,
+  badgeTier,
+  privacyScore,
+  network,
+  balance,
+  balanceLoading,
+  hiddenBalance,
+  onDisconnect,
+  isFeatureAvailable,
+}: {
+  displayWallet: string | null;
+  shortWallet: string;
+  userNumber: number | null;
+  badgeTier: string | null;
+  privacyScore: number;
+  network: 'mainnet' | 'devnet';
+  balance: number;
+  balanceLoading: boolean;
+  hiddenBalance: number;
+  onDisconnect: () => void;
+  isFeatureAvailable: (feature: FeatureKey) => boolean;
+}) {
+  const router = useRouter();
+
+  return (
+    <Dropdown
+      trigger={
+        <button className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-bg-tertiary transition-colors border border-transparent hover:border-border-primary">
+          <WalletAvatar address={displayWallet || "0x0000"} size="sm" showAddress={false} />
+          <div className="hidden sm:flex flex-col items-start">
+            <span className="text-xs font-medium text-text-primary">
+              {userNumber ? `Whale #${userNumber}` : shortWallet}
+            </span>
+          </div>
+          <ChevronDownIcon className="w-3 h-3 text-text-muted" />
+        </button>
+      }
+    >
+      <div className="w-72">
+        {/* User Info Header */}
+        <div className="px-3 py-3 border-b border-border-primary bg-bg-elevated/50">
+          <div className="flex items-center gap-3">
+            <WalletAvatar address={displayWallet || "0x0000"} size="md" showAddress={false} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-text-primary truncate">
+                {userNumber ? `Whale #${userNumber}` : 'New Whale'}
+              </p>
+              <p className="text-xs text-text-muted font-mono">{shortWallet}</p>
+            </div>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+              network === 'mainnet'
+                ? 'bg-neon-green/10 text-neon-green'
+                : 'bg-warning/10 text-warning'
+            }`}>
+              {network}
+            </span>
+          </div>
+
+          {/* Stats Row */}
+          <div className="flex items-center gap-4 mt-3">
+            {badgeTier && badgeTier !== 'none' && (
+              <TierBadge tier={badgeTier as "bronze" | "silver" | "gold" | "diamond" | "legendary"} size="sm" />
+            )}
+            <div className="flex items-center gap-1.5">
+              <ShieldIcon className="w-3.5 h-3.5 text-neon-green" />
+              <span className="text-xs text-text-muted">Score:</span>
+              <span className="text-xs font-semibold text-neon-green">{privacyScore || 0}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Balance */}
+        <div className="sm:hidden px-3 py-2 border-b border-border-primary">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-text-muted">Balance</span>
+            {balanceLoading ? (
+              <span className="text-sm font-semibold text-text-muted animate-pulse">...</span>
+            ) : (
+              <span className="text-sm font-semibold text-neon-green">
+                {balance.toFixed(4)} SOL
+              </span>
+            )}
+          </div>
+          {hiddenBalance > 0 && (
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-xs text-text-muted">Hidden</span>
+              <span className="text-sm font-semibold text-neon-cyan">
+                {hiddenBalance.toFixed(2)} SOL
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Feature Availability */}
+        <div className="px-3 py-2 border-b border-border-primary">
+          <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">
+            Available on {network}
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {Object.entries(FEATURE_NETWORK_SUPPORT).map(([key, value]) => {
+              const available = isFeatureAvailable(key as FeatureKey);
+              return (
+                <span
+                  key={key}
+                  className={`text-[10px] px-1.5 py-0.5 rounded ${
+                    available
+                      ? 'bg-neon-green/10 text-neon-green'
+                      : 'bg-bg-tertiary text-text-muted line-through opacity-50'
+                  }`}
+                >
+                  {value.label.split(' ')[0]}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Menu Items */}
+        <div className="py-1">
+          <DropdownItem icon={<UserIcon />} onClick={() => router.push('/profile')}>
+            Profile
+          </DropdownItem>
+          <DropdownItem icon={<SettingsIcon />} onClick={() => router.push('/settings')}>
+            Settings
+          </DropdownItem>
+          <DropdownItem icon={<BookIcon />} onClick={() => router.push('/docs')}>
+            Documentation
+          </DropdownItem>
+          <DropdownDivider />
+          <DropdownItem icon={<LogoutIcon />} variant="danger" onClick={onDisconnect}>
+            Disconnect
+          </DropdownItem>
+        </div>
+      </div>
+    </Dropdown>
   );
 }
 
@@ -336,6 +579,24 @@ const ChevronDownIcon = ({ className = "w-4 h-4" }) => (
   </svg>
 );
 
+const ChevronUpDownIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+  </svg>
+);
+
+const WalletIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3" />
+  </svg>
+);
+
+const ShieldIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+  </svg>
+);
+
 const UserIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
@@ -355,8 +616,8 @@ const LogoutIcon = () => (
   </svg>
 );
 
-const DisconnectIcon = ({ className = "w-4 h-4" }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5.636 5.636a9 9 0 1012.728 0M12 3v9" />
+const BookIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
   </svg>
 );

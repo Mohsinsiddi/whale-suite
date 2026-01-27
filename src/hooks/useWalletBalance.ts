@@ -1,28 +1,26 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { useStore } from '@/store';
-
-// RPC endpoints with fallbacks
-// Helius free tier: https://docs.helius.dev/ (recommended)
-// Get free API key at: https://dev.helius.xyz/
-const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
-const SOLANA_RPC = HELIUS_API_KEY
-  ? `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`
-  : process.env.NEXT_PUBLIC_SOLANA_RPC || 'https://api.mainnet-beta.solana.com'; // Mainnet only
+import { useConnection } from '@/providers/NetworkProvider';
 
 interface WalletBalance {
   balance: number; // In SOL
   lamports: number; // Raw lamports
   loading: boolean;
   error: string | null;
+  network: 'mainnet' | 'devnet';
   refetch: () => Promise<void>;
 }
 
 export function useWalletBalance(walletAddress: string | null): WalletBalance {
   // Subscribe to global balance refresh trigger
   const balanceRefreshTrigger = useStore((state) => state.balanceRefreshTrigger);
+
+  // Get network-aware connection from context
+  const { connection, network } = useConnection();
+
   const [balance, setBalance] = useState<number>(0);
   const [lamports, setLamports] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
@@ -39,23 +37,22 @@ export function useWalletBalance(walletAddress: string | null): WalletBalance {
     setError(null);
 
     try {
-      const connection = new Connection(SOLANA_RPC, 'confirmed');
       const publicKey = new PublicKey(walletAddress);
       const balanceLamports = await connection.getBalance(publicKey);
 
       setLamports(balanceLamports);
       setBalance(balanceLamports / LAMPORTS_PER_SOL);
     } catch (err) {
-      console.error('Error fetching balance:', err);
+      console.error(`Error fetching balance (${network}):`, err);
       setError(err instanceof Error ? err.message : 'Failed to fetch balance');
       setBalance(0);
       setLamports(0);
     } finally {
       setLoading(false);
     }
-  }, [walletAddress]);
+  }, [walletAddress, connection, network]);
 
-  // Fetch balance when wallet address changes
+  // Fetch balance when wallet address or network changes
   useEffect(() => {
     fetchBalance();
   }, [fetchBalance]);
@@ -80,6 +77,7 @@ export function useWalletBalance(walletAddress: string | null): WalletBalance {
     lamports,
     loading,
     error,
+    network,
     refetch: fetchBalance,
   };
 }
