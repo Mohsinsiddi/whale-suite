@@ -6,7 +6,7 @@ import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import Tabs from "@/components/ui/Tabs";
 import Input, { SearchInput } from "@/components/ui/Input";
-import Modal, { SuccessModal } from "@/components/ui/Modal";
+import Modal, { SuccessModal, TransactionModal } from "@/components/ui/Modal";
 import { usePNP, MarketCategory, CreateMarketParams } from "@/hooks/usePNP";
 import { PNPMarket } from "@/lib/privacy-sdks/pnp";
 
@@ -65,6 +65,7 @@ export default function MarketsPage() {
     getMinimumTradeAmount,
     createMarket,
     getMarketTokenBalances,
+    redeemPositionV2,
   } = usePNP();
 
   const [statusFilter, setStatusFilter] = useState("all");
@@ -82,6 +83,13 @@ export default function MarketsPage() {
   // Token balances for trade modal
   const [tokenBalances, setTokenBalances] = useState<{ yesBalance: number; noBalance: number }>({ yesBalance: 0, noBalance: 0 });
   const [loadingBalances, setLoadingBalances] = useState(false);
+
+  // Transaction progress modal state
+  const [txProgressOpen, setTxProgressOpen] = useState(false);
+  const [txSteps, setTxSteps] = useState<{ label: string; status: "pending" | "active" | "completed" | "error"; description?: string }[]>([]);
+  const [txCurrentStep, setTxCurrentStep] = useState(0);
+  const [txError, setTxError] = useState<string | undefined>();
+  const [txTitle, setTxTitle] = useState("Processing Transaction");
 
   // View Details Modal
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
@@ -177,6 +185,76 @@ export default function MarketsPage() {
   // Get minimum trade amount for selected market
   const minTradeAmount = selectedMarket ? getMinimumTradeAmount(selectedMarket.liquidity) : 0.01;
 
+  // Redeem handler for resolved markets
+  const handleRedeem = async (market: PNPMarket) => {
+    if (!walletConnected || !sdkReady) {
+      setTradeError("Please connect your wallet to redeem");
+      return;
+    }
+
+    // Show progress modal
+    setTxTitle("Redeeming Position");
+    setTxSteps([
+      { label: "Building Transaction", status: "active", description: "Preparing redemption..." },
+      { label: "Awaiting Signature", status: "pending", description: "Please approve in your wallet" },
+      { label: "Confirming on Chain", status: "pending", description: "Waiting for blockchain confirmation" },
+    ]);
+    setTxCurrentStep(0);
+    setTxError(undefined);
+    setTxProgressOpen(true);
+    setTradeModalOpen(false);
+
+    try {
+      // Step 1 → Step 2
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setTxSteps(prev => prev.map((s, i) => ({
+        ...s,
+        status: i === 0 ? "completed" : i === 1 ? "active" : "pending"
+      })));
+      setTxCurrentStep(1);
+
+      const result = await redeemPositionV2(market.publicKey);
+
+      // Step 2 → Step 3
+      setTxSteps(prev => prev.map((s, i) => ({
+        ...s,
+        status: i <= 1 ? "completed" : "active"
+      })));
+      setTxCurrentStep(2);
+
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      if (result.success) {
+        setTxSteps(prev => prev.map(s => ({ ...s, status: "completed" as const })));
+
+        setTimeout(() => {
+          setTxProgressOpen(false);
+          setLastTrade({
+            side: market.winningToken?.toUpperCase() || "",
+            amount: "",
+            market: market.question.slice(0, 50) + "...",
+            signature: result.signature,
+            mode: "redeem",
+          });
+          setShowSuccess(true);
+        }, 500);
+      } else {
+        setTxSteps(prev => prev.map((s, i) => ({
+          ...s,
+          status: i === 2 ? "error" : s.status
+        })));
+        setTxError(result.error || "Redeem failed");
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Redeem failed";
+      setTxSteps(prev => prev.map((s) => ({
+        ...s,
+        status: s.status === "active" ? "error" : s.status
+      })));
+      setTxError(message);
+    }
+  };
+
   const executeTrade = async () => {
     if (!selectedMarket || !tradeAmount) return;
 
@@ -213,7 +291,27 @@ export default function MarketsPage() {
       }
     }
 
+    // Close trade modal and show progress modal
+    setTradeModalOpen(false);
+    setTxTitle(tradeMode === "buy" ? `Buying ${tradeSide.toUpperCase()} Tokens` : `Selling ${tradeSide.toUpperCase()} Tokens`);
+    setTxSteps([
+      { label: "Building Transaction", status: "active", description: "Preparing your trade..." },
+      { label: "Awaiting Signature", status: "pending", description: "Please approve in your wallet" },
+      { label: "Confirming on Chain", status: "pending", description: "Waiting for blockchain confirmation" },
+    ]);
+    setTxCurrentStep(0);
+    setTxError(undefined);
+    setTxProgressOpen(true);
+
     try {
+      // Step 1 → Step 2: Building → Signing
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setTxSteps(prev => prev.map((s, i) => ({
+        ...s,
+        status: i === 0 ? "completed" : i === 1 ? "active" : "pending"
+      })));
+      setTxCurrentStep(1);
+
       let result;
 
       if (tradeMode === "buy") {
@@ -228,22 +326,47 @@ export default function MarketsPage() {
         result = await sellTokensV2(selectedMarket.publicKey, tradeSide, amount);
       }
 
+      // Step 2 → Step 3: Signing → Confirming
+      setTxSteps(prev => prev.map((s, i) => ({
+        ...s,
+        status: i <= 1 ? "completed" : "active"
+      })));
+      setTxCurrentStep(2);
+
+      // Brief delay to show confirmation step
+      await new Promise(resolve => setTimeout(resolve, 800));
+
       if (result.success) {
-        setTradeModalOpen(false);
-        setLastTrade({
-          side: tradeSide.toUpperCase(),
-          amount: tradeAmount,
-          market: selectedMarket.question.slice(0, 50) + "...",
-          signature: result.signature,
-          mode: tradeMode,
-        });
-        setShowSuccess(true);
+        // All steps complete
+        setTxSteps(prev => prev.map(s => ({ ...s, status: "completed" as const })));
+
+        // Close progress modal and show success
+        setTimeout(() => {
+          setTxProgressOpen(false);
+          setLastTrade({
+            side: tradeSide.toUpperCase(),
+            amount: tradeAmount,
+            market: selectedMarket.question.slice(0, 50) + "...",
+            signature: result.signature,
+            mode: tradeMode,
+          });
+          setShowSuccess(true);
+        }, 500);
       } else {
-        setTradeError(result.error || "Trade failed");
+        // Show error in progress modal
+        setTxSteps(prev => prev.map((s, i) => ({
+          ...s,
+          status: i === 2 ? "error" : s.status
+        })));
+        setTxError(result.error || "Trade failed");
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : "Trade failed";
-      setTradeError(message);
+      setTxSteps(prev => prev.map((s) => ({
+        ...s,
+        status: s.status === "active" ? "error" : s.status
+      })));
+      setTxError(message);
     }
   };
 
@@ -598,7 +721,9 @@ export default function MarketsPage() {
         <Modal
           isOpen={tradeModalOpen}
           onClose={() => setTradeModalOpen(false)}
-          title={`${tradeMode === "buy" ? "Buy" : "Sell"} ${tradeSide.toUpperCase()} Tokens`}
+          title={selectedMarket.resolved
+            ? "Market Resolved - Redeem Position"
+            : `${tradeMode === "buy" ? "Buy" : "Sell"} ${tradeSide.toUpperCase()} Tokens`}
           size="sm"
         >
           <div className="space-y-4">
@@ -610,34 +735,77 @@ export default function MarketsPage() {
               </div>
             </div>
 
-            {/* Buy/Sell Toggle */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setTradeMode("buy")}
-                className={`flex-1 p-2 rounded-lg border text-center text-sm transition-all ${
-                  tradeMode === "buy"
-                    ? "bg-neon-cyan/20 border-neon-cyan text-neon-cyan"
-                    : "bg-bg-elevated border-border-secondary text-text-secondary hover:border-neon-cyan/50"
-                }`}
-              >
-                Buy
-              </button>
-              <button
-                onClick={() => setTradeMode("sell")}
-                className={`flex-1 p-2 rounded-lg border text-center text-sm transition-all ${
-                  tradeMode === "sell"
-                    ? "bg-warning/20 border-warning text-warning"
-                    : "bg-bg-elevated border-border-secondary text-text-secondary hover:border-warning/50"
-                }`}
-              >
-                Sell
-              </button>
-            </div>
+            {/* Redeem Section for Resolved Markets */}
+            {selectedMarket.resolved && walletConnected && (tokenBalances.yesBalance > 0 || tokenBalances.noBalance > 0) && (
+              <div className="p-4 rounded-xl bg-gradient-to-r from-neon-green/10 to-neon-cyan/10 border border-neon-green/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">🎉</span>
+                  <span className="text-sm font-semibold text-neon-green">Market Resolved!</span>
+                </div>
+                <p className="text-xs text-text-secondary mb-3">
+                  Winner: <span className={selectedMarket.winningToken === "yes" ? "text-neon-green font-bold" : "text-error font-bold"}>
+                    {selectedMarket.winningToken?.toUpperCase()}
+                  </span>
+                </p>
+                {((selectedMarket.winningToken === "yes" && tokenBalances.yesBalance > 0) ||
+                  (selectedMarket.winningToken === "no" && tokenBalances.noBalance > 0)) ? (
+                  <div>
+                    <p className="text-xs text-text-secondary mb-2">
+                      You have winning tokens! Redeem to claim your USDC.
+                    </p>
+                    <Button
+                      onClick={() => handleRedeem(selectedMarket)}
+                      className="w-full"
+                      disabled={trading}
+                    >
+                      {trading ? "Redeeming..." : `Redeem ${selectedMarket.winningToken === "yes" ? tokenBalances.yesBalance.toFixed(2) : tokenBalances.noBalance.toFixed(2)} Tokens`}
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-text-muted">
+                    Your {selectedMarket.winningToken === "yes" ? "NO" : "YES"} tokens are now worthless.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Buy/Sell Toggle - Only show for active markets */}
+            {!selectedMarket.resolved && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setTradeMode("buy")}
+                  className={`flex-1 p-2 rounded-lg border text-center text-sm transition-all ${
+                    tradeMode === "buy"
+                      ? "bg-neon-cyan/20 border-neon-cyan text-neon-cyan"
+                      : "bg-bg-elevated border-border-secondary text-text-secondary hover:border-neon-cyan/50"
+                  }`}
+                >
+                  Buy
+                </button>
+                <button
+                  onClick={() => setTradeMode("sell")}
+                  className={`flex-1 p-2 rounded-lg border text-center text-sm transition-all ${
+                    tradeMode === "sell"
+                      ? "bg-warning/20 border-warning text-warning"
+                      : "bg-bg-elevated border-border-secondary text-text-secondary hover:border-warning/50"
+                  }`}
+                >
+                  Sell
+                </button>
+              </div>
+            )}
 
             {/* Your Token Balances */}
             {walletConnected && (
               <div className="p-3 rounded-xl bg-bg-elevated border border-border-secondary">
-                <div className="text-xs text-text-muted mb-2">Your Token Balances</div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-text-muted">Your Token Balances</span>
+                  {(tokenBalances.yesBalance > 0 || tokenBalances.noBalance > 0) && (
+                    <span className="text-[10px] text-text-muted" title="AMM mints both YES and NO tokens to maintain the bonding curve">
+                      ℹ️ AMM mints both
+                    </span>
+                  )}
+                </div>
                 {loadingBalances ? (
                   <div className="flex items-center gap-2 text-xs text-text-muted">
                     <span className="animate-pulse">Loading balances...</span>
@@ -645,11 +813,11 @@ export default function MarketsPage() {
                 ) : (
                   <div className="flex gap-4">
                     <div className="flex items-center gap-2">
-                      <span className="text-neon-green font-bold">{tokenBalances.yesBalance.toFixed(2)}</span>
+                      <span className="text-neon-green font-bold">{tokenBalances.yesBalance.toFixed(4)}</span>
                       <span className="text-xs text-text-muted">YES</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-error font-bold">{tokenBalances.noBalance.toFixed(2)}</span>
+                      <span className="text-error font-bold">{tokenBalances.noBalance.toFixed(4)}</span>
                       <span className="text-xs text-text-muted">NO</span>
                     </div>
                   </div>
@@ -657,162 +825,184 @@ export default function MarketsPage() {
               </div>
             )}
 
-            {/* YES/NO Selection */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setTradeSide("yes")}
-                className={`flex-1 p-3 rounded-xl border text-center transition-all ${
-                  tradeSide === "yes"
-                    ? "bg-neon-green/20 border-neon-green text-neon-green"
-                    : "bg-bg-elevated border-border-secondary text-text-secondary hover:border-neon-green/50"
-                }`}
-              >
-                <div className="text-xs mb-0.5">YES</div>
-                <div className="text-lg font-bold">{(selectedMarket.yesPrice * 100).toFixed(0)}¢</div>
-                {tradeMode === "sell" && tokenBalances.yesBalance > 0 && (
-                  <div className="text-xs text-text-muted mt-1">You have: {tokenBalances.yesBalance.toFixed(2)}</div>
-                )}
-              </button>
-              <button
-                onClick={() => setTradeSide("no")}
-                className={`flex-1 p-3 rounded-xl border text-center transition-all ${
-                  tradeSide === "no"
-                    ? "bg-error/20 border-error text-error"
-                    : "bg-bg-elevated border-border-secondary text-text-secondary hover:border-error/50"
-                }`}
-              >
-                <div className="text-xs mb-0.5">NO</div>
-                <div className="text-lg font-bold">{(selectedMarket.noPrice * 100).toFixed(0)}¢</div>
-                {tradeMode === "sell" && tokenBalances.noBalance > 0 && (
-                  <div className="text-xs text-text-muted mt-1">You have: {tokenBalances.noBalance.toFixed(2)}</div>
-                )}
-              </button>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs text-text-secondary">
-                  {tradeMode === "buy" ? "Amount (USDC)" : "Token Amount"}
-                </label>
-                {tradeMode === "sell" && (
+            {/* Trading Controls - Only for non-resolved markets */}
+            {!selectedMarket.resolved && (
+              <>
+                {/* YES/NO Selection */}
+                <div className="flex gap-2">
                   <button
-                    onClick={() => {
-                      const maxAmount = tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance;
-                      setTradeAmount(maxAmount.toFixed(6));
-                    }}
-                    className="text-xs text-neon-cyan hover:text-neon-green transition-colors"
-                    disabled={loadingBalances}
+                    onClick={() => setTradeSide("yes")}
+                    className={`flex-1 p-3 rounded-xl border text-center transition-all ${
+                      tradeSide === "yes"
+                        ? "bg-neon-green/20 border-neon-green text-neon-green"
+                        : "bg-bg-elevated border-border-secondary text-text-secondary hover:border-neon-green/50"
+                    }`}
                   >
-                    Max: {(tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance).toFixed(2)}
+                    <div className="text-xs mb-0.5">YES</div>
+                    <div className="text-lg font-bold">{(selectedMarket.yesPrice * 100).toFixed(0)}¢</div>
+                    {tradeMode === "sell" && tokenBalances.yesBalance > 0 && (
+                      <div className="text-xs text-text-muted mt-1">You have: {tokenBalances.yesBalance.toFixed(2)}</div>
+                    )}
                   </button>
+                  <button
+                    onClick={() => setTradeSide("no")}
+                    className={`flex-1 p-3 rounded-xl border text-center transition-all ${
+                      tradeSide === "no"
+                        ? "bg-error/20 border-error text-error"
+                        : "bg-bg-elevated border-border-secondary text-text-secondary hover:border-error/50"
+                    }`}
+                  >
+                    <div className="text-xs mb-0.5">NO</div>
+                    <div className="text-lg font-bold">{(selectedMarket.noPrice * 100).toFixed(0)}¢</div>
+                    {tradeMode === "sell" && tokenBalances.noBalance > 0 && (
+                      <div className="text-xs text-text-muted mt-1">You have: {tokenBalances.noBalance.toFixed(2)}</div>
+                    )}
+                  </button>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs text-text-secondary">
+                      {tradeMode === "buy" ? "Amount (USDC)" : "Token Amount"}
+                    </label>
+                    {tradeMode === "sell" && (
+                      <button
+                        onClick={() => {
+                          const maxAmount = tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance;
+                          setTradeAmount(maxAmount.toFixed(6));
+                        }}
+                        className="text-xs text-neon-cyan hover:text-neon-green transition-colors"
+                        disabled={loadingBalances}
+                      >
+                        Max: {(tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance).toFixed(2)}
+                      </button>
+                    )}
+                  </div>
+                  <Input
+                    type="number"
+                    value={tradeAmount}
+                    onChange={(e) => setTradeAmount(e.target.value)}
+                    placeholder="0.00"
+                    min={tradeMode === "buy" ? minTradeAmount.toString() : "0"}
+                    step="0.01"
+                  />
+                  <p className="text-xs text-text-muted mt-1">
+                    {tradeMode === "buy"
+                      ? `Min: $${minTradeAmount.toFixed(2)}`
+                      : `Available: ${(tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance).toFixed(2)} ${tradeSide.toUpperCase()} tokens`
+                    }
+                  </p>
+                </div>
+
+                {tradeAmount && parseFloat(tradeAmount) > 0 && (
+                  <div className="p-3 rounded-xl bg-bg-elevated text-xs space-y-1">
+                    {tradeMode === "buy" ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-text-muted">Est. Tokens</span>
+                          <span className="text-text-primary">
+                            ~{(parseFloat(tradeAmount) / (tradeSide === "yes" ? selectedMarket.yesPrice : selectedMarket.noPrice)).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-text-muted">Max Payout</span>
+                          <span className="text-neon-green">
+                            ${(parseFloat(tradeAmount) / (tradeSide === "yes" ? selectedMarket.yesPrice : selectedMarket.noPrice)).toFixed(2)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-text-muted">Selling</span>
+                          <span className="text-text-primary">
+                            {parseFloat(tradeAmount).toFixed(2)} {tradeSide.toUpperCase()} tokens
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-text-muted">Est. USDC Return</span>
+                          <span className="text-neon-green">
+                            ~${(parseFloat(tradeAmount) * (tradeSide === "yes" ? selectedMarket.yesPrice : selectedMarket.noPrice)).toFixed(2)}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
-              </div>
-              <Input
-                type="number"
-                value={tradeAmount}
-                onChange={(e) => setTradeAmount(e.target.value)}
-                placeholder="0.00"
-                min={tradeMode === "buy" ? minTradeAmount.toString() : "0"}
-                step="0.01"
-              />
-              <p className="text-xs text-text-muted mt-1">
-                {tradeMode === "buy"
-                  ? `Min: $${minTradeAmount.toFixed(2)}`
-                  : `Available: ${(tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance).toFixed(2)} ${tradeSide.toUpperCase()} tokens`
-                }
-              </p>
-            </div>
 
-            {tradeAmount && parseFloat(tradeAmount) > 0 && (
-              <div className="p-3 rounded-xl bg-bg-elevated text-xs space-y-1">
-                {tradeMode === "buy" ? (
-                  <>
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">Est. Tokens</span>
-                      <span className="text-text-primary">
-                        ~{(parseFloat(tradeAmount) / (tradeSide === "yes" ? selectedMarket.yesPrice : selectedMarket.noPrice)).toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">Max Payout</span>
-                      <span className="text-neon-green">
-                        ${(parseFloat(tradeAmount) / (tradeSide === "yes" ? selectedMarket.yesPrice : selectedMarket.noPrice)).toFixed(2)}
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">Selling</span>
-                      <span className="text-text-primary">
-                        {parseFloat(tradeAmount).toFixed(2)} {tradeSide.toUpperCase()} tokens
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">Est. USDC Return</span>
-                      <span className="text-neon-green">
-                        ~${(parseFloat(tradeAmount) * (tradeSide === "yes" ? selectedMarket.yesPrice : selectedMarket.noPrice)).toFixed(2)}
-                      </span>
-                    </div>
-                  </>
+                {/* Error Display */}
+                {tradeError && (
+                  <div className="p-3 rounded-xl bg-error/10 border border-error/30">
+                    <p className="text-sm text-error">{tradeError}</p>
+                  </div>
                 )}
-              </div>
+
+                {/* Wallet Status */}
+                {!walletConnected && (
+                  <div className="p-3 rounded-xl bg-warning/10 border border-warning/30">
+                    <p className="text-sm text-warning">Connect your wallet to place trades</p>
+                  </div>
+                )}
+
+                <Button
+                  onClick={executeTrade}
+                  disabled={
+                    !tradeAmount ||
+                    parseFloat(tradeAmount) <= 0 ||
+                    trading ||
+                    !walletConnected ||
+                    (tradeMode === "sell" && parseFloat(tradeAmount) > (tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance))
+                  }
+                  className="w-full"
+                >
+                  {trading
+                    ? "Processing..."
+                    : !walletConnected
+                    ? "Connect Wallet to Trade"
+                    : tradeMode === "buy"
+                    ? `Buy ${tradeSide.toUpperCase()} for $${tradeAmount || "0"}`
+                    : tradeMode === "sell" && (tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance) === 0
+                    ? `No ${tradeSide.toUpperCase()} tokens to sell`
+                    : `Sell ${tradeAmount || "0"} ${tradeSide.toUpperCase()} Tokens`}
+                </Button>
+
+                <p className="text-xs text-text-muted text-center">
+                  {walletConnected
+                    ? `Trading with ${walletAddress?.slice(0, 4)}...${walletAddress?.slice(-4)}`
+                    : "Trading requires USDC in your wallet. Connect wallet to trade."}
+                </p>
+              </>
             )}
-
-            {/* Error Display */}
-            {tradeError && (
-              <div className="p-3 rounded-xl bg-error/10 border border-error/30">
-                <p className="text-sm text-error">{tradeError}</p>
-              </div>
-            )}
-
-            {/* Wallet Status */}
-            {!walletConnected && (
-              <div className="p-3 rounded-xl bg-warning/10 border border-warning/30">
-                <p className="text-sm text-warning">Connect your wallet to place trades</p>
-              </div>
-            )}
-
-            <Button
-              onClick={executeTrade}
-              disabled={
-                !tradeAmount ||
-                parseFloat(tradeAmount) <= 0 ||
-                trading ||
-                !walletConnected ||
-                (tradeMode === "sell" && parseFloat(tradeAmount) > (tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance))
-              }
-              className="w-full"
-            >
-              {trading
-                ? "Processing..."
-                : !walletConnected
-                ? "Connect Wallet to Trade"
-                : tradeMode === "buy"
-                ? `Buy ${tradeSide.toUpperCase()} for $${tradeAmount || "0"}`
-                : tradeMode === "sell" && (tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance) === 0
-                ? `No ${tradeSide.toUpperCase()} tokens to sell`
-                : `Sell ${tradeAmount || "0"} ${tradeSide.toUpperCase()} Tokens`}
-            </Button>
-
-            <p className="text-xs text-text-muted text-center">
-              {walletConnected
-                ? `Trading with ${walletAddress?.slice(0, 4)}...${walletAddress?.slice(-4)}`
-                : "Trading requires USDC in your wallet. Connect wallet to trade."}
-            </p>
           </div>
         </Modal>
       )}
+
+      {/* Transaction Progress Modal */}
+      <TransactionModal
+        isOpen={txProgressOpen}
+        onClose={() => {
+          if (txError) {
+            setTxProgressOpen(false);
+          }
+          // Don't allow closing while processing
+        }}
+        title={txTitle}
+        steps={txSteps}
+        currentStep={txCurrentStep}
+        error={txError}
+      />
 
       {/* Success Modal */}
       <SuccessModal
         isOpen={showSuccess}
         onClose={() => setShowSuccess(false)}
-        title={lastTrade?.mode === "sell" ? "Sell Complete!" : "Trade Submitted!"}
+        title={lastTrade?.mode === "sell" ? "Sell Complete!" : lastTrade?.mode === "redeem" ? "Redeem Complete!" : "Trade Submitted!"}
         message={
           lastTrade
             ? lastTrade.mode === "sell"
               ? `Sold ${lastTrade.amount} ${lastTrade.side} tokens from "${lastTrade.market}"`
+              : lastTrade.mode === "redeem"
+              ? `Successfully redeemed your position from "${lastTrade.market}"`
               : `Placed ${lastTrade.side} bet of $${lastTrade.amount} USDC on "${lastTrade.market}"`
             : "Your trade has been submitted"
         }

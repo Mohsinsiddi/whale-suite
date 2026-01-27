@@ -1471,9 +1471,6 @@ class PNPService {
       const market = new PublicKey(marketAddress);
       const wallet = new PublicKey(walletAddress);
 
-      console.log("[PNP] Getting token balances for market:", marketAddress);
-      console.log("[PNP] Wallet:", walletAddress);
-
       // Fetch market data
       const marketAccountInfo = await this.connection.getAccountInfo(market);
       if (!marketAccountInfo) {
@@ -1496,20 +1493,13 @@ class PNPService {
       const yesTokenMint = new PublicKey(rawMarketData.yes_token_mint || rawMarketData.yesTokenMint);
       const noTokenMint = new PublicKey(rawMarketData.no_token_mint || rawMarketData.noTokenMint);
 
-      console.log("[PNP] YES Token Mint:", yesTokenMint.toBase58());
-      console.log("[PNP] NO Token Mint:", noTokenMint.toBase58());
-
       // Get token program for these mints
       const yesMintInfo = await this.connection.getAccountInfo(yesTokenMint);
       const tokenProgramId = yesMintInfo?.owner || TOKEN_PROGRAM_ID;
-      console.log("[PNP] Token Program:", tokenProgramId.toBase58());
 
       // Derive ATAs
       const yesTokenAccount = getAssociatedTokenAddressSync(yesTokenMint, wallet, false, tokenProgramId);
       const noTokenAccount = getAssociatedTokenAddressSync(noTokenMint, wallet, false, tokenProgramId);
-
-      console.log("[PNP] YES ATA:", yesTokenAccount.toBase58());
-      console.log("[PNP] NO ATA:", noTokenAccount.toBase58());
 
       // Fetch balances
       let yesBalance = 0;
@@ -1517,23 +1507,17 @@ class PNPService {
 
       try {
         const yesInfo = await this.connection.getTokenAccountBalance(yesTokenAccount);
-        console.log("[PNP] YES Balance raw:", yesInfo.value);
         yesBalance = yesInfo.value.uiAmount || 0;
-      } catch (e) {
-        console.log("[PNP] YES ATA doesn't exist:", e);
+      } catch {
         // Account doesn't exist, balance is 0
       }
 
       try {
         const noInfo = await this.connection.getTokenAccountBalance(noTokenAccount);
-        console.log("[PNP] NO Balance raw:", noInfo.value);
         noBalance = noInfo.value.uiAmount || 0;
-      } catch (e) {
-        console.log("[PNP] NO ATA doesn't exist:", e);
+      } catch {
         // Account doesn't exist, balance is 0
       }
-
-      console.log("[PNP] Final balances - YES:", yesBalance, "NO:", noBalance);
 
       return {
         yesBalance,
