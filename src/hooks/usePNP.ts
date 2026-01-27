@@ -64,7 +64,9 @@ interface UsePNPReturn {
   buyTokens: (params: TradeParams) => Promise<TradeResult>;
   buyTokensV2: (marketAddress: string, side: "yes" | "no", amountUsdc: number) => Promise<TradeResult>;
   buyTokensP2P: (marketAddress: string, side: "yes" | "no", amountUsdc: number) => Promise<TradeResult>;
+  sellTokensV2: (marketAddress: string, side: "yes" | "no", tokenAmount: number) => Promise<TradeResult>;
   sellTokens: (params: { marketPubkey: string; side: "yes" | "no"; amount: number }) => Promise<TradeResult>;
+  getMinimumTradeAmount: (marketLiquidity: number) => number;
   fetchUserPosition: (marketAddress: string) => Promise<void>;
   redeemPosition: (marketAddress: string) => Promise<{ signature: string; success: boolean; error?: string }>;
   redeemPositionV2: (marketAddress: string) => Promise<{ signature: string; success: boolean; error?: string }>;
@@ -422,6 +424,58 @@ export function usePNP(): UsePNPReturn {
   }, [buyTokensV2]);
 
   /**
+   * Sell tokens on V2 AMM market
+   * Burns decision tokens and receives USDC back
+   */
+  const sellTokensV2 = useCallback(async (
+    marketAddress: string,
+    side: "yes" | "no",
+    tokenAmount: number
+  ): Promise<TradeResult> => {
+    if (!walletAddress) {
+      return { signature: "", tokensReceived: 0, success: false, error: "Wallet not connected" };
+    }
+
+    setTrading(true);
+    setError(null);
+
+    try {
+      const result = await pnpService.sellTokensDirect(
+        marketAddress,
+        side,
+        tokenAmount,
+        walletAddress,
+        signTransaction
+      );
+
+      if (result.success) {
+        await fetchMarket(marketAddress);
+        await fetchUserPosition(marketAddress);
+      } else {
+        setError(result.error || "Sell failed");
+      }
+
+      return result;
+    } catch (e) {
+      let message = e instanceof Error ? e.message : "Sell failed";
+      if (message.includes("403") || message.includes("Access forbidden")) {
+        message += " (Try changing the RPC URL)";
+      }
+      setError(message);
+      return { signature: "", tokensReceived: 0, success: false, error: message };
+    } finally {
+      setTrading(false);
+    }
+  }, [walletAddress, signTransaction, fetchMarket, fetchUserPosition]);
+
+  /**
+   * Get minimum trade amount for a market
+   */
+  const getMinimumTradeAmount = useCallback((marketLiquidity: number): number => {
+    return pnpService.getMinimumTradeAmount(marketLiquidity);
+  }, []);
+
+  /**
    * Sell tokens
    */
   const sellTokens = useCallback(async (params: {
@@ -636,7 +690,9 @@ export function usePNP(): UsePNPReturn {
     buyTokens,
     buyTokensV2,
     buyTokensP2P,
+    sellTokensV2,
     sellTokens,
+    getMinimumTradeAmount,
     fetchUserPosition,
     redeemPosition,
     redeemPositionV2,

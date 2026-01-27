@@ -61,6 +61,8 @@ export default function MarketsPage() {
     sdkReady,
     buyTokensV2,
     buyTokensP2P,
+    sellTokensV2,
+    getMinimumTradeAmount,
     createMarket,
   } = usePNP();
 
@@ -69,11 +71,16 @@ export default function MarketsPage() {
   const [showMyMarkets, setShowMyMarkets] = useState(false);
   const [selectedMarket, setSelectedMarket] = useState<PNPMarket | null>(null);
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
+  const [tradeMode, setTradeMode] = useState<"buy" | "sell">("buy");
   const [tradeSide, setTradeSide] = useState<"yes" | "no">("yes");
   const [tradeAmount, setTradeAmount] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
   const [tradeError, setTradeError] = useState<string | null>(null);
-  const [lastTrade, setLastTrade] = useState<{ side: string; amount: string; market: string; signature?: string } | null>(null);
+  const [lastTrade, setLastTrade] = useState<{ side: string; amount: string; market: string; signature?: string; mode: string } | null>(null);
+
+  // View Details Modal
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [detailsMarket, setDetailsMarket] = useState<PNPMarket | null>(null);
 
   // Create Market Modal state
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -131,13 +138,22 @@ export default function MarketsPage() {
     ? allMarkets.filter((m) => m.creator === walletAddress).length
     : 0;
 
-  const handleTrade = (market: PNPMarket, side: "yes" | "no") => {
+  const handleTrade = (market: PNPMarket, side: "yes" | "no", mode: "buy" | "sell" = "buy") => {
     setSelectedMarket(market);
     setTradeSide(side);
+    setTradeMode(mode);
     setTradeAmount("");
     setTradeError(null);
     setTradeModalOpen(true);
   };
+
+  const handleViewDetails = (market: PNPMarket) => {
+    setDetailsMarket(market);
+    setDetailsModalOpen(true);
+  };
+
+  // Get minimum trade amount for selected market
+  const minTradeAmount = selectedMarket ? getMinimumTradeAmount(selectedMarket.liquidity) : 0.01;
 
   const executeTrade = async () => {
     if (!selectedMarket || !tradeAmount) return;
@@ -156,13 +172,25 @@ export default function MarketsPage() {
       return;
     }
 
+    // Check minimum trade amount
+    if (amount < minTradeAmount) {
+      setTradeError(`Minimum trade amount is $${minTradeAmount.toFixed(2)} USDC`);
+      return;
+    }
+
     try {
-      // Execute trade based on market type
       let result;
-      if (selectedMarket.marketType === "v2") {
-        result = await buyTokensV2(selectedMarket.publicKey, tradeSide, amount);
+
+      if (tradeMode === "buy") {
+        // Execute buy based on market type
+        if (selectedMarket.marketType === "v2") {
+          result = await buyTokensV2(selectedMarket.publicKey, tradeSide, amount);
+        } else {
+          result = await buyTokensP2P(selectedMarket.publicKey, tradeSide, amount);
+        }
       } else {
-        result = await buyTokensP2P(selectedMarket.publicKey, tradeSide, amount);
+        // Execute sell
+        result = await sellTokensV2(selectedMarket.publicKey, tradeSide, amount);
       }
 
       if (result.success) {
@@ -172,6 +200,7 @@ export default function MarketsPage() {
           amount: tradeAmount,
           market: selectedMarket.question.slice(0, 50) + "...",
           signature: result.signature,
+          mode: tradeMode,
         });
         setShowSuccess(true);
       } else {
@@ -482,8 +511,15 @@ export default function MarketsPage() {
                     </button>
                     <Button
                       size="sm"
+                      variant="secondary"
+                      onClick={() => handleViewDetails(market)}
+                    >
+                      View
+                    </Button>
+                    <Button
+                      size="sm"
                       disabled={!isActive}
-                      onClick={() => handleTrade(market, "yes")}
+                      onClick={() => handleTrade(market, "yes", "buy")}
                     >
                       Trade
                     </Button>
@@ -527,7 +563,7 @@ export default function MarketsPage() {
         <Modal
           isOpen={tradeModalOpen}
           onClose={() => setTradeModalOpen(false)}
-          title={`${tradeSide === "yes" ? "Buy YES" : "Buy NO"} Tokens`}
+          title={`${tradeMode === "buy" ? "Buy" : "Sell"} ${tradeSide.toUpperCase()} Tokens`}
           size="sm"
         >
           <div className="space-y-4">
@@ -539,6 +575,31 @@ export default function MarketsPage() {
               </div>
             </div>
 
+            {/* Buy/Sell Toggle */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setTradeMode("buy")}
+                className={`flex-1 p-2 rounded-lg border text-center text-sm transition-all ${
+                  tradeMode === "buy"
+                    ? "bg-neon-cyan/20 border-neon-cyan text-neon-cyan"
+                    : "bg-bg-elevated border-border-secondary text-text-secondary hover:border-neon-cyan/50"
+                }`}
+              >
+                Buy
+              </button>
+              <button
+                onClick={() => setTradeMode("sell")}
+                className={`flex-1 p-2 rounded-lg border text-center text-sm transition-all ${
+                  tradeMode === "sell"
+                    ? "bg-warning/20 border-warning text-warning"
+                    : "bg-bg-elevated border-border-secondary text-text-secondary hover:border-warning/50"
+                }`}
+              >
+                Sell
+              </button>
+            </div>
+
+            {/* YES/NO Selection */}
             <div className="flex gap-2">
               <button
                 onClick={() => setTradeSide("yes")}
@@ -565,15 +626,20 @@ export default function MarketsPage() {
             </div>
 
             <div>
-              <label className="block text-xs text-text-secondary mb-1">Amount (USDC)</label>
+              <label className="block text-xs text-text-secondary mb-1">
+                {tradeMode === "buy" ? "Amount (USDC)" : "Token Amount"}
+              </label>
               <Input
                 type="number"
                 value={tradeAmount}
                 onChange={(e) => setTradeAmount(e.target.value)}
                 placeholder="0.00"
-                min="0"
+                min={minTradeAmount.toString()}
                 step="0.01"
               />
+              <p className="text-xs text-text-muted mt-1">
+                Min: ${minTradeAmount.toFixed(2)}
+              </p>
             </div>
 
             {tradeAmount && parseFloat(tradeAmount) > 0 && (
@@ -616,7 +682,9 @@ export default function MarketsPage() {
                 ? "Processing..."
                 : !walletConnected
                 ? "Connect Wallet to Trade"
-                : `Buy ${tradeSide.toUpperCase()} for $${tradeAmount || "0"}`}
+                : tradeMode === "buy"
+                ? `Buy ${tradeSide.toUpperCase()} for $${tradeAmount || "0"}`
+                : `Sell ${tradeSide.toUpperCase()} Tokens`}
             </Button>
 
             <p className="text-xs text-text-muted text-center">
@@ -632,14 +700,175 @@ export default function MarketsPage() {
       <SuccessModal
         isOpen={showSuccess}
         onClose={() => setShowSuccess(false)}
-        title="Trade Submitted!"
+        title={lastTrade?.mode === "sell" ? "Sell Complete!" : "Trade Submitted!"}
         message={
           lastTrade
-            ? `Placed ${lastTrade.side} bet of $${lastTrade.amount} USDC on "${lastTrade.market}"`
+            ? lastTrade.mode === "sell"
+              ? `Sold ${lastTrade.amount} ${lastTrade.side} tokens from "${lastTrade.market}"`
+              : `Placed ${lastTrade.side} bet of $${lastTrade.amount} USDC on "${lastTrade.market}"`
             : "Your trade has been submitted"
         }
         txSignature={lastTrade?.signature}
       />
+
+      {/* View Details Modal */}
+      {detailsMarket && (
+        <Modal
+          isOpen={detailsModalOpen}
+          onClose={() => setDetailsModalOpen(false)}
+          title="Market Details"
+          size="md"
+        >
+          <div className="space-y-4">
+            {/* Question */}
+            <div>
+              <h3 className="text-lg font-semibold text-text-primary mb-2">
+                {detailsMarket.question}
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                <Badge size="xs" variant={detailsMarket.marketType === "v2" ? "cyan" : "warning"}>
+                  {detailsMarket.marketType.toUpperCase()}
+                </Badge>
+                <Badge
+                  size="xs"
+                  variant={
+                    getMarketStatus(detailsMarket) === "active"
+                      ? "success"
+                      : getMarketStatus(detailsMarket) === "resolved"
+                      ? "cyan"
+                      : "default"
+                  }
+                >
+                  {getMarketStatus(detailsMarket).charAt(0).toUpperCase() + getMarketStatus(detailsMarket).slice(1)}
+                </Badge>
+                {detailsMarket.resolved && detailsMarket.winningToken && (
+                  <Badge size="xs" variant={detailsMarket.winningToken === "yes" ? "success" : "error"}>
+                    {detailsMarket.winningToken.toUpperCase()} Won
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {/* Prices */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 rounded-xl bg-neon-green/10 border border-neon-green/30 text-center">
+                <div className="text-xs text-neon-green mb-1">YES Price</div>
+                <div className="text-2xl font-bold text-neon-green">
+                  {(detailsMarket.yesPrice * 100).toFixed(1)}¢
+                </div>
+                <div className="text-xs text-text-muted mt-1">
+                  {detailsMarket.yesMultiplier.toFixed(2)}x multiplier
+                </div>
+              </div>
+              <div className="p-4 rounded-xl bg-error/10 border border-error/30 text-center">
+                <div className="text-xs text-error mb-1">NO Price</div>
+                <div className="text-2xl font-bold text-error">
+                  {(detailsMarket.noPrice * 100).toFixed(1)}¢
+                </div>
+                <div className="text-xs text-text-muted mt-1">
+                  {detailsMarket.noMultiplier.toFixed(2)}x multiplier
+                </div>
+              </div>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl bg-bg-elevated">
+                <div className="text-xs text-text-muted">Volume</div>
+                <div className="text-sm font-semibold text-text-primary">{formatVolume(detailsMarket.volume)}</div>
+              </div>
+              <div className="p-3 rounded-xl bg-bg-elevated">
+                <div className="text-xs text-text-muted">Liquidity</div>
+                <div className="text-sm font-semibold text-text-primary">{formatLiquidity(detailsMarket.liquidity)}</div>
+              </div>
+              <div className="p-3 rounded-xl bg-bg-elevated">
+                <div className="text-xs text-text-muted">End Date</div>
+                <div className="text-sm font-semibold text-text-primary">{formatDate(detailsMarket.endDate)}</div>
+              </div>
+              <div className="p-3 rounded-xl bg-bg-elevated">
+                <div className="text-xs text-text-muted">Min Trade</div>
+                <div className="text-sm font-semibold text-text-primary">
+                  ${getMinimumTradeAmount(detailsMarket.liquidity).toFixed(2)}
+                </div>
+              </div>
+            </div>
+
+            {/* Addresses */}
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between p-2 rounded bg-bg-elevated">
+                <span className="text-text-muted">Market Address</span>
+                <a
+                  href={`https://solscan.io/account/${detailsMarket.publicKey}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-neon-cyan hover:underline font-mono"
+                >
+                  {detailsMarket.publicKey.slice(0, 8)}...{detailsMarket.publicKey.slice(-4)}
+                </a>
+              </div>
+              <div className="flex justify-between p-2 rounded bg-bg-elevated">
+                <span className="text-text-muted">Creator</span>
+                <a
+                  href={`https://solscan.io/account/${detailsMarket.creator}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-neon-cyan hover:underline font-mono"
+                >
+                  {detailsMarket.creator.slice(0, 8)}...{detailsMarket.creator.slice(-4)}
+                </a>
+              </div>
+              {detailsMarket.yesTokenMint && (
+                <div className="flex justify-between p-2 rounded bg-bg-elevated">
+                  <span className="text-text-muted">YES Token</span>
+                  <a
+                    href={`https://solscan.io/token/${detailsMarket.yesTokenMint}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-neon-green hover:underline font-mono"
+                  >
+                    {detailsMarket.yesTokenMint.slice(0, 8)}...
+                  </a>
+                </div>
+              )}
+              {detailsMarket.noTokenMint && (
+                <div className="flex justify-between p-2 rounded bg-bg-elevated">
+                  <span className="text-text-muted">NO Token</span>
+                  <a
+                    href={`https://solscan.io/token/${detailsMarket.noTokenMint}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-error hover:underline font-mono"
+                  >
+                    {detailsMarket.noTokenMint.slice(0, 8)}...
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setDetailsModalOpen(false)}
+                className="flex-1"
+              >
+                Close
+              </Button>
+              {getMarketStatus(detailsMarket) === "active" && (
+                <Button
+                  onClick={() => {
+                    setDetailsModalOpen(false);
+                    handleTrade(detailsMarket, "yes", "buy");
+                  }}
+                  className="flex-1"
+                >
+                  Trade
+                </Button>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Create Market Modal */}
       <Modal
