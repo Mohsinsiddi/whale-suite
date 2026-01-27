@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Card, { CardHeader, CardTitle } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { StealthRating } from "@/components/ui/Progress";
 import Badge, { TierBadge } from "@/components/ui/Badge";
 import DashboardGate from "@/components/dashboard/DashboardGate";
-import { useWalletBalance, useWhaleFeed } from "@/hooks";
+import { useShadowWire, useWalletBalance, useWhaleFeed } from "@/hooks";
+import { usePrivacyCash } from "@/hooks/usePrivacyCash";
 import { usePNP } from "@/hooks/usePNP";
 import { useAuth } from "@/lib/privy/hooks";
 
@@ -24,13 +25,50 @@ function DashboardContent() {
   const router = useRouter();
   const { walletAddress } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState("24h");
+  const [privacyCashInitLoading, setPrivacyCashInitLoading] = useState(false);
 
   // Public wallet balance - no signature needed
   const { balance: publicBalance, loading: balanceLoading } = useWalletBalance(walletAddress);
 
+  // ShadowWire - NO signature needed to view balance
+  const {
+    shieldedBalance,
+    fetchShieldedBalance,
+    loading: shadowWireLoading,
+  } = useShadowWire();
+
+  // Privacy Cash - REQUIRES signature to view balance
+  const {
+    privateBalance: privacyCashBalance,
+    initialized: privacyCashInitialized,
+    initialize: initializePrivacyCash,
+    loading: privacyCashLoading,
+  } = usePrivacyCash();
+
   // Public data - no signature needed
   const { events: whaleEvents, isLoading: whaleFeedLoading } = useWhaleFeed({ limit: 10 });
   const { markets, loading: marketsLoading, formatVolume, isMarketActive } = usePNP();
+
+  // Fetch ShadowWire balance on mount (no signature needed)
+  useEffect(() => {
+    fetchShieldedBalance();
+  }, [fetchShieldedBalance]);
+
+  // Handle Privacy Cash initialization (requires signature)
+  const handleInitPrivacyCash = async () => {
+    if (privacyCashInitialized) return;
+    setPrivacyCashInitLoading(true);
+    try {
+      await initializePrivacyCash();
+    } finally {
+      setPrivacyCashInitLoading(false);
+    }
+  };
+
+  // Calculate balances
+  const shadowWireSOL = shieldedBalance?.available ? shieldedBalance.available / 1e9 : 0;
+  const privacyCashSOL = privacyCashBalance?.balance || 0;
+  const totalHiddenSOL = shadowWireSOL + (privacyCashInitialized ? privacyCashSOL : 0);
 
   // Active PNP markets
   const activeMarkets = markets.filter(m => isMarketActive(m)).slice(0, 3);
@@ -88,56 +126,70 @@ function DashboardContent() {
           <div className="text-xs text-text-secondary">Anyone can see this</div>
         </Card>
 
-        {/* ShadowWire Pool - Requires signature to view */}
+        {/* ShadowWire Pool - NO signature needed */}
         <Card variant="glow" padding="md">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs text-text-muted">ShadowWire</span>
             <Badge size="xs" variant="success">$15K</Badge>
           </div>
-          <button
-            onClick={() => router.push('/transfer')}
-            className="text-left w-full"
-          >
-            <div className="text-sm text-neon-green hover:text-neon-green/80 transition-colors underline mb-1">
-              Go to Transfer to view balance
-            </div>
-            <div className="text-xs text-text-secondary">Bulletproof ZK</div>
-          </button>
+          <div className="text-2xl font-bold text-neon-green mb-1">
+            {shadowWireLoading ? (
+              <span className="animate-pulse">Loading...</span>
+            ) : (
+              `${shadowWireSOL.toFixed(4)} SOL`
+            )}
+          </div>
+          <div className="text-xs text-text-secondary">Bulletproof ZK</div>
         </Card>
 
-        {/* Privacy Cash Pool - Requires signature to view */}
+        {/* Privacy Cash Pool - REQUIRES signature to view */}
         <Card variant="default" padding="md" className="border-neon-cyan/30">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs text-text-muted">Privacy Cash</span>
             <Badge size="xs" variant="cyan">$15K</Badge>
           </div>
-          <button
-            onClick={() => router.push('/privacy')}
-            className="text-left w-full"
-          >
-            <div className="text-sm text-neon-cyan hover:text-neon-cyan/80 transition-colors underline mb-1">
-              Go to Privacy Cash to view balance
-            </div>
-            <div className="text-xs text-text-secondary">Light Protocol ZK</div>
-          </button>
+          {privacyCashInitialized ? (
+            <>
+              <div className="text-2xl font-bold text-neon-cyan mb-1">
+                {privacyCashLoading ? (
+                  <span className="animate-pulse">Loading...</span>
+                ) : (
+                  `${privacyCashSOL.toFixed(4)} SOL`
+                )}
+              </div>
+              <div className="text-xs text-text-secondary">Light Protocol ZK</div>
+            </>
+          ) : (
+            <button
+              onClick={handleInitPrivacyCash}
+              disabled={privacyCashInitLoading}
+              className="text-left w-full"
+            >
+              <div className="text-sm text-neon-cyan hover:text-neon-cyan/80 transition-colors underline mb-1">
+                {privacyCashInitLoading ? "Signing..." : "Click to reveal (requires signature)"}
+              </div>
+              <div className="text-xs text-text-secondary">Light Protocol ZK</div>
+            </button>
+          )}
         </Card>
 
-        {/* Total Hidden - Summary */}
+        {/* Total Hidden */}
         <Card variant="default" padding="md">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-text-muted">Private Pools</span>
-            <Badge size="xs" variant="success">2 SDKs</Badge>
+            <span className="text-xs text-text-muted">Total Hidden</span>
+            <Badge size="xs" variant="success">
+              {privacyCashInitialized ? "2 Pools" : "1 Pool"}
+            </Badge>
           </div>
-          <div className="text-sm text-text-secondary mb-2">
-            View balances in each pool page
+          <div className="text-2xl font-bold text-text-primary mb-1">
+            {shadowWireLoading ? (
+              <span className="animate-pulse">Loading...</span>
+            ) : (
+              `${totalHiddenSOL.toFixed(4)} SOL`
+            )}
           </div>
-          <div className="flex gap-2">
-            <Button size="xs" variant="ghost" onClick={() => router.push('/privacy')}>
-              Privacy Cash
-            </Button>
-            <Button size="xs" variant="ghost" onClick={() => router.push('/transfer')}>
-              ShadowWire
-            </Button>
+          <div className="text-xs text-text-secondary">
+            {privacyCashInitialized ? "Combined pools" : "Sign Privacy Cash to see total"}
           </div>
         </Card>
       </div>
@@ -178,10 +230,21 @@ function DashboardContent() {
             <CardTitle>Stealth Rating</CardTitle>
           </CardHeader>
           <div className="space-y-4">
-            <StealthRating score={250} />
-            <p className="text-xs text-text-muted text-center">
-              Use privacy tools to increase your stealth rating
-            </p>
+            <StealthRating score={totalHiddenSOL > 0 ? 750 : 250} />
+            <div className="grid grid-cols-2 gap-2 text-center">
+              <div className="p-2 rounded-lg bg-bg-tertiary">
+                <div className="text-sm font-semibold text-neon-green">
+                  {totalHiddenSOL > 0 ? `${totalHiddenSOL.toFixed(2)}` : "0"} SOL
+                </div>
+                <div className="text-[10px] text-text-muted">Hidden</div>
+              </div>
+              <div className="p-2 rounded-lg bg-bg-tertiary">
+                <div className="text-sm font-semibold text-neon-cyan">
+                  {privacyCashInitialized ? "2 Pools" : "1 Pool"}
+                </div>
+                <div className="text-[10px] text-text-muted">Active</div>
+              </div>
+            </div>
           </div>
         </Card>
       </div>
