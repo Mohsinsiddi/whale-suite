@@ -1,15 +1,17 @@
 /**
- * Seed Script: Create test user with complete data
+ * Seed Script: Create comprehensive test data
  *
  * Run with: npx tsx scripts/seed-user.ts
+ *
+ * This seeds:
+ * - Leaderboard competitors (so you're not alone)
+ * - Whale feed events (so intelligence page has data)
+ * - NO data for your wallet (you start fresh to test)
  */
 
 import mongoose from 'mongoose';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/whale-suite';
-
-// Test wallet address - update this to your wallet
-const TARGET_WALLET = 'FKQ1nEazoN9SiEy5xRC4FrskjT3B3usdB74sC9sUYq7';
 const NETWORK: 'mainnet' | 'devnet' = 'mainnet';
 
 // ============ SCHEMAS ============
@@ -29,6 +31,10 @@ const UserSchema = new mongoose.Schema({
   isPremium: { type: Boolean, default: false },
   premiumExpiry: Date,
   privacyScore: { type: Number, default: 0, min: 0, max: 1000 },
+  points: { type: Number, default: 0, index: true },
+  streak: { type: Number, default: 0 },
+  lastActiveDate: { type: Date },
+  rank: { type: Number },
   stats: {
     hiddenBalance: { type: Number, default: 0 },
     privateTransfers: { type: Number, default: 0 },
@@ -70,13 +76,40 @@ const TransactionSchema = new mongoose.Schema({
   confirmedAt: Date,
 }, { timestamps: true });
 
-const CardOrderSchema = new mongoose.Schema({
-  wallet: { type: String, required: true, lowercase: true },
-  orderId: { type: String, required: true },
-  network: { type: String, enum: ['mainnet', 'devnet'], required: true, default: 'mainnet' },
-  cardType: { type: String, enum: ['visa', 'mastercard'] },
+const WhaleFeedSchema = new mongoose.Schema({
+  whaleId: { type: String, required: true },
+  walletHash: { type: String, required: true },
+  eventType: {
+    type: String,
+    enum: ['large_transfer', 'privacy_deposit', 'privacy_withdraw', 'token_swap', 'anonymous_bet'],
+    required: true
+  },
   amount: Number,
-  txSignature: String,
+  token: String,
+  usdValue: Number,
+  signature: { type: String, required: true },
+  slot: Number,
+  blockTime: Number,
+  displayText: { type: String, required: true },
+}, { timestamps: true });
+
+const PointsHistorySchema = new mongoose.Schema({
+  wallet: { type: String, required: true, index: true },
+  action: {
+    type: String,
+    enum: [
+      'privacy_deposit', 'privacy_withdraw', 'shadow_transfer', 'standard_transfer',
+      'jupiter_swap', 'pnp_bet', 'pnp_win', 'card_order', 'badge_purchase',
+      'referral_signup', 'referral_conversion', 'daily_login', 'streak_bonus',
+      'first_transaction', 'whale_status',
+    ],
+    required: true
+  },
+  basePoints: { type: Number, required: true },
+  multiplier: { type: Number, required: true, default: 1 },
+  totalPoints: { type: Number, required: true },
+  badgeTier: { type: String, enum: ['none', 'bronze', 'silver', 'gold', 'diamond', 'legendary'], default: 'none' },
+  metadata: { type: Map, of: mongoose.Schema.Types.Mixed, default: {} },
 }, { timestamps: true });
 
 const BadgeSchema = new mongoose.Schema({
@@ -95,29 +128,11 @@ const BadgeSchema = new mongoose.Schema({
   purchasedAt: { type: Date, default: Date.now },
 }, { timestamps: true });
 
-const ReferralSchema = new mongoose.Schema({
-  referrerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  referrerWallet: { type: String, required: true },
-  referredUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  referredUserWallet: { type: String, required: true },
-  commissionRate: { type: Number, required: true },
-  totalEarned: { type: Number, default: 0 },
-  pendingPayout: { type: Number, default: 0 },
-  paidOut: { type: Number, default: 0 },
-  conversions: {
-    badgePurchase: { tier: String, amount: Number, commission: Number, date: Date },
-    subscriptions: [{ months: Number, amount: Number, commission: Number, date: Date }],
-  },
-  status: { type: String, enum: ['active', 'inactive'], default: 'active' },
-  referredAt: { type: Date, default: Date.now },
-  lastEarningAt: Date,
-}, { timestamps: true });
-
 const User = mongoose.models.User || mongoose.model('User', UserSchema);
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', TransactionSchema);
-const CardOrder = mongoose.models.CardOrder || mongoose.model('CardOrder', CardOrderSchema);
+const WhaleFeed = mongoose.models.WhaleFeed || mongoose.model('WhaleFeed', WhaleFeedSchema);
+const PointsHistory = mongoose.models.PointsHistory || mongoose.model('PointsHistory', PointsHistorySchema);
 const Badge = mongoose.models.Badge || mongoose.model('Badge', BadgeSchema);
-const Referral = mongoose.models.Referral || mongoose.model('Referral', ReferralSchema);
 
 // ============ HELPERS ============
 
@@ -126,13 +141,14 @@ function generateSignature(): string {
   return Array.from({ length: 88 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
 }
 
-function generateMintAddress(): string {
+function generateWallet(): string {
   const chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   return Array.from({ length: 44 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
 }
 
-function generateOrderId(): string {
-  return `ord_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+function generateWhaleId(): string {
+  const chars = 'ABCDEF0123456789';
+  return 'Whale #' + Array.from({ length: 4 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
 }
 
 function hoursAgo(h: number): Date {
@@ -154,272 +170,293 @@ function logTable(title: string, data: Record<string, unknown>[]) {
 
 // ============ SEED FUNCTIONS ============
 
-async function seedUser() {
-  log('👤', 'Creating user...');
+async function dropAllCollections() {
+  log('🗑️', 'Dropping all collections...');
 
-  const premiumExpiry = new Date();
-  premiumExpiry.setDate(premiumExpiry.getDate() + 342);
-  const badgePurchasedAt = daysAgo(23);
-
-  let user = await User.findOne({ wallet: TARGET_WALLET });
-
-  const userData = {
-    wallet: TARGET_WALLET,
-    userNumber: 999,
-    badgeTier: 'gold',
-    badgeMint: generateMintAddress(),
-    badgePurchasedAt,
-    isPremium: true,
-    premiumExpiry,
-    privacyScore: 750,
-    stats: {
-      hiddenBalance: 850,
-      privateTransfers: 42,
-      anonymousBets: 15,
-      swapVolume: 125000,
-      activeDays: 23,
-    },
-    referralCode: 'WHALE999',
-    settings: { notifications: true, emailUpdates: false, language: 'en', theme: 'dark' },
-    lastLoginAt: new Date(),
-  };
-
-  if (user) {
-    Object.assign(user, userData);
-    await user.save();
-  } else {
-    user = await User.create(userData);
+  const collections = await mongoose.connection.db.listCollections().toArray();
+  for (const collection of collections) {
+    await mongoose.connection.db.dropCollection(collection.name);
+    log('  ❌', `Dropped ${collection.name}`);
   }
 
-  log('✅', `User #${user.userNumber} created`);
-  return user;
+  log('✅', 'All collections dropped');
 }
 
-async function seedBadge(user: typeof User.prototype) {
-  log('🏅', 'Creating badge...');
+async function seedLeaderboardCompetitors() {
+  log('🏆', 'Creating leaderboard competitors...');
 
-  await Badge.deleteMany({ wallet: TARGET_WALLET });
-
-  const badge = await Badge.create({
-    userId: user._id,
-    wallet: TARGET_WALLET,
-    tier: 'gold',
-    mintAddress: user.badgeMint,
-    purchasePrice: 5,
-    txSignature: generateSignature(),
-    status: 'active',
-    metadata: {
-      name: 'Whale Suite - Gold Phantom',
-      image: 'https://whale-suite.com/nft/gold.png',
-      attributes: { tier: 'Gold', userNumber: 999, privacyScoreBoost: '+50%', commissionRate: '15%' },
-    },
-    purchasedAt: user.badgePurchasedAt,
-  });
-
-  log('✅', `Badge created: ${badge.tier}`);
-  return badge;
-}
-
-async function seedTransactions(user: typeof User.prototype) {
-  log('💸', 'Creating transactions...');
-
-  await Transaction.deleteMany({ wallet: TARGET_WALLET });
-
-  const txConfigs = [
-    // Recent activity (last 24 hours)
-    { type: 'privacy_deposit', sdk: 'privacy-cash', amount: 150, hoursAgo: 2 },
-    { type: 'shadow_transfer', sdk: 'shadow-wire', amount: 25, hoursAgo: 5 },
-    { type: 'jupiter_swap', sdk: 'jupiter', amount: 100, hoursAgo: 8 },
-    { type: 'card_order', amount: 50, hoursAgo: 12 },
-    { type: 'pnp_bet', sdk: 'pnp', amount: 10, hoursAgo: 18 },
-
-    // Yesterday
-    { type: 'privacy_withdraw', sdk: 'privacy-cash', amount: 75, hoursAgo: 28 },
-    { type: 'shadow_transfer', sdk: 'shadow-wire', amount: 200, hoursAgo: 36 },
-
-    // Last week
-    { type: 'jupiter_swap', sdk: 'jupiter', amount: 500, hoursAgo: 72 },
-    { type: 'card_order', amount: 100, hoursAgo: 96 },
-    { type: 'privacy_deposit', sdk: 'privacy-cash', amount: 300, hoursAgo: 120 },
-    { type: 'pnp_bet', sdk: 'pnp', amount: 50, hoursAgo: 144 },
-    { type: 'badge_purchase', amount: 5, hoursAgo: 552 }, // 23 days ago
-
-    // Older transactions
-    { type: 'privacy_deposit', sdk: 'privacy-cash', amount: 500, hoursAgo: 240 },
-    { type: 'shadow_transfer', sdk: 'shadow-wire', amount: 150, hoursAgo: 336 },
-    { type: 'jupiter_swap', sdk: 'jupiter', amount: 250, hoursAgo: 480 },
+  const competitors = [
+    { userNumber: 1, points: 45000, streak: 30, badge: 'legendary', name: 'Legendary Titan' },
+    { userNumber: 7, points: 32000, streak: 21, badge: 'diamond', name: 'Diamond Whale' },
+    { userNumber: 13, points: 25000, streak: 18, badge: 'diamond', name: 'Shadow Master' },
+    { userNumber: 42, points: 18500, streak: 14, badge: 'gold', name: 'Gold Phantom' },
+    { userNumber: 77, points: 15000, streak: 12, badge: 'gold', name: 'Privacy King' },
+    { userNumber: 88, points: 12000, streak: 10, badge: 'gold', name: 'Ghost Trader' },
+    { userNumber: 123, points: 9800, streak: 7, badge: 'silver', name: 'Silver Fox' },
+    { userNumber: 156, points: 7500, streak: 5, badge: 'silver', name: 'Anon Whale' },
+    { userNumber: 234, points: 5200, streak: 4, badge: 'bronze', name: 'Bronze Bull' },
+    { userNumber: 345, points: 3500, streak: 3, badge: 'bronze', name: 'Rising Star' },
+    { userNumber: 456, points: 2100, streak: 2, badge: 'none', name: 'New Whale' },
+    { userNumber: 567, points: 1500, streak: 1, badge: 'none', name: 'Rookie' },
+    { userNumber: 678, points: 800, streak: 0, badge: 'none', name: 'Beginner' },
+    { userNumber: 789, points: 400, streak: 0, badge: 'none', name: 'Starter' },
+    { userNumber: 890, points: 100, streak: 0, badge: 'none', name: 'Newbie' },
   ];
 
-  const transactions = txConfigs.map(tx => {
-    const createdAt = hoursAgo(tx.hoursAgo);
-    return {
-      userId: user._id,
-      wallet: TARGET_WALLET,
-      network: NETWORK,
-      type: tx.type,
-      amount: tx.amount,
-      token: 'SOL',
-      fee: 0.000005,
-      sdk: tx.sdk,
+  const users = [];
+  const badges = [];
+  const pointsHistories = [];
+
+  for (const comp of competitors) {
+    const wallet = generateWallet();
+    const activeDaysAgo = Math.floor(Math.random() * 3);
+    const hasBadge = comp.badge !== 'none';
+
+    const user = {
+      wallet,
+      userNumber: comp.userNumber,
+      badgeTier: comp.badge,
+      badgeMint: hasBadge ? generateWallet() : undefined,
+      badgePurchasedAt: hasBadge ? daysAgo(Math.floor(Math.random() * 60) + 10) : undefined,
+      isPremium: hasBadge,
+      premiumExpiry: hasBadge ? new Date(Date.now() + 300 * 24 * 60 * 60 * 1000) : undefined,
+      privacyScore: Math.floor(Math.random() * 500) + (hasBadge ? 300 : 100),
+      points: comp.points,
+      streak: comp.streak,
+      lastActiveDate: daysAgo(activeDaysAgo),
+      stats: {
+        hiddenBalance: Math.floor(Math.random() * 1000) + 100,
+        privateTransfers: Math.floor(comp.points / 100),
+        anonymousBets: Math.floor(Math.random() * 50),
+        swapVolume: Math.floor(Math.random() * 100000) + 10000,
+        activeDays: comp.streak + Math.floor(Math.random() * 30),
+      },
+      referralCode: `WHALE${comp.userNumber}`,
+    };
+
+    users.push(user);
+
+    // Create badge for users with badges
+    if (hasBadge) {
+      const createdUser = await User.create(user);
+      badges.push({
+        userId: createdUser._id,
+        wallet,
+        tier: comp.badge,
+        mintAddress: user.badgeMint,
+        purchasePrice: comp.badge === 'legendary' ? 25 : comp.badge === 'diamond' ? 10 : comp.badge === 'gold' ? 5 : comp.badge === 'silver' ? 2 : 0.5,
+        txSignature: generateSignature(),
+        status: 'active',
+        metadata: {
+          name: `Whale Suite - ${comp.badge.charAt(0).toUpperCase() + comp.badge.slice(1)}`,
+          image: `https://whale-suite.com/nft/${comp.badge}.png`,
+        },
+        purchasedAt: user.badgePurchasedAt,
+      });
+
+      // Add some points history for this user
+      const actions = ['privacy_deposit', 'shadow_transfer', 'jupiter_swap', 'daily_login'];
+      for (let i = 0; i < 5; i++) {
+        const action = actions[Math.floor(Math.random() * actions.length)];
+        const basePoints = action === 'privacy_deposit' ? 100 : action === 'shadow_transfer' ? 150 : action === 'jupiter_swap' ? 75 : 10;
+        const multiplier = comp.badge === 'legendary' ? 2.5 : comp.badge === 'diamond' ? 2.0 : comp.badge === 'gold' ? 1.75 : comp.badge === 'silver' ? 1.5 : comp.badge === 'bronze' ? 1.25 : 1.0;
+
+        pointsHistories.push({
+          wallet,
+          action,
+          basePoints,
+          multiplier,
+          totalPoints: Math.floor(basePoints * multiplier),
+          badgeTier: comp.badge,
+          createdAt: hoursAgo(Math.floor(Math.random() * 168)),
+        });
+      }
+    } else {
+      await User.create(user);
+    }
+  }
+
+  if (badges.length > 0) {
+    await Badge.insertMany(badges);
+  }
+
+  if (pointsHistories.length > 0) {
+    await PointsHistory.insertMany(pointsHistories);
+  }
+
+  log('✅', `Created ${competitors.length} leaderboard competitors`);
+  logTable('Top 10 Leaderboard', competitors.slice(0, 10).map((c, i) => ({
+    Rank: i + 1,
+    User: `Whale #${c.userNumber}`,
+    Points: c.points.toLocaleString(),
+    Streak: `${c.streak}d`,
+    Badge: c.badge,
+  })));
+}
+
+async function seedWhaleFeed() {
+  log('🐋', 'Creating whale feed events...');
+
+  const events = [];
+  const eventTypes = [
+    { type: 'large_transfer', amounts: [500, 1000, 2500, 5000, 10000], token: 'SOL' },
+    { type: 'privacy_deposit', amounts: [100, 250, 500, 1000, 2000], token: 'SOL' },
+    { type: 'privacy_withdraw', amounts: [50, 100, 250, 500, 1000], token: 'SOL' },
+    { type: 'token_swap', amounts: [10000, 25000, 50000, 100000, 250000], token: 'USDC' },
+    { type: 'anonymous_bet', amounts: [10, 25, 50, 100, 500], token: 'SOL' },
+  ];
+
+  // Create 50 whale feed events spread over the last 7 days
+  for (let i = 0; i < 50; i++) {
+    const eventConfig = eventTypes[Math.floor(Math.random() * eventTypes.length)];
+    const amount = eventConfig.amounts[Math.floor(Math.random() * eventConfig.amounts.length)];
+    const whaleId = generateWhaleId();
+    const hoursBack = Math.floor(Math.random() * 168); // Last 7 days
+
+    let displayText = '';
+    switch (eventConfig.type) {
+      case 'large_transfer':
+        displayText = `${whaleId} transferred ${amount.toLocaleString()} ${eventConfig.token}`;
+        break;
+      case 'privacy_deposit':
+        displayText = `${whaleId} shielded ${amount.toLocaleString()} ${eventConfig.token}`;
+        break;
+      case 'privacy_withdraw':
+        displayText = `${whaleId} unshielded ${amount.toLocaleString()} ${eventConfig.token}`;
+        break;
+      case 'token_swap':
+        displayText = `${whaleId} swapped $${amount.toLocaleString()} ${eventConfig.token}`;
+        break;
+      case 'anonymous_bet':
+        displayText = `${whaleId} placed ${amount} ${eventConfig.token} anonymous bet`;
+        break;
+    }
+
+    events.push({
+      whaleId,
+      walletHash: generateWallet().slice(0, 16),
+      eventType: eventConfig.type,
+      amount,
+      token: eventConfig.token,
+      usdValue: eventConfig.token === 'SOL' ? amount * 150 : amount,
       signature: generateSignature(),
       slot: 250000000 + Math.floor(Math.random() * 1000000),
-      blockTime: Math.floor(createdAt.getTime() / 1000),
-      status: 'confirmed',
-      createdAt,
-      confirmedAt: createdAt,
-    };
-  });
-
-  await Transaction.insertMany(transactions);
-
-  // Summary by type
-  const summary = txConfigs.reduce((acc, tx) => {
-    acc[tx.type] = (acc[tx.type] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  log('✅', `Created ${transactions.length} transactions`);
-  logTable('Transaction Summary', Object.entries(summary).map(([type, count]) => ({ Type: type, Count: count })));
-
-  return transactions;
-}
-
-async function seedCardOrders(user: typeof User.prototype) {
-  log('💳', 'Creating card orders...');
-
-  await CardOrder.deleteMany({ wallet: TARGET_WALLET.toLowerCase() });
-
-  const orders = [
-    { cardType: 'mastercard', amount: 50, hoursAgo: 12, txSignature: generateSignature() },
-    { cardType: 'visa', amount: 100, hoursAgo: 96 },
-    { cardType: 'mastercard', amount: 25, hoursAgo: 240 },
-  ];
-
-  const cardOrders = orders.map(o => ({
-    wallet: TARGET_WALLET.toLowerCase(),
-    orderId: generateOrderId(),
-    network: NETWORK,
-    cardType: o.cardType,
-    amount: o.amount,
-    txSignature: o.txSignature,
-    createdAt: hoursAgo(o.hoursAgo),
-  }));
-
-  await CardOrder.insertMany(cardOrders);
-
-  log('✅', `Created ${cardOrders.length} card orders`);
-  logTable('Card Orders', cardOrders.map(o => ({
-    OrderID: o.orderId.slice(0, 16) + '...',
-    Type: o.cardType,
-    Amount: `$${o.amount}`,
-    Paid: o.txSignature ? 'Yes' : 'No'
-  })));
-
-  return cardOrders;
-}
-
-async function seedReferrals(user: typeof User.prototype) {
-  log('🔗', 'Creating referrals...');
-
-  await Referral.deleteMany({ referrerWallet: TARGET_WALLET });
-  await User.deleteMany({ referredBy: TARGET_WALLET });
-
-  const referredUsers = [];
-  for (let i = 0; i < 5; i++) {
-    const refUser = await User.create({
-      wallet: generateMintAddress(),
-      userNumber: 1000 + i,
-      badgeTier: i < 2 ? 'bronze' : 'none',
-      isPremium: i < 3,
-      premiumExpiry: i < 3 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : undefined,
-      privacyScore: Math.floor(Math.random() * 300),
-      referralCode: `WHALE${1000 + i}`,
-      referredBy: TARGET_WALLET,
+      blockTime: Math.floor(hoursAgo(hoursBack).getTime() / 1000),
+      displayText,
+      createdAt: hoursAgo(hoursBack),
     });
-    referredUsers.push(refUser);
   }
 
-  const referrals = referredUsers.map((refUser, i) => {
-    const referredAt = daysAgo(Math.floor(Math.random() * 20) + 5);
-    const hasBadge = i < 2;
-    const commission = hasBadge ? 0.5 * 0.15 : 0;
+  // Sort by time (most recent first)
+  events.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-    return {
-      referrerId: user._id,
-      referrerWallet: TARGET_WALLET,
-      referredUserId: refUser._id,
-      referredUserWallet: refUser.wallet,
-      commissionRate: 15,
-      totalEarned: commission,
-      pendingPayout: i === 0 ? commission : 0,
-      paidOut: i === 1 ? commission : 0,
-      conversions: hasBadge ? {
-        badgePurchase: { tier: 'bronze', amount: 0.5, commission, date: referredAt },
-        subscriptions: [],
-      } : { subscriptions: [] },
-      status: 'active',
-      referredAt,
-      lastEarningAt: hasBadge ? referredAt : undefined,
-    };
-  });
+  await WhaleFeed.insertMany(events);
 
-  await Referral.insertMany(referrals);
-
-  log('✅', `Created ${referrals.length} referrals`);
-  logTable('Referrals', referrals.map((r, i) => ({
-    User: `User #${1000 + i}`,
-    Badge: i < 2 ? 'Bronze' : '-',
-    Earned: `${r.totalEarned.toFixed(3)} SOL`,
-    Status: r.pendingPayout > 0 ? 'Pending' : r.paidOut > 0 ? 'Paid' : 'Active'
+  log('✅', `Created ${events.length} whale feed events`);
+  logTable('Recent Whale Activity', events.slice(0, 5).map(e => ({
+    Whale: e.whaleId,
+    Event: e.eventType,
+    Amount: `${e.amount} ${e.token}`,
+    Time: `${Math.floor((Date.now() - e.createdAt.getTime()) / 3600000)}h ago`,
   })));
+}
 
-  return referrals;
+async function seedSampleTransactions() {
+  log('💸', 'Creating sample transactions for competitors...');
+
+  // Get some users to add transactions to
+  const users = await User.find({ points: { $gt: 5000 } }).limit(5).lean();
+  const transactions = [];
+
+  for (const user of users) {
+    const txTypes = [
+      { type: 'privacy_deposit', sdk: 'privacy-cash', amounts: [50, 100, 200, 500] },
+      { type: 'shadow_transfer', sdk: 'shadow-wire', amounts: [25, 50, 100, 200] },
+      { type: 'jupiter_swap', sdk: 'jupiter', amounts: [100, 250, 500, 1000] },
+    ];
+
+    // Add 5-10 transactions per user
+    const txCount = 5 + Math.floor(Math.random() * 6);
+    for (let i = 0; i < txCount; i++) {
+      const txConfig = txTypes[Math.floor(Math.random() * txTypes.length)];
+      const amount = txConfig.amounts[Math.floor(Math.random() * txConfig.amounts.length)];
+      const hoursBack = Math.floor(Math.random() * 168);
+
+      transactions.push({
+        userId: user._id,
+        wallet: user.wallet,
+        network: NETWORK,
+        type: txConfig.type,
+        amount,
+        token: 'SOL',
+        fee: 0.000005,
+        sdk: txConfig.sdk,
+        signature: generateSignature(),
+        slot: 250000000 + Math.floor(Math.random() * 1000000),
+        blockTime: Math.floor(hoursAgo(hoursBack).getTime() / 1000),
+        status: 'confirmed',
+        createdAt: hoursAgo(hoursBack),
+        confirmedAt: hoursAgo(hoursBack),
+      });
+    }
+  }
+
+  if (transactions.length > 0) {
+    await Transaction.insertMany(transactions);
+  }
+
+  log('✅', `Created ${transactions.length} sample transactions`);
 }
 
 // ============ MAIN ============
 
 async function main() {
   console.log('\n' + '='.repeat(60));
-  console.log('🐋 WHALE SUITE - DATABASE SEED SCRIPT');
+  console.log('🐋 WHALE SUITE - FRESH DATABASE SEED');
   console.log('='.repeat(60) + '\n');
-
-  console.log(`📌 Target Wallet: ${TARGET_WALLET}`);
-  console.log(`📌 Network: ${NETWORK}\n`);
 
   console.log('Connecting to MongoDB...');
   await mongoose.connect(MONGODB_URI);
   console.log('Connected!\n');
 
   try {
-    // Seed data
-    const user = await seedUser();
-    await seedBadge(user);
-    await seedTransactions(user);
-    await seedCardOrders(user);
-    await seedReferrals(user);
+    // 1. Drop everything
+    await dropAllCollections();
+
+    // 2. Seed leaderboard competitors
+    await seedLeaderboardCompetitors();
+
+    // 3. Seed whale feed
+    await seedWhaleFeed();
+
+    // 4. Seed sample transactions
+    await seedSampleTransactions();
 
     // Final summary
     console.log('\n' + '='.repeat(60));
     console.log('✅ SEED COMPLETED SUCCESSFULLY');
     console.log('='.repeat(60));
 
+    const userCount = await User.countDocuments();
+    const feedCount = await WhaleFeed.countDocuments();
+    const txCount = await Transaction.countDocuments();
+
     console.log(`
 ┌─────────────────────────────────────────────────────────┐
-│  USER SUMMARY                                           │
+│  DATABASE SEEDED                                        │
 ├─────────────────────────────────────────────────────────┤
-│  Wallet:        ${TARGET_WALLET.slice(0, 20)}...    │
-│  User #:        999                                     │
-│  Badge:         Gold Phantom                            │
-│  Privacy Score: 750                                     │
-│  Premium:       342 days remaining                      │
-│  Referral Code: WHALE999                                │
+│  Users (Competitors):  ${String(userCount).padEnd(32)}│
+│  Whale Feed Events:    ${String(feedCount).padEnd(32)}│
+│  Transactions:         ${String(txCount).padEnd(32)}│
 ├─────────────────────────────────────────────────────────┤
-│  ACTIVITY STATS                                         │
-├─────────────────────────────────────────────────────────┤
-│  Transactions:  15                                      │
-│  Card Orders:   3                                       │
-│  Referrals:     5                                       │
-│  Hidden Balance: 850 SOL                                │
+│  YOUR WALLET: NOT SEEDED (start fresh!)                 │
+│                                                         │
+│  When you connect, you'll be a NEW user with:           │
+│  - 0 points                                             │
+│  - 0 streak                                             │
+│  - No badge                                             │
+│                                                         │
+│  Do activities to earn points and climb leaderboard!    │
 └─────────────────────────────────────────────────────────┘
 `);
 

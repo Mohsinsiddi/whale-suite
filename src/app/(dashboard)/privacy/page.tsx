@@ -5,9 +5,10 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
-import { usePrivacyCash } from "@/hooks";
+import { usePrivacyCash, usePoints } from "@/hooks";
 import { useAuth } from "@/lib/privy/hooks";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { PointsEarned } from "@/components/leaderboard";
 
 type TabType = "deposit" | "withdraw";
 
@@ -28,6 +29,7 @@ export default function PrivacyCashPage() {
     calculateReceiveAmount,
     fees,
   } = usePrivacyCash();
+  const { awardPoints } = usePoints();
 
   const [initLoading, setInitLoading] = useState(false);
 
@@ -46,6 +48,7 @@ export default function PrivacyCashPage() {
     amount: string;
     signature: string;
   } | null>(null);
+  const [pointsEarned, setPointsEarned] = useState<number | null>(null);
 
   const getStepStatus = (stepIndex: number): "pending" | "active" | "completed" => {
     if (progressStep > stepIndex) return "completed";
@@ -91,12 +94,27 @@ export default function PrivacyCashPage() {
           amount: result.amount?.toString() || amount,
           signature: result.signature || '',
         });
+
+        // Award points for privacy operation
+        const operationAmount = result.amount || parseFloat(amount) || 0;
+        const action = pendingOperationType === 'deposit' ? 'privacy_deposit' : 'privacy_withdraw';
+        awardPoints(action, {
+          txSignature: result.signature,
+          amount: operationAmount,
+        }).then((pointsResult) => {
+          if (pointsResult) {
+            setPointsEarned(pointsResult.totalAwarded);
+          }
+        }).catch((err) => {
+          console.error('Failed to award points:', err);
+        });
+
         setShowSuccessModal(true);
         setAmount("");
       }
       setPendingOperationType(null);
     }
-  }, [result, pendingOperationType, amount]);
+  }, [result, pendingOperationType, amount, awardPoints]);
 
   const handleAmountChange = (value: string) => {
     // Only allow valid number input
@@ -565,6 +583,7 @@ export default function PrivacyCashPage() {
         onClose={() => {
           setShowSuccessModal(false);
           setLastOperation(null);
+          setPointsEarned(null);
         }}
         title={lastOperation?.type === "deposit" ? "SOL Shielded!" : "SOL Unshielded!"}
         message={
@@ -573,6 +592,7 @@ export default function PrivacyCashPage() {
             : `Successfully unshielded ${lastOperation?.amount || ''} SOL to your wallet`
         }
         txSignature={lastOperation?.signature || result?.signature || ""}
+        actions={pointsEarned ? <PointsEarned points={pointsEarned} action="Privacy" /> : undefined}
       />
     </div>
   );

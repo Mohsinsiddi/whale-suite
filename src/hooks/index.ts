@@ -50,3 +50,9 @@ export type {
 // Activity Tracking
 export { useActivity } from './useActivity';
 export type { ActivityRecord, UseActivityReturn } from './useActivity';
+
+// Leaderboard & Points
+export { useLeaderboard } from './useLeaderboard';
+export type { LeaderboardEntry } from './useLeaderboard';
+export { usePoints } from './usePoints';
+export { useUserStats } from './useUserStats';

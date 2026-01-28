@@ -7,9 +7,10 @@ import Badge from "@/components/ui/Badge";
 import Input, { AmountInput } from "@/components/ui/Input";
 import Tabs, { TabPanel } from "@/components/ui/Tabs";
 import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
-import { useTransfer, useWalletBalance, useShadowWire } from "@/hooks";
+import { useTransfer, useWalletBalance, useShadowWire, usePoints } from "@/hooks";
 import { useAuth } from "@/lib/privy/hooks";
 import { TransferType } from "@/lib/privacy-sdks";
+import { PointsEarned } from "@/components/leaderboard";
 
 export default function TransferPage() {
   const { walletAddress } = useAuth();
@@ -42,6 +43,7 @@ export default function TransferPage() {
     wasmSupported,
     reset: resetShadowWire,
   } = useShadowWire();
+  const { awardPoints } = usePoints();
 
   // Minimum amounts
   const MIN_DEPOSIT_AMOUNT = shadowWireMinAmount('SOL'); // 0.1 SOL
@@ -73,6 +75,7 @@ export default function TransferPage() {
 
   // Track current operation type for modal
   const [currentOperation, setCurrentOperation] = useState<'deposit' | 'withdraw' | 'transfer'>('transfer');
+  const [pointsEarned, setPointsEarned] = useState<number | null>(null);
 
   // Fetch shielded balance when wallet changes
   useEffect(() => {
@@ -285,6 +288,21 @@ export default function TransferPage() {
           signature: result.signature || '',
           token: 'SOL',
         });
+
+        // Award points for shadow transfer
+        try {
+          const pointsResult = await awardPoints('shadow_transfer', {
+            txSignature: result.signature,
+            transferType: privateTransferType,
+            amount: parseFloat(amount),
+          });
+          if (pointsResult) {
+            setPointsEarned(pointsResult.totalAwarded);
+          }
+        } catch (err) {
+          console.error('Failed to award points:', err);
+        }
+
         setShowSuccessModal(true);
         // Refresh shielded balance after transfer
         setTimeout(() => fetchShieldedBalance(), 2000);
@@ -305,6 +323,19 @@ export default function TransferPage() {
       setShowTxModal(false);
 
       if (result?.success) {
+        // Award points for standard transfer
+        try {
+          const pointsResult = await awardPoints('standard_transfer', {
+            txSignature: result.signature,
+            amount: parseFloat(amount),
+          });
+          if (pointsResult) {
+            setPointsEarned(pointsResult.totalAwarded);
+          }
+        } catch (err) {
+          console.error('Failed to award points:', err);
+        }
+
         setShowSuccessModal(true);
       }
     }
@@ -320,6 +351,7 @@ export default function TransferPage() {
     setWithdrawError(null);
     setAmountError(null);
     setLastOperation(null);
+    setPointsEarned(null);
     resetTransfer();
     resetShadowWire();
     // Refresh shielded balance after successful operation
@@ -372,6 +404,20 @@ export default function TransferPage() {
         signature: result.signature || '',
         token: 'SOL',
       });
+
+      // Award points for privacy deposit (Note: Using shadow_transfer action since it's privacy-related)
+      try {
+        const pointsResult = await awardPoints('privacy_deposit', {
+          txSignature: result.signature,
+          amount: parseFloat(depositAmount),
+        });
+        if (pointsResult) {
+          setPointsEarned(pointsResult.totalAwarded);
+        }
+      } catch (err) {
+        console.error('Failed to award points:', err);
+      }
+
       setShowSuccessModal(true);
       setDepositAmount("");
       setShowDepositSection(false);
@@ -424,6 +470,20 @@ export default function TransferPage() {
         signature: result.signature || '',
         token: 'SOL',
       });
+
+      // Award points for privacy withdrawal
+      try {
+        const pointsResult = await awardPoints('privacy_withdraw', {
+          txSignature: result.signature,
+          amount: parseFloat(withdrawAmount),
+        });
+        if (pointsResult) {
+          setPointsEarned(pointsResult.totalAwarded);
+        }
+      } catch (err) {
+        console.error('Failed to award points:', err);
+      }
+
       setShowSuccessModal(true);
       setWithdrawAmount("");
       setShowWithdrawSection(false);
@@ -960,6 +1020,7 @@ export default function TransferPage() {
             : `Successfully sent ${lastOperation?.amount || amount} SOL ${activeTab === 'private' ? (privateTransferType === 'internal' ? 'with hidden amount' : 'anonymously') : ''}`
         }
         txSignature={lastOperation?.signature || combinedResult?.signature || ''}
+        actions={pointsEarned ? <PointsEarned points={pointsEarned} action="Transfer" /> : undefined}
       />
     </div>
   );

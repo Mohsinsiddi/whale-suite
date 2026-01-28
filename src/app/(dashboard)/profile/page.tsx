@@ -1,15 +1,38 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import Card, { CardHeader, CardTitle } from "@/components/ui/Card";
-import Button from "@/components/ui/Button";
-import Badge, { TierBadge } from "@/components/ui/Badge";
-import { StealthRating } from "@/components/ui/Progress";
-import VirtualCard3D from "@/components/cards/VirtualCard3D";
-import { CreditCard, Plus, ChevronRight } from "lucide-react";
+import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import Card, { CardHeader, CardTitle } from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import Badge, { TierBadge } from '@/components/ui/Badge';
+import { StealthRating } from '@/components/ui/Progress';
+import Tabs from '@/components/ui/Tabs';
+import VirtualCard3D from '@/components/cards/VirtualCard3D';
+import { ActivityTable, ActivityItem } from '@/components/activity/ActivityTable';
+import { PointsDisplay, StreakCounter, RankBadge, PointsBadge, StreakBadge } from '@/components/leaderboard';
+import { useUserStats } from '@/hooks/useUserStats';
+import { useRequireAuth } from '@/hooks/useAuth';
+import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch';
+import { useNetwork } from '@/hooks/useNetwork';
+import {
+  CreditCard,
+  Plus,
+  ChevronRight,
+  Wallet,
+  Trophy,
+  Activity,
+  Download,
+  Edit,
+  ExternalLink,
+  RefreshCw,
+  Calendar,
+  Shield,
+  Users,
+  Sparkles,
+  Flame,
+} from 'lucide-react';
 
-// Mock issued cards data - in production would come from API/localStorage
+// Types
 interface IssuedCard {
   id: string;
   cardType: 'visa' | 'mastercard';
@@ -24,14 +47,32 @@ interface IssuedCard {
   };
 }
 
-// Component to display virtual cards
+interface Transaction {
+  _id: string;
+  type: string;
+  amount: number;
+  token?: string;
+  signature: string;
+  status: string;
+  createdAt: string;
+}
+
+// Badge tier info
+const BADGE_INFO: Record<string, { emoji: string; color: string; name: string }> = {
+  none: { emoji: '⚪', color: 'from-gray-500 to-gray-600', name: 'No Badge' },
+  bronze: { emoji: '🥉', color: 'from-amber-600 to-amber-800', name: 'Bronze Ghost' },
+  silver: { emoji: '🥈', color: 'from-gray-400 to-gray-500', name: 'Silver Shadow' },
+  gold: { emoji: '🥇', color: 'from-yellow-500 to-amber-500', name: 'Gold Phantom' },
+  diamond: { emoji: '💎', color: 'from-cyan-400 to-blue-500', name: 'Diamond Whale' },
+  legendary: { emoji: '👑', color: 'from-purple-500 to-pink-500', name: 'Legendary Titan' },
+};
+
+// Virtual Cards Display Component
 function VirtualCardsDisplay() {
   const [cards, setCards] = useState<IssuedCard[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // In production, fetch from API
-    // For now, check localStorage for any saved cards
     const savedCards = localStorage.getItem('whale-suite-virtual-cards');
     if (savedCards) {
       try {
@@ -73,7 +114,7 @@ function VirtualCardsDisplay() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {cards.map((card) => (
+      {cards.slice(0, 4).map((card) => (
         <VirtualCard3D
           key={card.id}
           cardType={card.cardType}
@@ -86,7 +127,6 @@ function VirtualCardsDisplay() {
         />
       ))}
 
-      {/* Add New Card Button */}
       <Link href="/cards" className="block">
         <div className="h-[200px] rounded-2xl border-2 border-dashed border-border-primary hover:border-neon-green/50 flex flex-col items-center justify-center gap-3 transition-all hover:bg-neon-green/5 cursor-pointer group">
           <div className="w-12 h-12 rounded-full bg-bg-tertiary flex items-center justify-center group-hover:bg-neon-green/20 transition-colors">
@@ -102,210 +142,466 @@ function VirtualCardsDisplay() {
 }
 
 export default function ProfilePage() {
+  const { isAuthenticated, walletAddress, login } = useRequireAuth();
+  const { stats, loading: statsLoading, rank, points, streak, refresh: refreshStats } = useUserStats();
+  const { get } = useAuthenticatedFetch();
+  const { network } = useNetwork();
+
+  // Activity state
+  const [activeTab, setActiveTab] = useState('overview');
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+
+  // Fetch activity history
+  const fetchActivities = useCallback(async () => {
+    if (!isAuthenticated || !walletAddress) return;
+
+    setActivitiesLoading(true);
+    try {
+      const response = await get<{ transactions: Transaction[] }>(
+        `/api/transactions/${walletAddress}?limit=20&network=${network}`
+      );
+
+      if (response.data?.transactions) {
+        const items: ActivityItem[] = response.data.transactions.map((tx) => {
+          const getType = (txType: string): ActivityItem['type'] => {
+            if (txType.includes('privacy')) return 'privacy-cash';
+            if (txType.includes('shadow')) return 'shadowwire';
+            if (txType.includes('swap')) return 'swap';
+            if (txType.includes('card')) return 'cards';
+            if (txType.includes('bet') || txType.includes('pnp')) return 'pnp';
+            return 'swap'; // Default fallback
+          };
+
+          return {
+            id: tx._id,
+            type: getType(tx.type),
+            action: tx.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+            description: `${tx.amount?.toFixed(4) || ''} ${tx.token || 'SOL'}`,
+            amount: tx.amount,
+            status: tx.status as ActivityItem['status'],
+            timestamp: tx.createdAt,
+            txSignature: tx.signature,
+          };
+        });
+        setActivities(items);
+      }
+    } catch (error) {
+      console.error('Failed to fetch activities:', error);
+    } finally {
+      setActivitiesLoading(false);
+    }
+  }, [isAuthenticated, walletAddress, network, get]);
+
+  useEffect(() => {
+    if (activeTab === 'activity') {
+      fetchActivities();
+    }
+  }, [activeTab, fetchActivities]);
+
+  const tabs = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'activity', label: 'Activity' },
+    { id: 'cards', label: 'Cards' },
+  ];
+
+  // If not authenticated, show connect prompt
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Card variant="glow" className="max-w-md p-8 text-center">
+          <Wallet className="w-16 h-16 text-text-muted mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-text-primary mb-2">Connect Wallet</h2>
+          <p className="text-text-muted mb-6">
+            Connect your wallet to view your profile, track activity, and earn points!
+          </p>
+          <Button variant="primary" onClick={login}>
+            Connect Wallet
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  // User info from stats
+  const user = stats?.user;
+  const badgeInfo = BADGE_INFO[user?.badgeTier || 'none'];
+  const userStats = stats?.stats;
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h1 className="text-xl font-bold text-text-primary">Profile</h1>
-        <p className="text-sm text-text-secondary">Your Whale Suite identity</p>
+      <div className="flex items-start justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-text-primary">Profile</h1>
+          <p className="text-sm text-text-secondary">Your Whale Suite identity & stats</p>
+        </div>
+        <Button variant="ghost" size="sm" onClick={refreshStats} disabled={statsLoading}>
+          <RefreshCw className={`w-4 h-4 mr-2 ${statsLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Profile Card */}
-        <div className="lg:col-span-2 space-y-4">
-          {/* Identity Card */}
-          <Card variant="glow" padding="lg">
-            <div className="flex flex-col md:flex-row md:items-center gap-6">
-              {/* Avatar */}
-              <div className="relative">
-                <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-neon-green to-neon-cyan flex items-center justify-center text-4xl font-bold text-bg-primary shadow-glow-md">
-                  W
-                </div>
-                <div className="absolute -bottom-2 -right-2">
-                  <TierBadge tier="gold" size="sm" showLabel={false} />
-                </div>
-              </div>
-
-              {/* Info */}
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h2 className="text-2xl font-bold text-text-primary">Whale #999</h2>
-                  <Badge variant="success" size="sm">Premium</Badge>
-                </div>
-                <p className="text-sm text-text-muted font-mono mb-3">0x4f2e8a3b9c1d5e6f7a0b2c3d4e5f6a7b8c9d0e1f</p>
-                <div className="flex flex-wrap gap-2">
-                  <Badge size="sm" variant="cyan">Early Adopter</Badge>
-                  <Badge size="sm" variant="default">Privacy Champion</Badge>
-                  <Badge size="sm" variant="warning">Top Referrer</Badge>
-                </div>
-              </div>
+      {/* Identity Card */}
+      <Card variant="glow" padding="lg">
+        <div className="flex flex-col md:flex-row md:items-center gap-6">
+          {/* Avatar */}
+          <div className="relative">
+            <div className={`w-24 h-24 rounded-2xl bg-gradient-to-br ${badgeInfo.color} flex items-center justify-center text-4xl font-bold text-white shadow-lg`}>
+              {user?.displayName?.charAt(0) || 'W'}
             </div>
-          </Card>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { label: "Member Since", value: "Jan 2026" },
-              { label: "Total Txs", value: "1,234" },
-              { label: "Hidden Volume", value: "$2.5M" },
-              { label: "Referrals", value: "47" },
-            ].map((stat, i) => (
-              <Card key={i} variant="default" padding="sm">
-                <div className="text-xs text-text-muted mb-1">{stat.label}</div>
-                <div className="text-lg font-bold text-text-primary">{stat.value}</div>
-              </Card>
-            ))}
+            {user?.badgeTier && user.badgeTier !== 'none' && (
+              <div className="absolute -bottom-2 -right-2">
+                <TierBadge tier={user.badgeTier as 'bronze' | 'silver' | 'gold' | 'diamond' | 'legendary'} size="sm" showLabel={false} />
+              </div>
+            )}
           </div>
 
-          {/* NFT Badge Display */}
-          <Card variant="default" padding="md">
-            <CardHeader>
-              <CardTitle>Your NFT Badge</CardTitle>
-              <Button variant="ghost" size="xs">View on Solscan</Button>
-            </CardHeader>
+          {/* Info */}
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
+              <h2 className="text-2xl font-bold text-text-primary">
+                {user?.displayName || `Whale #${user?.userNumber || '---'}`}
+              </h2>
+              {user?.isPremium && <Badge variant="success" size="sm">Premium</Badge>}
+              <PointsBadge points={points} />
+              {streak > 0 && <StreakBadge streak={streak} />}
+            </div>
+            <p className="text-sm text-text-muted font-mono mb-3 truncate">
+              {walletAddress}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Badge size="sm" variant="cyan">Early Adopter</Badge>
+              {(userStats?.privateTransfers || 0) > 10 && (
+                <Badge size="sm" variant="default">Privacy Champion</Badge>
+              )}
+              {(userStats?.referrals || 0) > 5 && (
+                <Badge size="sm" variant="warning">Top Referrer</Badge>
+              )}
+            </div>
+          </div>
 
-            <div className="flex flex-col md:flex-row gap-6">
-              {/* Badge Visual */}
-              <div className="w-full md:w-48 h-48 rounded-2xl bg-gradient-to-br from-yellow-500 to-amber-400 p-1 shadow-[0_0_30px_rgba(234,179,8,0.3)]">
-                <div className="w-full h-full rounded-xl bg-bg-primary flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-5xl mb-2">🥇</div>
-                    <div className="text-sm font-bold text-yellow-400">Gold Phantom</div>
-                    <div className="text-xs text-text-muted">Whale #999</div>
+          {/* Rank & Points */}
+          <div className="flex flex-col items-center gap-3">
+            <RankBadge rank={rank} size="md" showDetails={false} />
+            <StreakCounter streak={streak} size="sm" />
+          </div>
+        </div>
+      </Card>
+
+      {/* Tabs */}
+      <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+
+      {/* Overview Tab */}
+      {activeTab === 'overview' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-4">
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card variant="default" padding="sm">
+                <div className="flex items-center gap-2 text-xs text-text-muted mb-1">
+                  <Calendar className="w-3 h-3" />
+                  Member Since
+                </div>
+                <div className="text-lg font-bold text-text-primary">
+                  {user?.memberSince ? new Date(user.memberSince).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '---'}
+                </div>
+              </Card>
+
+              <Card variant="default" padding="sm">
+                <div className="flex items-center gap-2 text-xs text-text-muted mb-1">
+                  <Activity className="w-3 h-3" />
+                  Total Txs
+                </div>
+                <div className="text-lg font-bold text-text-primary">
+                  {userStats?.totalTransactions?.toLocaleString() || 0}
+                </div>
+              </Card>
+
+              <Card variant="default" padding="sm">
+                <div className="flex items-center gap-2 text-xs text-text-muted mb-1">
+                  <Shield className="w-3 h-3" />
+                  Hidden Volume
+                </div>
+                <div className="text-lg font-bold text-text-primary">
+                  ${((userStats?.hiddenBalance || 0) * 150).toLocaleString()}
+                </div>
+              </Card>
+
+              <Card variant="default" padding="sm">
+                <div className="flex items-center gap-2 text-xs text-text-muted mb-1">
+                  <Users className="w-3 h-3" />
+                  Referrals
+                </div>
+                <div className="text-lg font-bold text-text-primary">
+                  {userStats?.referrals || 0}
+                </div>
+              </Card>
+            </div>
+
+            {/* Points Summary */}
+            <Card variant="default" padding="md">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-neon-green" />
+                  Points & Rank
+                </CardTitle>
+              </CardHeader>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-4 rounded-xl bg-bg-tertiary text-center">
+                  <PointsDisplay points={points} size="md" showIcon={false} />
+                  <p className="text-xs text-text-muted mt-1">Total Points</p>
+                </div>
+                <div className="p-4 rounded-xl bg-bg-tertiary text-center">
+                  <div className="text-2xl font-bold text-neon-green">+{stats?.points.today || 0}</div>
+                  <p className="text-xs text-text-muted mt-1">Today</p>
+                </div>
+                <div className="p-4 rounded-xl bg-bg-tertiary text-center">
+                  <div className="text-2xl font-bold text-text-primary">+{stats?.points.week || 0}</div>
+                  <p className="text-xs text-text-muted mt-1">This Week</p>
+                </div>
+                <div className="p-4 rounded-xl bg-bg-tertiary text-center">
+                  <div className="flex items-center justify-center gap-1 text-2xl font-bold text-orange-400">
+                    <Flame className="w-5 h-5" />{streak}
+                  </div>
+                  <p className="text-xs text-text-muted mt-1">Day Streak</p>
+                </div>
+              </div>
+            </Card>
+
+            {/* NFT Badge Display */}
+            {user?.badgeTier && user.badgeTier !== 'none' && (
+              <Card variant="default" padding="md">
+                <CardHeader>
+                  <CardTitle>Your NFT Badge</CardTitle>
+                  <Button variant="ghost" size="xs">
+                    <ExternalLink className="w-3 h-3 mr-1" />
+                    View on Solscan
+                  </Button>
+                </CardHeader>
+
+                <div className="flex flex-col md:flex-row gap-6">
+                  <div className={`w-full md:w-48 h-48 rounded-2xl bg-gradient-to-br ${badgeInfo.color} p-1 shadow-lg`}>
+                    <div className="w-full h-full rounded-xl bg-bg-primary flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="text-5xl mb-2">{badgeInfo.emoji}</div>
+                        <div className="text-sm font-bold" style={{ color: badgeInfo.color.includes('yellow') ? '#facc15' : '#00ff88' }}>
+                          {badgeInfo.name}
+                        </div>
+                        <div className="text-xs text-text-muted">{user.displayName}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 space-y-3">
+                    <div>
+                      <div className="text-xs text-text-muted mb-1">Badge Tier</div>
+                      <div className="text-sm text-text-secondary capitalize">{user.badgeTier}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-text-muted mb-1">Point Multiplier</div>
+                      <div className="text-sm text-neon-green font-medium">
+                        {user.badgeTier === 'bronze' ? '1.25x' :
+                         user.badgeTier === 'silver' ? '1.5x' :
+                         user.badgeTier === 'gold' ? '1.75x' :
+                         user.badgeTier === 'diamond' ? '2.0x' :
+                         user.badgeTier === 'legendary' ? '2.5x' : '1.0x'}
+                      </div>
+                    </div>
+                    {user.premiumExpiry && (
+                      <div>
+                        <div className="text-xs text-text-muted mb-1">Premium Expires</div>
+                        <div className="text-sm text-neon-green">
+                          {new Date(user.premiumExpiry).toLocaleDateString()}
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex gap-2 pt-2">
+                      <Link href="/badges">
+                        <Button variant="secondary" size="sm">Upgrade Badge</Button>
+                      </Link>
+                      <Button variant="ghost" size="sm">View on Magic Eden</Button>
+                    </div>
                   </div>
                 </div>
+              </Card>
+            )}
+
+            {/* Achievements */}
+            <Card variant="default" padding="md">
+              <CardHeader>
+                <CardTitle>Achievements</CardTitle>
+              </CardHeader>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { icon: '🔒', name: 'First Deposit', unlocked: (userStats?.hiddenBalance || 0) > 0 },
+                  { icon: '👻', name: '100 Transfers', unlocked: (userStats?.privateTransfers || 0) >= 100 },
+                  { icon: '💎', name: 'Diamond Hands', unlocked: (userStats?.hiddenBalance || 0) > 10 },
+                  { icon: '🐋', name: 'Whale Status', unlocked: points >= 1000 },
+                  { icon: '🎯', name: 'Perfect Score', unlocked: (user?.privacyScore || 0) >= 900 },
+                  { icon: '🏆', name: 'Top 100', unlocked: rank <= 100 },
+                  { icon: '🌟', name: '50 Referrals', unlocked: (userStats?.referrals || 0) >= 50 },
+                  { icon: '👑', name: 'Legendary', unlocked: user?.badgeTier === 'legendary' },
+                ].map((achievement, i) => (
+                  <div
+                    key={i}
+                    className={`p-3 rounded-xl text-center ${
+                      achievement.unlocked
+                        ? 'bg-neon-green/10 border border-neon-green/30'
+                        : 'bg-bg-tertiary opacity-50'
+                    }`}
+                  >
+                    <div className="text-2xl mb-1">{achievement.icon}</div>
+                    <div className="text-xs font-medium text-text-secondary">{achievement.name}</div>
+                  </div>
+                ))}
               </div>
+            </Card>
+          </div>
 
-              {/* Badge Details */}
-              <div className="flex-1 space-y-3">
-                <div>
-                  <div className="text-xs text-text-muted mb-1">Mint Address</div>
-                  <div className="text-sm font-mono text-text-secondary">GoLd...NFT123</div>
+          {/* Sidebar */}
+          <div className="space-y-4">
+            {/* Stealth Rating */}
+            <Card variant="default" padding="md">
+              <CardHeader>
+                <CardTitle>Stealth Rating</CardTitle>
+              </CardHeader>
+              <StealthRating score={user?.privacyScore || 0} />
+              <div className="mt-4 space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-text-muted">Hidden Balance</span>
+                  <span className="text-neon-green">+{Math.floor((userStats?.hiddenBalance || 0) * 10)} pts</span>
                 </div>
-                <div>
-                  <div className="text-xs text-text-muted mb-1">Purchased</div>
-                  <div className="text-sm text-text-secondary">January 15, 2026</div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-text-muted">Private Transfers</span>
+                  <span className="text-neon-green">+{(userStats?.privateTransfers || 0) * 5} pts</span>
                 </div>
-                <div>
-                  <div className="text-xs text-text-muted mb-1">Premium Expires</div>
-                  <div className="text-sm text-neon-green">January 15, 2027 (342 days)</div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="secondary" size="sm">Upgrade Badge</Button>
-                  <Button variant="ghost" size="sm">View on Magic Eden</Button>
+                <div className="flex justify-between text-xs">
+                  <span className="text-text-muted">Badge Boost</span>
+                  <span className="text-neon-green">
+                    {user?.badgeTier === 'bronze' ? '+25%' :
+                     user?.badgeTier === 'silver' ? '+50%' :
+                     user?.badgeTier === 'gold' ? '+75%' :
+                     user?.badgeTier === 'diamond' ? '+100%' :
+                     user?.badgeTier === 'legendary' ? '+150%' : '+0%'}
+                  </span>
                 </div>
               </div>
-            </div>
-          </Card>
+            </Card>
 
-          {/* Achievements */}
-          <Card variant="default" padding="md">
-            <CardHeader>
-              <CardTitle>Achievements</CardTitle>
-            </CardHeader>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[
-                { icon: "🔒", name: "First Deposit", unlocked: true },
-                { icon: "👻", name: "100 Transfers", unlocked: true },
-                { icon: "💎", name: "Diamond Hands", unlocked: true },
-                { icon: "🐋", name: "Whale Status", unlocked: true },
-                { icon: "🎯", name: "Perfect Score", unlocked: false },
-                { icon: "🏆", name: "Top 100", unlocked: false },
-                { icon: "🌟", name: "50 Referrals", unlocked: false },
-                { icon: "👑", name: "Legendary", unlocked: false },
-              ].map((achievement, i) => (
-                <div
-                  key={i}
-                  className={`p-3 rounded-xl text-center ${
-                    achievement.unlocked
-                      ? "bg-neon-green/10 border border-neon-green/30"
-                      : "bg-bg-tertiary opacity-50"
-                  }`}
-                >
-                  <div className="text-2xl mb-1">{achievement.icon}</div>
-                  <div className="text-xs font-medium text-text-secondary">{achievement.name}</div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* Virtual Cards Section */}
-          <Card variant="default" padding="md">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-neon-cyan" />
-                Your Virtual Cards
-              </CardTitle>
-              <Link href="/cards">
-                <Button variant="ghost" size="xs">
-                  Get New Card
+            {/* Leaderboard Position */}
+            <Card variant="glow" padding="md">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy className="w-4 h-4 text-yellow-400" />
+                  Leaderboard
+                </CardTitle>
+              </CardHeader>
+              <div className="flex flex-col items-center py-4">
+                <RankBadge
+                  rank={rank}
+                  totalUsers={stats?.leaderboard.totalUsers}
+                  percentile={stats?.leaderboard.percentile}
+                  size="lg"
+                />
+              </div>
+              <Link href="/intelligence">
+                <Button variant="ghost" size="sm" className="w-full">
+                  View Full Leaderboard
                   <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
               </Link>
-            </CardHeader>
+            </Card>
 
-            {/* Placeholder for issued cards - in production this would fetch from API */}
-            <VirtualCardsDisplay />
-          </Card>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-4">
-          {/* Stealth Rating */}
-          <Card variant="default" padding="md">
-            <CardHeader>
-              <CardTitle>Stealth Rating</CardTitle>
-            </CardHeader>
-            <StealthRating score={750} />
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-text-muted">Hidden Balance</span>
-                <span className="text-neon-green">+200 pts</span>
+            {/* Quick Actions */}
+            <Card variant="default" padding="md">
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+              </CardHeader>
+              <div className="space-y-2">
+                <Button variant="secondary" size="sm" fullWidth>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export Data
+                </Button>
+                {user?.badgeTier && user.badgeTier !== 'none' && (
+                  <Button variant="secondary" size="sm" fullWidth>
+                    <Download className="w-4 h-4 mr-2" />
+                    Download NFT
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" fullWidth>
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit Profile
+                </Button>
               </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-text-muted">Private Transfers</span>
-                <span className="text-neon-green">+150 pts</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-text-muted">Gold Badge Boost</span>
-                <span className="text-neon-green">+50%</span>
-              </div>
-            </div>
-          </Card>
+            </Card>
 
-          {/* Quick Actions */}
-          <Card variant="default" padding="md">
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <div className="space-y-2">
-              <Button variant="secondary" size="sm" fullWidth>Export Data</Button>
-              <Button variant="secondary" size="sm" fullWidth>Download NFT</Button>
-              <Button variant="ghost" size="sm" fullWidth>Edit Profile</Button>
-            </div>
-          </Card>
-
-          {/* Connected Wallets */}
-          <Card variant="default" padding="md">
-            <CardHeader>
-              <CardTitle>Connected</CardTitle>
-            </CardHeader>
-            <div className="space-y-2">
-              <div className="flex items-center gap-3 p-2 rounded-lg bg-bg-tertiary">
-                <span className="text-lg">👻</span>
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-text-primary">Phantom</div>
-                  <div className="text-xs text-text-muted">0x4f2...0e1f</div>
+            {/* Connected Wallets */}
+            <Card variant="default" padding="md">
+              <CardHeader>
+                <CardTitle>Connected</CardTitle>
+              </CardHeader>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-bg-tertiary">
+                  <span className="text-lg">👻</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-text-primary">Wallet</div>
+                    <div className="text-xs text-text-muted truncate">
+                      {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
+                    </div>
+                  </div>
+                  <Badge size="xs" variant="success">Primary</Badge>
                 </div>
-                <Badge size="xs" variant="success">Primary</Badge>
               </div>
-            </div>
-            <Button variant="ghost" size="sm" fullWidth className="mt-3">
-              + Add Wallet
-            </Button>
-          </Card>
+              <Button variant="ghost" size="sm" fullWidth className="mt-3">
+                + Add Wallet
+              </Button>
+            </Card>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Activity Tab */}
+      {activeTab === 'activity' && (
+        <Card variant="default" padding="md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              Activity History
+            </CardTitle>
+            <Button variant="ghost" size="xs" onClick={fetchActivities} disabled={activitiesLoading}>
+              <RefreshCw className={`w-3 h-3 mr-1 ${activitiesLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </CardHeader>
+          <ActivityTable
+            items={activities}
+            loading={activitiesLoading}
+            onRefresh={fetchActivities}
+            emptyMessage="No activity yet. Start using privacy features to earn points!"
+            maxItems={20}
+          />
+        </Card>
+      )}
+
+      {/* Cards Tab */}
+      {activeTab === 'cards' && (
+        <Card variant="default" padding="md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-neon-cyan" />
+              Your Virtual Cards
+            </CardTitle>
+            <Link href="/cards">
+              <Button variant="ghost" size="xs">
+                Get New Card
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <VirtualCardsDisplay />
+        </Card>
+      )}
     </div>
   );
 }

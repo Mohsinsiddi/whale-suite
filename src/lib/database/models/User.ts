@@ -30,6 +30,12 @@ export interface IUser extends Document {
   referralCode: string;
   referredBy?: string;
   settings: IUserSettings;
+  // Points & Leaderboard
+  points: number;
+  streak: number;
+  lastActiveDate?: Date;
+  rank?: number;
+  // Timestamps
   createdAt: Date;
   updatedAt: Date;
   lastLoginAt: Date;
@@ -84,6 +90,12 @@ const UserSchema = new Schema<IUser>({
   },
   referredBy: { type: String },
   settings: { type: UserSettingsSchema, default: () => ({}) },
+  // Points & Leaderboard
+  points: { type: Number, default: 0, index: true },
+  streak: { type: Number, default: 0 },
+  lastActiveDate: { type: Date },
+  rank: { type: Number },
+  // Timestamps
   lastLoginAt: { type: Date, default: Date.now },
 }, {
   timestamps: true,

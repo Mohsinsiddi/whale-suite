@@ -6,11 +6,12 @@ import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import { InfoTooltip } from "@/components/ui/Tooltip";
 import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
-import { useSwap } from "@/hooks";
+import { useSwap, usePoints } from "@/hooks";
 import { useWalletBalances } from "@/hooks/useHelius";
 import { useAuth } from "@/lib/privy/hooks";
 import { TOKEN_MINTS } from "@/lib/privacy-sdks";
 import { useWallet } from "@/store";
+import { PointsEarned } from "@/components/leaderboard";
 
 interface Token {
   symbol: string;
@@ -78,6 +79,7 @@ export default function SwapPage() {
     result: swapResult,
     reset: resetSwap,
   } = useSwap();
+  const { awardPoints } = usePoints();
 
   const [fromToken, setFromToken] = useState(DEFAULT_TOKENS[0]);
   const [toToken, setToToken] = useState(DEFAULT_TOKENS[1]);
@@ -93,6 +95,7 @@ export default function SwapPage() {
 
   // Store last swap for success modal
   const [lastSwap, setLastSwap] = useState<{ fromAmount: string; toAmount: string; fromSymbol: string; toSymbol: string } | null>(null);
+  const [pointsEarned, setPointsEarned] = useState<number | null>(null);
 
   // Build token list with balances
   const tokens = useMemo(() => {
@@ -231,6 +234,21 @@ export default function SwapPage() {
       // Trigger header balance refresh
       triggerBalanceRefresh();
 
+      // Award points for the swap
+      try {
+        const pointsResult = await awardPoints('jupiter_swap', {
+          txSignature: result.signature,
+          fromToken: fromToken.symbol,
+          toToken: toToken.symbol,
+          amount: parseFloat(fromAmount),
+        });
+        if (pointsResult) {
+          setPointsEarned(pointsResult.totalAwarded);
+        }
+      } catch (err) {
+        console.error('Failed to award points:', err);
+      }
+
       // Clear inputs
       setFromAmount("");
       setToAmount("");
@@ -242,6 +260,7 @@ export default function SwapPage() {
 
   const handleSuccessClose = () => {
     setShowSuccessModal(false);
+    setPointsEarned(null);
     resetSwap();
   };
 
@@ -629,6 +648,7 @@ export default function SwapPage() {
         title="Jupiter Swap Complete!"
         message={lastSwap ? `Swapped ${lastSwap.fromAmount} ${lastSwap.fromSymbol} for ${lastSwap.toAmount} ${lastSwap.toSymbol}` : "Swap completed!"}
         txSignature={swapResult?.signature || ""}
+        actions={pointsEarned ? <PointsEarned points={pointsEarned} action="Swap" /> : undefined}
       />
     </div>
   );
