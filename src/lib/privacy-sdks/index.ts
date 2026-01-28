@@ -46,3 +46,13 @@ export {
   type SettlementCriteria,
   type SettlementData,
 } from './pnp';
+export {
+  starPayService,
+  StarPayService,
+  type CardType,
+  type OrderStatus,
+  type PriceQuote,
+  type CardOrder,
+  type OrderStatusResponse,
+  type AccountInfo,
+} from './starpay';

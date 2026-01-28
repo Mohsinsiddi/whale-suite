@@ -8,15 +8,34 @@ export type TransactionType =
   | 'jupiter_swap'
   | 'badge_purchase'
   | 'subscription_payment'
-  | 'referral_payout';
+  | 'referral_payout'
+  | 'card_order';
+
+export type NetworkType = 'mainnet' | 'devnet';
+
+// Category mapping for UI grouping
+export const TRANSACTION_CATEGORIES = {
+  privacy_deposit: 'privacy-cash',
+  privacy_withdraw: 'privacy-cash',
+  shadow_transfer: 'shadowwire',
+  pnp_bet: 'pnp',
+  jupiter_swap: 'swap',
+  badge_purchase: 'badge',
+  subscription_payment: 'subscription',
+  referral_payout: 'referral',
+  card_order: 'cards',
+} as const;
+
+export type TransactionCategory = typeof TRANSACTION_CATEGORIES[TransactionType];
 
 export type TransactionStatus = 'pending' | 'confirmed' | 'failed';
 
 export type SdkType = 'privacy-cash' | 'shadow-wire' | 'pnp' | 'jupiter';
 
 export interface ITransaction extends Document {
-  userId: mongoose.Types.ObjectId;
+  userId?: mongoose.Types.ObjectId;
   wallet: string;
+  network: NetworkType;
   type: TransactionType;
   amount: number;
   token?: string;
@@ -36,12 +55,18 @@ const TransactionSchema = new Schema<ITransaction>({
   userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
     index: true
   },
   wallet: {
     type: String,
     required: true,
+    index: true
+  },
+  network: {
+    type: String,
+    enum: ['mainnet', 'devnet'],
+    required: true,
+    default: 'mainnet',
     index: true
   },
   type: {
@@ -54,7 +79,8 @@ const TransactionSchema = new Schema<ITransaction>({
       'jupiter_swap',
       'badge_purchase',
       'subscription_payment',
-      'referral_payout'
+      'referral_payout',
+      'card_order'
     ],
     required: true,
     index: true
@@ -87,8 +113,9 @@ const TransactionSchema = new Schema<ITransaction>({
 });
 
 // Compound indexes for common queries
-TransactionSchema.index({ userId: 1, createdAt: -1 });
-TransactionSchema.index({ wallet: 1, type: 1, createdAt: -1 });
+TransactionSchema.index({ userId: 1, network: 1, createdAt: -1 });
+TransactionSchema.index({ wallet: 1, network: 1, type: 1, createdAt: -1 });
+TransactionSchema.index({ wallet: 1, network: 1, createdAt: -1 });
 
 const Transaction: Model<ITransaction> = mongoose.models.Transaction || mongoose.model<ITransaction>('Transaction', TransactionSchema);
 

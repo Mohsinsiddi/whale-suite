@@ -1,3 +1,8 @@
+// Auth Hooks
+export { useAuth, useRequireAuth } from './useAuth';
+export type { AuthState } from './useAuth';
+export { useAuthenticatedFetch } from './useAuthenticatedFetch';
+
 // Network Hooks (Global network state)
 export { useNetwork, useConnection, useFeatureAvailable } from './useNetwork';
 export type { NetworkType, FeatureKey } from './useNetwork';
@@ -30,3 +35,18 @@ export { useHeliusService } from './useHeliusService';
 export { useJupiterService, TOKEN_MINTS } from './useJupiterService';
 
 // PNP uses dynamic imports - import directly: import { usePNP } from '@/hooks/usePNP'
+
+// StarPay Virtual Cards
+export { useStarPay } from './useStarPay';
+export type {
+  CardType,
+  PriceResponse,
+  CardOrder,
+  OrderStatusResponse,
+  AccountInfo,
+  OrderStatus,
+} from './useStarPay';
+
+// Activity Tracking
+export { useActivity } from './useActivity';
+export type { ActivityRecord, UseActivityReturn } from './useActivity';

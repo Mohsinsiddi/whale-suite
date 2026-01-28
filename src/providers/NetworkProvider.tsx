@@ -31,6 +31,9 @@ export const FEATURE_NETWORK_SUPPORT = {
   // Available on both networks
   "standard-transfer": { mainnet: true, devnet: true, label: "Standard Transfer" },
 
+  // StarPay Virtual Cards (mainnet only)
+  "virtual-cards": { mainnet: true, devnet: false, label: "Virtual Cards" },
+
   // Coming soon - will be enabled as SDKs are integrated
   // "arcium": { mainnet: false, devnet: true, label: "Arcium (Coming Soon)" },
   // "inco": { mainnet: false, devnet: true, label: "Inco Network (Coming Soon)" },
