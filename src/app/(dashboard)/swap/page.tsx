@@ -9,6 +9,7 @@ import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
 import { useSwap, usePoints } from "@/hooks";
 import { useWalletBalances } from "@/hooks/useHelius";
 import { useAuth } from "@/lib/privy/hooks";
+import { useNetwork } from "@/hooks/useNetwork";
 import { TOKEN_MINTS } from "@/lib/privacy-sdks";
 import { useWallet } from "@/store";
 import { PointsEarned } from "@/components/leaderboard";
@@ -80,6 +81,7 @@ export default function SwapPage() {
     reset: resetSwap,
   } = useSwap();
   const { awardPoints } = usePoints();
+  const { network } = useNetwork();
 
   const [fromToken, setFromToken] = useState(DEFAULT_TOKENS[0]);
   const [toToken, setToToken] = useState(DEFAULT_TOKENS[1]);
@@ -241,6 +243,7 @@ export default function SwapPage() {
           fromToken: fromToken.symbol,
           toToken: toToken.symbol,
           amount: parseFloat(fromAmount),
+          network,
         });
         if (pointsResult) {
           setPointsEarned(pointsResult.totalAwarded);

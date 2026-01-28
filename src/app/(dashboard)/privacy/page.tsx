@@ -8,6 +8,7 @@ import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
 import { usePrivacyCash, usePoints } from "@/hooks";
 import { useAuth } from "@/lib/privy/hooks";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { useNetwork } from "@/hooks/useNetwork";
 import { PointsEarned } from "@/components/leaderboard";
 
 type TabType = "deposit" | "withdraw";
@@ -30,6 +31,7 @@ export default function PrivacyCashPage() {
     fees,
   } = usePrivacyCash();
   const { awardPoints } = usePoints();
+  const { network } = useNetwork();
 
   const [initLoading, setInitLoading] = useState(false);
 
@@ -101,6 +103,7 @@ export default function PrivacyCashPage() {
         awardPoints(action, {
           txSignature: result.signature,
           amount: operationAmount,
+          network,
         }).then((pointsResult) => {
           if (pointsResult) {
             setPointsEarned(pointsResult.totalAwarded);
@@ -114,7 +117,7 @@ export default function PrivacyCashPage() {
       }
       setPendingOperationType(null);
     }
-  }, [result, pendingOperationType, amount, awardPoints]);
+  }, [result, pendingOperationType, amount, awardPoints, network]);
 
   const handleAmountChange = (value: string) => {
     // Only allow valid number input

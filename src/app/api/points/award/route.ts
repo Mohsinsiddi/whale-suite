@@ -1,8 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrivyClient } from '@privy-io/server-auth';
 import connectDB from '@/lib/database/mongodb';
-import { User, PointsHistory, calculatePoints, POINT_VALUES } from '@/lib/database/models';
-import type { PointAction, BadgeTier } from '@/lib/database/models';
+import { User, PointsHistory, Transaction, calculatePoints, POINT_VALUES } from '@/lib/database/models';
+import type { PointAction, BadgeTier, TransactionType, SdkType } from '@/lib/database/models';
+
+// Map PointAction to TransactionType (only for on-chain activities)
+const ACTION_TO_TRANSACTION: Partial<Record<PointAction, TransactionType>> = {
+  privacy_deposit: 'privacy_deposit',
+  privacy_withdraw: 'privacy_withdraw',
+  shadow_transfer: 'shadow_transfer',
+  jupiter_swap: 'jupiter_swap',
+  pnp_bet: 'pnp_bet',
+  card_order: 'card_order',
+};
+
+// Map action to SDK type
+const ACTION_TO_SDK: Partial<Record<PointAction, SdkType>> = {
+  privacy_deposit: 'privacy-cash',
+  privacy_withdraw: 'privacy-cash',
+  shadow_transfer: 'shadow-wire',
+  jupiter_swap: 'jupiter',
+  pnp_bet: 'pnp',
+};
 
 const privyClient = new PrivyClient(
   process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
@@ -124,6 +143,40 @@ export async function POST(request: NextRequest) {
         streakDay: user.streak,
       },
     });
+
+    // Create a Transaction record for activity tracking (only for on-chain activities)
+    // Map standard_transfer to shadow_transfer for transaction type
+    const txAction = action === 'standard_transfer' ? 'shadow_transfer' : action;
+    const transactionType = ACTION_TO_TRANSACTION[txAction as PointAction];
+
+    if (transactionType && metadata.txSignature) {
+      try {
+        await Transaction.create({
+          userId: user._id,
+          wallet,
+          network: metadata.network || 'mainnet',
+          type: transactionType,
+          amount: metadata.amount || 0,
+          token: metadata.token || 'SOL',
+          signature: metadata.txSignature,
+          status: 'confirmed',
+          sdk: ACTION_TO_SDK[txAction as PointAction],
+          metadata: {
+            ...metadata,
+            originalAction: action,
+            pointsAwarded: totalPoints + streakBonus,
+            streakDay: user.streak,
+          },
+        });
+      } catch (txError: unknown) {
+        // Don't fail if transaction already exists (duplicate signature)
+        if (txError instanceof Error && txError.message?.includes('duplicate key')) {
+          console.log('Transaction already exists, skipping:', metadata.txSignature);
+        } else {
+          console.error('Failed to create transaction record:', txError);
+        }
+      }
+    }
 
     // Update user points
     const finalPoints = totalPoints + streakBonus;

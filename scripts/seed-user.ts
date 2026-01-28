@@ -173,9 +173,15 @@ function logTable(title: string, data: Record<string, unknown>[]) {
 async function dropAllCollections() {
   log('🗑️', 'Dropping all collections...');
 
-  const collections = await mongoose.connection.db.listCollections().toArray();
+  const db = mongoose.connection.db;
+  if (!db) {
+    log('⚠️', 'Database not connected, skipping collection drop');
+    return;
+  }
+
+  const collections = await db.listCollections().toArray();
   for (const collection of collections) {
-    await mongoose.connection.db.dropCollection(collection.name);
+    await db.dropCollection(collection.name);
     log('  ❌', `Dropped ${collection.name}`);
   }
 

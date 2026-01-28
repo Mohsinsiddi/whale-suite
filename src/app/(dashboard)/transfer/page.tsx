@@ -9,6 +9,7 @@ import Tabs, { TabPanel } from "@/components/ui/Tabs";
 import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
 import { useTransfer, useWalletBalance, useShadowWire, usePoints } from "@/hooks";
 import { useAuth } from "@/lib/privy/hooks";
+import { useNetwork } from "@/hooks/useNetwork";
 import { TransferType } from "@/lib/privacy-sdks";
 import { PointsEarned } from "@/components/leaderboard";
 
@@ -44,6 +45,7 @@ export default function TransferPage() {
     reset: resetShadowWire,
   } = useShadowWire();
   const { awardPoints } = usePoints();
+  const { network } = useNetwork();
 
   // Minimum amounts
   const MIN_DEPOSIT_AMOUNT = shadowWireMinAmount('SOL'); // 0.1 SOL
@@ -295,6 +297,7 @@ export default function TransferPage() {
             txSignature: result.signature,
             transferType: privateTransferType,
             amount: parseFloat(amount),
+            network,
           });
           if (pointsResult) {
             setPointsEarned(pointsResult.totalAwarded);
@@ -328,6 +331,7 @@ export default function TransferPage() {
           const pointsResult = await awardPoints('standard_transfer', {
             txSignature: result.signature,
             amount: parseFloat(amount),
+            network,
           });
           if (pointsResult) {
             setPointsEarned(pointsResult.totalAwarded);
@@ -410,6 +414,7 @@ export default function TransferPage() {
         const pointsResult = await awardPoints('privacy_deposit', {
           txSignature: result.signature,
           amount: parseFloat(depositAmount),
+          network,
         });
         if (pointsResult) {
           setPointsEarned(pointsResult.totalAwarded);
@@ -476,6 +481,7 @@ export default function TransferPage() {
         const pointsResult = await awardPoints('privacy_withdraw', {
           txSignature: result.signature,
           amount: parseFloat(withdrawAmount),
+          network,
         });
         if (pointsResult) {
           setPointsEarned(pointsResult.totalAwarded);
