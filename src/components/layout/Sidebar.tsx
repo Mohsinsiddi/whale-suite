@@ -580,46 +580,25 @@ function MobileSidebarContent({
         </button>
       </div>
 
-      {/* Balance Card - Mobile */}
-      <div className="px-4 pb-3">
-        <div className="p-3 rounded-xl bg-bg-tertiary/50 border border-border-primary">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">Balances</span>
-          </div>
-
-          {/* SOL Balance */}
-          <div className="flex items-center justify-between py-2">
+      {/* Balance Card - Mobile (Compact) */}
+      <div className="px-4 pb-2">
+        <div className="px-3 py-2 rounded-lg bg-bg-tertiary/50 border border-border-primary">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#9945FF] to-[#14F195] flex items-center justify-center">
-                <span className="text-xs">◎</span>
+              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#9945FF] to-[#14F195] flex items-center justify-center">
+                <span className="text-[10px]">◎</span>
               </div>
-              <span className="text-sm font-medium text-text-primary">SOL</span>
+              {balanceLoading ? (
+                <span className="text-xs font-semibold text-text-muted animate-pulse">...</span>
+              ) : (
+                <span className="text-xs font-bold text-text-primary">{balance.toFixed(4)} SOL</span>
+              )}
+              {hiddenBalance > 0 && (
+                <span className="text-[10px] text-neon-cyan">+{hiddenBalance.toFixed(2)} hidden</span>
+              )}
             </div>
-            {balanceLoading ? (
-              <span className="text-sm font-semibold text-text-muted animate-pulse">...</span>
-            ) : (
-              <span className="text-sm font-bold text-text-primary">{balance.toFixed(4)}</span>
-            )}
-          </div>
-
-          {/* Hidden Balance */}
-          {hiddenBalance > 0 && (
-            <div className="flex items-center justify-between py-2 border-t border-border-primary/50">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-neon-cyan/20 flex items-center justify-center">
-                  <EyeOffIcon className="w-3.5 h-3.5 text-neon-cyan" />
-                </div>
-                <span className="text-sm font-medium text-neon-cyan">Hidden</span>
-              </div>
-              <span className="text-sm font-bold text-neon-cyan">{hiddenBalance.toFixed(4)}</span>
-            </div>
-          )}
-
-          {/* Total USD */}
-          <div className="flex items-center justify-between pt-2 mt-2 border-t border-border-primary/50">
-            <span className="text-xs text-text-muted">Total Value</span>
-            <span className="text-sm font-bold text-neon-green">
-              ${((balance + hiddenBalance) * 230).toFixed(2)}
+            <span className="text-xs font-bold text-neon-green">
+              ${((balance + hiddenBalance) * 230).toFixed(0)}
             </span>
           </div>
         </div>

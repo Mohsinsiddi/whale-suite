@@ -15,6 +15,76 @@ import { pnpService, PNPMarket, UserPosition, TradeParams, TradeResult, Transact
 
 export type MarketCategory = "all" | "v2" | "p2p";
 
+// Demo markets for when API returns empty
+const DEMO_MARKETS: PNPMarket[] = [
+  {
+    id: "demo-1",
+    publicKey: "Demo1111111111111111111111111111111111111111",
+    question: "Will SOL reach $300 by end of Q1 2026?",
+    marketType: "v2",
+    marketSource: "general",
+    yesPrice: 0.65,
+    noPrice: 0.35,
+    yesMultiplier: 1.54,
+    noMultiplier: 2.86,
+    yesTokenMint: "Demo1111111111111111111111111111111111111111",
+    noTokenMint: "Demo2222222222222222222222222222222222222222",
+    collateralToken: "USDC",
+    marketReserves: 125000,
+    volume: 125000,
+    liquidity: 125000,
+    endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    resolved: false,
+    resolvable: false,
+    winningToken: null,
+    creator: "Demo3333333333333333333333333333333333333333",
+  },
+  {
+    id: "demo-2",
+    publicKey: "Demo4444444444444444444444444444444444444444",
+    question: "Will Bitcoin hit $150K in 2026?",
+    marketType: "v2",
+    marketSource: "general",
+    yesPrice: 0.45,
+    noPrice: 0.55,
+    yesMultiplier: 2.22,
+    noMultiplier: 1.82,
+    yesTokenMint: "Demo4444444444444444444444444444444444444444",
+    noTokenMint: "Demo5555555555555555555555555555555555555555",
+    collateralToken: "USDC",
+    marketReserves: 89000,
+    volume: 89000,
+    liquidity: 89000,
+    endDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+    resolved: false,
+    resolvable: false,
+    winningToken: null,
+    creator: "Demo6666666666666666666666666666666666666666",
+  },
+  {
+    id: "demo-3",
+    publicKey: "Demo7777777777777777777777777777777777777777",
+    question: "Will Ethereum flip Bitcoin market cap by 2027?",
+    marketType: "v2",
+    marketSource: "general",
+    yesPrice: 0.22,
+    noPrice: 0.78,
+    yesMultiplier: 4.55,
+    noMultiplier: 1.28,
+    yesTokenMint: "Demo7777777777777777777777777777777777777777",
+    noTokenMint: "Demo8888888888888888888888888888888888888888",
+    collateralToken: "USDC",
+    marketReserves: 56000,
+    volume: 56000,
+    liquidity: 56000,
+    endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+    resolved: false,
+    resolvable: false,
+    winningToken: null,
+    creator: "Demo9999999999999999999999999999999999999999",
+  },
+];
+
 interface MarketStats {
   v2Count: number;
   p2pCount: number;
@@ -209,6 +279,13 @@ export function usePNP(): UsePNPReturn {
         // Fetch ALL markets from SDK (includes creator info)
         console.log("[usePNP] Fetching all markets from SDK...");
         allFetched = await pnpService.fetchAllMarketsFromSDK();
+
+        // Use demo markets if API returns empty
+        if (allFetched.length === 0) {
+          console.log("[usePNP] No markets from API, using demo markets");
+          allFetched = DEMO_MARKETS;
+        }
+
         setAllMarketsCache(allFetched);
         console.log(`[usePNP] Cached ${allFetched.length} markets`);
       }
