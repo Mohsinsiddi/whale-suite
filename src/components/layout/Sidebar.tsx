@@ -223,7 +223,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-2 overflow-y-auto scrollbar-thin scrollbar-thumb-border-primary scrollbar-track-transparent">
+        <nav className="flex-1 px-3 py-2 overflow-y-auto overflow-x-visible scrollbar-thin scrollbar-thumb-border-primary scrollbar-track-transparent">
           {navGroups.map((group, groupIndex) => (
             <div key={group.title} className={groupIndex > 0 ? "mt-4" : ""}>
               {/* Section Label */}
@@ -268,7 +268,6 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                       isActive={pathname === item.href}
                       isDisabled={!isAvailable}
                       isCollapsed={isCollapsed}
-                      network={network}
                     />
                   );
                 })}
@@ -403,7 +402,6 @@ function UserCardWithTooltip({
   userNumber,
   badgeTier,
   shortWallet,
-  privacyScore,
 }: {
   isCollapsed: boolean;
   userNumber: number | null;
@@ -434,66 +432,27 @@ function UserCardWithTooltip({
   if (isCollapsed) {
     return (
       <div
-        className="relative flex justify-center"
+        className="relative flex justify-center group"
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
       >
         {/* Collapsed Avatar */}
-        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center text-bg-primary font-bold text-lg shadow-lg shadow-neon-green/20 cursor-pointer hover:scale-105 transition-transform`}>
+        <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center text-bg-primary font-bold text-base shadow-md cursor-pointer hover:scale-105 transition-transform`}>
           {initial}
         </div>
 
-        {/* Tooltip */}
-        <AnimatePresence>
-          {showTooltip && (
-            <motion.div
-              initial={{ opacity: 0, x: -10, scale: 0.95 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -10, scale: 0.95 }}
-              transition={{ duration: 0.15 }}
-              className="absolute left-full ml-3 top-0 z-50 w-56"
-            >
-              <div className="bg-bg-elevated border border-border-primary rounded-xl shadow-xl p-4">
-                {/* User Info */}
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${color} flex items-center justify-center text-bg-primary font-bold text-sm`}>
-                    {initial}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-text-primary">
-                      {userNumber ? `Whale #${userNumber}` : 'Loading...'}
-                    </p>
-                    <p className="text-xs text-text-muted font-mono">{shortWallet}</p>
-                  </div>
-                </div>
-
-                {/* Badge */}
-                {badgeTier && badgeTier !== 'none' && (
-                  <div className="mb-3">
-                    <TierBadge tier={badgeTier as "bronze" | "silver" | "gold" | "diamond" | "legendary"} size="sm" />
-                  </div>
-                )}
-
-                {/* Stealth Rating */}
-                <div className="pt-3 border-t border-border-secondary">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] text-text-muted uppercase tracking-wider">Stealth Rating</span>
-                    <span className="text-xs font-bold text-neon-green">{privacyScore}/1000</span>
-                  </div>
-                  <div className="h-1.5 bg-bg-primary rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-neon-green to-neon-cyan rounded-full"
-                      style={{ width: `${(privacyScore / 1000) * 100}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Arrow */}
-                <div className="absolute left-0 top-4 -translate-x-1.5 w-3 h-3 bg-bg-elevated border-l border-b border-border-primary rotate-45" />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Simple Tooltip */}
+        {showTooltip && (
+          <div className="fixed left-[92px] z-[100] bg-bg-elevated border border-border-primary rounded-lg shadow-xl py-2 px-3 whitespace-nowrap">
+            <p className="text-sm font-medium text-text-primary">
+              {userNumber ? `Whale #${userNumber}` : 'Loading...'}
+            </p>
+            <p className="text-xs text-text-muted font-mono">{shortWallet}</p>
+            {badgeTier && badgeTier !== 'none' && (
+              <p className="text-xs text-neon-green mt-1 capitalize">{badgeTier} Badge</p>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -706,7 +665,7 @@ function MobileSidebarLink({
   );
 }
 
-// Desktop Sidebar Link with enhanced tooltip on collapse
+// Desktop Sidebar Link with tooltip on collapse
 function DesktopSidebarLink({
   href,
   icon,
@@ -716,7 +675,6 @@ function DesktopSidebarLink({
   isActive,
   isDisabled,
   isCollapsed,
-  network,
 }: {
   href: string;
   icon: ReactNode;
@@ -726,7 +684,6 @@ function DesktopSidebarLink({
   isActive?: boolean;
   isDisabled?: boolean;
   isCollapsed?: boolean;
-  network?: 'mainnet' | 'devnet';
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
 
@@ -742,40 +699,25 @@ function DesktopSidebarLink({
   if (isDisabled) {
     return (
       <div
-        className={`group flex items-center gap-3 rounded-xl text-sm font-medium relative text-text-muted/50 opacity-60 cursor-not-allowed ${
-          isCollapsed ? 'justify-center px-2 py-3' : 'px-3 py-2.5'
+        className={`group flex items-center gap-3 rounded-lg text-sm font-medium text-text-muted/50 opacity-60 cursor-not-allowed ${
+          isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2'
         }`}
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
       >
-        <span className={`text-text-muted/40 flex-shrink-0 ${isCollapsed ? 'w-5 h-5' : 'w-4 h-4'}`}>{icon}</span>
+        <span className="text-text-muted/40 flex-shrink-0">{icon}</span>
         {!isCollapsed && (
           <>
             <span className="flex-1 line-through">{label}</span>
             {badge && <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-bg-tertiary/50 text-text-muted/50">{badge}</span>}
           </>
         )}
-        {/* Enhanced Tooltip for disabled */}
-        <AnimatePresence>
-          {isCollapsed && showTooltip && (
-            <motion.div
-              initial={{ opacity: 0, x: -8, scale: 0.95 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -8, scale: 0.95 }}
-              transition={{ duration: 0.15 }}
-              className="absolute left-full ml-3 z-50"
-            >
-              <div className="relative bg-bg-elevated border border-border-primary rounded-xl shadow-xl px-4 py-3 min-w-[160px]">
-                <p className="text-sm font-medium text-text-muted line-through">{label}</p>
-                <p className="text-[10px] text-error mt-1">
-                  {network === 'mainnet' ? 'Devnet' : 'Mainnet'} only
-                </p>
-                {/* Arrow */}
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1.5 w-3 h-3 bg-bg-elevated border-l border-b border-border-primary rotate-45" />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Simple Tooltip */}
+        {isCollapsed && showTooltip && (
+          <div className="fixed left-[92px] z-[100] bg-bg-elevated border border-border-primary rounded-lg shadow-lg py-1.5 px-3 whitespace-nowrap">
+            <span className="text-xs text-text-muted line-through">{label}</span>
+          </div>
+        )}
       </div>
     );
   }
@@ -783,17 +725,17 @@ function DesktopSidebarLink({
   return (
     <Link
       href={href}
-      className={`group flex items-center gap-3 rounded-xl text-sm font-medium relative transition-all ${
-        isCollapsed ? 'justify-center px-2 py-3' : 'px-3 py-2.5'
+      className={`group flex items-center gap-3 rounded-lg text-sm font-medium transition-all ${
+        isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2'
       } ${
         isActive
-          ? "bg-neon-green/10 text-neon-green shadow-[0_0_15px_rgba(0,255,136,0.15)] border border-neon-green/30"
-          : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50 border border-transparent"
+          ? "bg-neon-green/10 text-neon-green"
+          : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50"
       }`}
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
     >
-      <span className={`flex-shrink-0 transition-all ${isCollapsed ? 'w-5 h-5' : 'w-4 h-4'} ${isActive ? "text-neon-green" : "text-text-muted group-hover:text-neon-green"}`}>
+      <span className={`flex-shrink-0 transition-colors ${isActive ? "text-neon-green" : "text-text-muted group-hover:text-neon-green"}`}>
         {icon}
       </span>
       <AnimatePresence mode="wait">
@@ -815,41 +757,24 @@ function DesktopSidebarLink({
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            className={`px-1.5 py-0.5 text-[9px] font-bold rounded-md flex-shrink-0 ${getBadgeClasses(badgeColor)}`}
+            className={`px-1.5 py-0.5 text-[9px] font-bold rounded flex-shrink-0 ${getBadgeClasses(badgeColor)}`}
           >
             {badge}
           </motion.span>
         )}
       </AnimatePresence>
 
-      {/* Enhanced Tooltip on collapse */}
-      <AnimatePresence>
-        {isCollapsed && showTooltip && (
-          <motion.div
-            initial={{ opacity: 0, x: -8, scale: 0.95 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: -8, scale: 0.95 }}
-            transition={{ duration: 0.15 }}
-            className="absolute left-full ml-3 z-50"
-          >
-            <div className="relative bg-bg-elevated border border-border-primary rounded-xl shadow-xl px-4 py-3 min-w-[160px]">
-              <div className="flex items-center gap-2">
-                <p className={`text-sm font-semibold ${isActive ? 'text-neon-green' : 'text-text-primary'}`}>{label}</p>
-                {badge && (
-                  <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded-md ${getBadgeClasses(badgeColor)}`}>
-                    {badge}
-                  </span>
-                )}
-              </div>
-              {isActive && (
-                <p className="text-[10px] text-neon-green/70 mt-1">Currently viewing</p>
-              )}
-              {/* Arrow */}
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1.5 w-3 h-3 bg-bg-elevated border-l border-b border-border-primary rotate-45" />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Simple Tooltip on collapse */}
+      {isCollapsed && showTooltip && (
+        <div className="fixed left-[92px] z-[100] bg-bg-elevated border border-border-primary rounded-lg shadow-lg py-1.5 px-3 whitespace-nowrap flex items-center gap-2">
+          <span className={`text-xs font-medium ${isActive ? 'text-neon-green' : 'text-text-primary'}`}>{label}</span>
+          {badge && (
+            <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${getBadgeClasses(badgeColor)}`}>
+              {badge}
+            </span>
+          )}
+        </div>
+      )}
     </Link>
   );
 }

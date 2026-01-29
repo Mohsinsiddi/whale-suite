@@ -54,8 +54,7 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-bg-primary/80 backdrop-blur-xl border-b border-border-primary">
-      <div className="max-w-7xl mx-auto px-4 lg:pl-64">
-        <div className="flex items-center justify-between h-14">
+      <div className="flex items-center justify-between h-14 px-4">
           {/* Left Side - Menu Button (mobile) + Logo */}
           <div className="flex items-center gap-3">
             {variant === "app" && (
@@ -195,12 +194,11 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
             )}
           </div>
         </div>
-      </div>
 
       {/* Mobile Menu (Landing) */}
       {mobileMenuOpen && variant === "landing" && (
         <div className="md:hidden border-t border-border-primary bg-bg-primary/95 backdrop-blur-xl">
-          <nav className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-2">
+          <nav className="px-4 py-4 flex flex-col gap-2">
             <Link
               href="#features"
               className="px-3 py-2 text-sm text-text-secondary hover:text-neon-green transition-colors"
@@ -214,13 +212,6 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
               onClick={() => setMobileMenuOpen(false)}
             >
               Pricing
-            </Link>
-            <Link
-              href="/docs"
-              className="px-3 py-2 text-sm text-text-secondary hover:text-neon-green transition-colors"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Docs
             </Link>
           </nav>
         </div>
