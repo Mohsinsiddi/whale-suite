@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Whale Suite - Responsiveness Test Suite</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0e14;
+      color: #e8f4f8;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #00ff88;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: #6a7f8a;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #111820;
+      border-radius: 12px;
+      border: 1px solid rgba(0, 255, 136, 0.2);
+    }
+
+    .controls button {
+      padding: 10px 20px;
+      background: transparent;
+      border: 2px solid #00ff88;
+      color: #00ff88;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .controls button:hover,
+    .controls button.active {
+      background: #00ff88;
+      color: #0a0e14;
+    }
+
+    .page-select {
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    .page-select select {
+      padding: 12px 24px;
+      background: #111820;
+      border: 2px solid #00ff88;
+      color: #e8f4f8;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .page-select select:focus {
+      outline: none;
+      box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+    }
+
+    .preview-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 30px;
+    }
+
+    .preview-frame {
+      background: #111820;
+      border: 2px solid #00ff88;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      box-shadow: 0 0 30px rgba(0, 255, 136, 0.2);
+    }
+
+    .preview-frame iframe {
+      border: none;
+      background: #0a0e14;
+    }
+
+    .size-indicator {
+      text-align: center;
+      margin-bottom: 20px;
+      font-family: monospace;
+      color: #00d4ff;
+      font-size: 14px;
+    }
+
+    .checklist {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 30px;
+      background: #111820;
+      border-radius: 12px;
+      border: 1px solid rgba(0, 255, 136, 0.2);
+    }
+
+    .checklist h2 {
+      color: #00ff88;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+    }
+
+    .checklist-section {
+      margin-bottom: 25px;
+    }
+
+    .checklist-section h3 {
+      color: #00d4ff;
+      margin-bottom: 12px;
+      font-size: 16px;
+    }
+
+    .checklist-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      color: #a0b8c0;
+      font-size: 14px;
+    }
+
+    .checklist-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #00ff88;
+      cursor: pointer;
+    }
+
+    .checklist-item.checked {
+      color: #00ff88;
+      text-decoration: line-through;
+      opacity: 0.7;
+    }
+
+    .all-viewports {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-top: 40px;
+    }
+
+    .viewport-preview {
+      background: #111820;
+      border-radius: 12px;
+      padding: 15px;
+      border: 1px solid rgba(0, 255, 136, 0.2);
+    }
+
+    .viewport-preview h4 {
+      color: #00d4ff;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .viewport-preview iframe {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      background: #0a0e14;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+
+    .status-pass { background: rgba(0, 255, 136, 0.2); color: #00ff88; }
+    .status-fail { background: rgba(255, 68, 68, 0.2); color: #ff4444; }
+    .status-warn { background: rgba(255, 170, 0, 0.2); color: #ffaa00; }
+
+    .results-summary {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      margin: 30px 0;
+      padding: 20px;
+      background: #111820;
+      border-radius: 12px;
+    }
+
+    .result-stat {
+      text-align: center;
+    }
+
+    .result-stat .number {
+      font-size: 32px;
+      font-weight: bold;
+    }
+
+    .result-stat .label {
+      font-size: 12px;
+      color: #6a7f8a;
+      margin-top: 5px;
+    }
+
+    .result-stat.pass .number { color: #00ff88; }
+    .result-stat.fail .number { color: #ff4444; }
+    .result-stat.pending .number { color: #ffaa00; }
+  </style>
+</head>
+<body>
+  <h1>Whale Suite Responsiveness Test Suite</h1>
+  <p class="subtitle">Test all pages across different viewport sizes</p>
+
+  <!-- Viewport Size Controls -->
+  <div class="controls">
+    <button onclick="setSize(375, 667)" data-size="mobile">iPhone SE (375x667)</button>
+    <button onclick="setSize(428, 926)" data-size="mobile-lg">iPhone 14 Pro (428x926)</button>
+    <button onclick="setSize(768, 1024)" data-size="tablet">iPad (768x1024)</button>
+    <button onclick="setSize(1024, 768)" data-size="desktop">Laptop (1024x768)</button>
+    <button onclick="setSize(1280, 800)" data-size="desktop-lg">Desktop (1280x800)</button>
+    <button onclick="setSize(1536, 864)" data-size="desktop-xl">Large (1536x864)</button>
+  </div>
+
+  <!-- Page Selector -->
+  <div class="page-select">
+    <select id="pageSelector" onchange="changePage()">
+      <option value="/">Landing Page</option>
+      <option value="/dashboard">Dashboard</option>
+      <option value="/privacy">Privacy Cash</option>
+      <option value="/transfer">Transfer / Ghost Send</option>
+      <option value="/swap">Jupiter Swap</option>
+      <option value="/markets">PNP Markets</option>
+      <option value="/intelligence">Whale Intelligence</option>
+      <option value="/portfolio">Portfolio</option>
+      <option value="/badges">NFT Badges</option>
+      <option value="/affiliate">Affiliate</option>
+      <option value="/profile">Profile</option>
+      <option value="/settings">Settings</option>
+      <option value="/cards">Virtual Cards</option>
+      <option value="/dark-pool">Dark Pool</option>
+    </select>
+  </div>
+
+  <!-- Size Indicator -->
+  <div class="size-indicator" id="sizeIndicator">
+    Current: <span id="currentWidth">375</span>px x <span id="currentHeight">667</span>px (Mobile)
+  </div>
+
+  <!-- Preview Frame -->
+  <div class="preview-container">
+    <div class="preview-frame" id="previewFrame">
+      <iframe id="previewIframe" src="http://localhost:3000/" width="375" height="667"></iframe>
+    </div>
+  </div>
+
+  <!-- Results Summary -->
+  <div class="results-summary">
+    <div class="result-stat pass">
+      <div class="number" id="passCount">0</div>
+      <div class="label">Passed</div>
+    </div>
+    <div class="result-stat fail">
+      <div class="number" id="failCount">0</div>
+      <div class="label">Failed</div>
+    </div>
+    <div class="result-stat pending">
+      <div class="number" id="pendingCount">42</div>
+      <div class="label">To Check</div>
+    </div>
+  </div>
+
+  <!-- Responsiveness Checklist -->
+  <div class="checklist">
+    <h2>Responsiveness Checklist</h2>
+
+    <div class="checklist-section">
+      <h3>Header Component</h3>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Logo visible and properly sized at all viewports</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Hamburger menu appears on mobile (< 1024px)</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Navigation links hidden on mobile</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Wallet balance dropdown works on all sizes</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Profile dropdown accessible</span>
+      </div>
+    </div>
+
+    <div class="checklist-section">
+      <h3>Sidebar Component</h3>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Hidden on mobile (< 1024px)</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Slide-in overlay works on mobile</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Fixed position on desktop</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Collapse/expand toggle works</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Tooltips show on collapsed state</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>All navigation items accessible</span>
+      </div>
+    </div>
+
+    <div class="checklist-section">
+      <h3>Dashboard Page</h3>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Stats cards stack on mobile (1 column)</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Stats cards 2 columns on tablet</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Stats cards 4 columns on desktop</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Balance card full width on mobile</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Quick actions grid adjusts properly</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Whale feed scrollable on mobile</span>
+      </div>
+    </div>
+
+    <div class="checklist-section">
+      <h3>Forms & Inputs</h3>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>All inputs full width on mobile</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Labels readable above inputs</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Error messages visible</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Submit buttons reachable</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Touch targets >= 44px</span>
+      </div>
+    </div>
+
+    <div class="checklist-section">
+      <h3>Modals</h3>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Transaction modal centered on all sizes</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Modal content doesn't overflow</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Close button accessible</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Backdrop blur works</span>
+      </div>
+    </div>
+
+    <div class="checklist-section">
+      <h3>Cards & Grids</h3>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Badge cards grid adjusts (1/2/3 cols)</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Market cards responsive</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>No card content overflow</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Hover effects work (desktop)</span>
+      </div>
+    </div>
+
+    <div class="checklist-section">
+      <h3>Tables</h3>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Horizontal scroll on mobile</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Headers sticky during scroll</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Row content readable</span>
+      </div>
+    </div>
+
+    <div class="checklist-section">
+      <h3>Typography & Spacing</h3>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Font sizes readable (min 14px body)</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Sufficient color contrast</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Line height comfortable</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Margins scale appropriately</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>No text clipping/overflow</span>
+      </div>
+    </div>
+
+    <div class="checklist-section">
+      <h3>Loading & Animations</h3>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Splash screen displays correctly</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Animations smooth on mobile</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>No layout shift during load</span>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" onchange="updateCount(this)">
+        <span>Skeleton loaders fit properly</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- All Viewports Preview -->
+  <h2 style="color: #00ff88; text-align: center; margin: 40px 0 20px;">All Viewports Preview</h2>
+  <div class="all-viewports" id="allViewports">
+    <!-- Will be populated by JS -->
+  </div>
+
+  <script>
+    let currentWidth = 375;
+    let currentHeight = 667;
+    let passCount = 0;
+    let failCount = 0;
+    let pendingCount = 42;
+
+    const viewports = [
+      { name: 'iPhone SE', width: 375, height: 500 },
+      { name: 'iPhone 14', width: 428, height: 500 },
+      { name: 'iPad', width: 768, height: 500 },
+      { name: 'Laptop', width: 1024, height: 500 },
+    ];
+
+    function setSize(width, height) {
+      currentWidth = width;
+      currentHeight = height;
+
+      const iframe = document.getElementById('previewIframe');
+      const frame = document.getElementById('previewFrame');
+
+      iframe.width = width;
+      iframe.height = height;
+      frame.style.width = width + 4 + 'px';
+      frame.style.height = height + 4 + 'px';
+
+      document.getElementById('currentWidth').textContent = width;
+      document.getElementById('currentHeight').textContent = height;
+
+      // Update size category
+      let category = 'Mobile';
+      if (width >= 1536) category = 'Extra Large Desktop';
+      else if (width >= 1280) category = 'Desktop';
+      else if (width >= 1024) category = 'Laptop';
+      else if (width >= 768) category = 'Tablet';
+      else if (width >= 428) category = 'Large Mobile';
+
+      document.getElementById('sizeIndicator').innerHTML =
+        `Current: <span id="currentWidth">${width}</span>px x <span id="currentHeight">${height}</span>px (${category})`;
+
+      // Update active button
+      document.querySelectorAll('.controls button').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+
+    function changePage() {
+      const page = document.getElementById('pageSelector').value;
+      const iframe = document.getElementById('previewIframe');
+      iframe.src = 'http://localhost:3000' + page;
+
+      // Update all viewport iframes
+      document.querySelectorAll('.viewport-preview iframe').forEach(frame => {
+        frame.src = 'http://localhost:3000' + page;
+      });
+    }
+
+    function updateCount(checkbox) {
+      const item = checkbox.parentElement;
+      if (checkbox.checked) {
+        item.classList.add('checked');
+        passCount++;
+        pendingCount--;
+      } else {
+        item.classList.remove('checked');
+        passCount--;
+        pendingCount++;
+      }
+
+      document.getElementById('passCount').textContent = passCount;
+      document.getElementById('pendingCount').textContent = pendingCount;
+
+      // Save state to localStorage
+      saveState();
+    }
+
+    function saveState() {
+      const checkboxes = document.querySelectorAll('.checklist-item input[type="checkbox"]');
+      const state = Array.from(checkboxes).map(cb => cb.checked);
+      localStorage.setItem('whale-suite-responsiveness-test', JSON.stringify(state));
+    }
+
+    function loadState() {
+      const saved = localStorage.getItem('whale-suite-responsiveness-test');
+      if (saved) {
+        const state = JSON.parse(saved);
+        const checkboxes = document.querySelectorAll('.checklist-item input[type="checkbox"]');
+        checkboxes.forEach((cb, i) => {
+          if (state[i]) {
+            cb.checked = true;
+            cb.parentElement.classList.add('checked');
+            passCount++;
+            pendingCount--;
+          }
+        });
+        document.getElementById('passCount').textContent = passCount;
+        document.getElementById('pendingCount').textContent = pendingCount;
+      }
+    }
+
+    function initAllViewports() {
+      const container = document.getElementById('allViewports');
+      const page = document.getElementById('pageSelector').value;
+
+      viewports.forEach(vp => {
+        const preview = document.createElement('div');
+        preview.className = 'viewport-preview';
+        preview.innerHTML = `
+          <h4>${vp.name} (${vp.width}px)</h4>
+          <iframe src="http://localhost:3000${page}" width="${vp.width}" height="${vp.height}" style="transform: scale(${300/vp.width}); transform-origin: top left; height: ${vp.height * (300/vp.width)}px;"></iframe>
+        `;
+        container.appendChild(preview);
+      });
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadState();
+      initAllViewports();
+
+      // Set first button as active
+      document.querySelector('.controls button').classList.add('active');
+    });
+  </script>
+</body>
+</html>

@@ -309,6 +309,11 @@
   50% { transform: scale(1.1); }
 }
 
+@keyframes gradient {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
 @keyframes grid-move {
   0% { transform: translate(0, 0); }
   100% { transform: translate(30px, 30px); }
@@ -1223,6 +1228,10 @@
 
   .animate-spin {
     animation: spin 1s linear infinite;
+  }
+
+  .animate-gradient {
+    animation: gradient 3s ease infinite;
   }
 
   /* Animation Delays */
