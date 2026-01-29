@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { WalletAvatar } from "../ui/Avatar";
 import Dropdown, { DropdownItem, DropdownDivider } from "../ui/Dropdown";
-import { CountBadge, TierBadge } from "../ui/Badge";
+import { TierBadge } from "../ui/Badge";
 import NetworkSelectModal from "../ui/NetworkSelectModal";
 import WhaleLogo from "../ui/WhaleLogo";
 import { useAuth } from "@/lib/privy/hooks";
@@ -16,10 +16,9 @@ import { useNetwork, FEATURE_NETWORK_SUPPORT, type FeatureKey } from "@/hooks/us
 interface HeaderProps {
   variant?: "landing" | "app";
   wallet?: string;
-  notifications?: number;
 }
 
-export default function Header({ variant = "landing", wallet, notifications = 0 }: HeaderProps) {
+export default function Header({ variant = "landing", wallet }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [networkModalOpen, setNetworkModalOpen] = useState(false);
   const { logout, walletAddress, authenticated, login } = useAuth();
@@ -73,21 +72,24 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
                 animated={true}
                 className="hidden sm:flex"
               />
+              {/* Mobile logo - use sm size for better visibility */}
               <WhaleLogo
-                size="xs"
+                size="sm"
                 showText={false}
                 animated={false}
                 className="sm:hidden"
               />
             </Link>
 
-            {/* Network Toggle - Show in app variant */}
+            {/* Network Toggle - Desktop only in app variant */}
             {variant === "app" && (
-              <NetworkToggle
-                network={network}
-                ping={rpcPing}
-                onClick={() => setNetworkModalOpen(true)}
-              />
+              <div className="hidden sm:block">
+                <NetworkToggle
+                  network={network}
+                  ping={rpcPing}
+                  onClick={() => setNetworkModalOpen(true)}
+                />
+              </div>
             )}
           </div>
 
@@ -117,43 +119,15 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
               </Link>
             ) : authenticated ? (
               <>
-                {/* Wallet/Balance Dropdown */}
-                <WalletDropdown
-                  balance={balance}
-                  balanceLoading={balanceLoading}
-                  hiddenBalance={hiddenBalance}
-                  network={network}
-                />
-
-                {/* Notifications */}
-                <Dropdown
-                  trigger={
-                    <button className="relative p-2 rounded-lg hover:bg-bg-tertiary transition-colors">
-                      <BellIcon className="w-4 h-4 text-text-secondary" />
-                      {notifications > 0 && (
-                        <span className="absolute -top-0.5 -right-0.5">
-                          <CountBadge count={notifications} />
-                        </span>
-                      )}
-                    </button>
-                  }
-                >
-                  <div className="w-72 p-2">
-                    <p className="text-xs font-semibold text-text-muted px-2 py-1">Notifications</p>
-                    <div className="mt-2 space-y-1">
-                      <NotificationItem
-                        title="Transfer Complete"
-                        message="50 SOL sent privately"
-                        time="2m ago"
-                      />
-                      <NotificationItem
-                        title="Whale Alert"
-                        message="Large deposit detected in pool"
-                        time="15m ago"
-                      />
-                    </div>
-                  </div>
-                </Dropdown>
+                {/* Wallet/Balance Dropdown - Desktop only */}
+                <div className="hidden sm:block">
+                  <WalletDropdown
+                    balance={balance}
+                    balanceLoading={balanceLoading}
+                    hiddenBalance={hiddenBalance}
+                    network={network}
+                  />
+                </div>
 
                 {/* Profile Dropdown - Enhanced */}
                 <ProfileDropdown
@@ -336,7 +310,7 @@ function WalletDropdown({
         </div>
 
         {/* Main Balance */}
-        <div className="p-3 rounded-lg bg-bg-elevated border border-border-primary mb-2">
+        <div className="p-3 rounded-lg bg-bg-tertiary border border-border-primary mb-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#9945FF] to-[#14F195] flex items-center justify-center">
@@ -424,20 +398,28 @@ function ProfileDropdown({
   return (
     <Dropdown
       trigger={
-        <button className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-bg-tertiary transition-colors border border-transparent hover:border-border-primary">
+        <button className="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-bg-tertiary/80 hover:bg-bg-tertiary transition-all border border-border-primary hover:border-neon-green/30 hover:shadow-glow-sm">
+          {/* Connected indicator */}
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-neon-green opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-neon-green"></span>
+          </span>
           <WalletAvatar address={displayWallet || "0x0000"} size="sm" showAddress={false} />
           <div className="hidden sm:flex flex-col items-start">
-            <span className="text-xs font-medium text-text-primary">
+            <span className="text-[10px] text-neon-green font-medium">Connected</span>
+            <span className="text-xs font-semibold text-text-primary">
               {userNumber ? `Whale #${userNumber}` : shortWallet}
             </span>
           </div>
+          {/* Mobile: Just show "Connected" text */}
+          <span className="sm:hidden text-xs font-medium text-neon-green">Connected</span>
           <ChevronDownIcon className="w-3 h-3 text-text-muted" />
         </button>
       }
     >
-      <div className="w-72">
+      <div className="w-64 sm:w-72">
         {/* User Info Header */}
-        <div className="px-3 py-3 border-b border-border-primary bg-bg-elevated/50">
+        <div className="px-3 py-3 border-b border-border-primary">
           <div className="flex items-center gap-3">
             <WalletAvatar address={displayWallet || "0x0000"} size="md" showAddress={false} />
             <div className="flex-1 min-w-0">
@@ -535,19 +517,6 @@ function ProfileDropdown({
   );
 }
 
-// Notification Item
-function NotificationItem({ title, message, time }: { title: string; message: string; time: string }) {
-  return (
-    <div className="px-2 py-2 rounded-lg hover:bg-bg-elevated transition-colors cursor-pointer">
-      <div className="flex justify-between items-start">
-        <p className="text-xs font-medium text-text-primary">{title}</p>
-        <span className="text-[10px] text-text-muted">{time}</span>
-      </div>
-      <p className="text-xs text-text-secondary mt-0.5">{message}</p>
-    </div>
-  );
-}
-
 // Icons
 const MenuIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -558,12 +527,6 @@ const MenuIcon = ({ className = "w-4 h-4" }) => (
 const CloseIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
-
-const BellIcon = ({ className = "w-4 h-4" }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
   </svg>
 );
 

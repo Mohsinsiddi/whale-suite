@@ -37,9 +37,9 @@ export default function Dropdown({
         <div
           className={`
             absolute top-full mt-2 z-50
-            min-w-[180px] py-1.5
-            bg-bg-tertiary border border-border-primary rounded-lg
-            shadow-lg shadow-black/20
+            min-w-[180px] max-w-[calc(100vw-32px)] py-1.5
+            bg-bg-secondary border border-border-primary rounded-xl
+            shadow-xl shadow-black/40
             animate-dropdown-in
             ${align === "right" ? "right-0" : "left-0"}
           `}

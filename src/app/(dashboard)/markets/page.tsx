@@ -531,12 +531,12 @@ export default function MarketsPage() {
       </div>
 
       {/* Global Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { label: "Total Markets", value: stats.totalCount.toLocaleString(), highlight: true },
           { label: "V2 AMM", value: stats.v2Count.toLocaleString() },
           { label: "P2P Markets", value: stats.p2pCount.toLocaleString() },
-          { label: "Loaded", value: `${stats.loadedCount} / ${category === "v2" ? stats.v2Count : category === "p2p" ? stats.p2pCount : stats.totalCount}` },
+          { label: "Loaded", value: `${stats.loadedCount}/${category === "v2" ? stats.v2Count : category === "p2p" ? stats.p2pCount : stats.totalCount}` },
           { label: "Status", value: error ? "Error" : loading ? "Loading..." : "Connected", positive: !error && !loading },
           {
             label: "Wallet",
@@ -546,14 +546,16 @@ export default function MarketsPage() {
           },
         ].map((stat, i) => (
           <Card key={i} variant="stat" padding="sm">
-            <div className="text-xs text-text-muted mb-1">{stat.label}</div>
-            <div
-              className={`text-lg font-bold flex items-center gap-1 ${
-                stat.positive === false ? "text-error" : stat.highlight ? "text-neon-cyan" : stat.positive ? "text-neon-green" : "text-text-primary"
-              }`}
-            >
-              {stat.icon && <span className="text-sm">{stat.icon}</span>}
-              {stat.value}
+            <div className="text-center">
+              <div className="text-[10px] sm:text-xs text-text-muted mb-1">{stat.label}</div>
+              <div
+                className={`text-base sm:text-lg font-bold flex items-center justify-center gap-1 ${
+                  stat.positive === false ? "text-error" : stat.highlight ? "text-neon-cyan" : stat.positive ? "text-neon-green" : "text-text-primary"
+                }`}
+              >
+                {stat.icon && <span className="text-xs sm:text-sm">{stat.icon}</span>}
+                <span className="truncate">{stat.value}</span>
+              </div>
             </div>
           </Card>
         ))}
@@ -645,16 +647,16 @@ export default function MarketsPage() {
                   !isActive ? "opacity-70" : ""
                 }`}
               >
-                <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                <div className="flex flex-col gap-4">
                   {/* Question */}
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                       <Badge size="xs" variant={market.marketType === "v2" ? "cyan" : "warning"}>
                         {market.marketType.toUpperCase()}
                       </Badge>
                       {walletConnected && market.creator === walletAddress && (
                         <Badge size="xs" variant="success">
-                          ✨ Your Market
+                          ✨ Yours
                         </Badge>
                       )}
                       {market.volume > 10000 && (
@@ -674,54 +676,63 @@ export default function MarketsPage() {
                         </Badge>
                       )}
                     </div>
-                    <h3 className="text-sm font-semibold text-text-primary mb-2">{market.question}</h3>
-                    <div className="flex items-center gap-4 text-xs text-text-muted flex-wrap">
+                    <h3 className="text-sm font-semibold text-text-primary mb-2 line-clamp-2">{market.question}</h3>
+                    <div className="flex items-center gap-3 sm:gap-4 text-[10px] sm:text-xs text-text-muted flex-wrap">
                       <span>Vol: {formatVolume(market.volume)}</span>
                       <span>Liq: {formatLiquidity(market.liquidity)}</span>
-                      <span>Ends: {formatDate(market.endDate)}</span>
+                      <span className="hidden sm:inline">Ends: {formatDate(market.endDate)}</span>
                     </div>
                   </div>
 
-                  {/* Prices & Trade */}
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => isActive && handleTrade(market, "yes")}
-                      disabled={!isActive}
-                      className={`p-3 rounded-xl bg-neon-green/10 border border-neon-green/30 text-center min-w-[80px] transition-all ${
-                        isActive ? "hover:bg-neon-green/20 hover:border-neon-green/50 cursor-pointer" : "cursor-not-allowed"
-                      }`}
-                    >
-                      <div className="text-xs text-neon-green mb-0.5">YES</div>
-                      <div className="text-lg font-bold text-neon-green">
-                        {(market.yesPrice * 100).toFixed(0)}¢
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => isActive && handleTrade(market, "no")}
-                      disabled={!isActive}
-                      className={`p-3 rounded-xl bg-error/10 border border-error/30 text-center min-w-[80px] transition-all ${
-                        isActive ? "hover:bg-error/20 hover:border-error/50 cursor-pointer" : "cursor-not-allowed"
-                      }`}
-                    >
-                      <div className="text-xs text-error mb-0.5">NO</div>
-                      <div className="text-lg font-bold text-error">
-                        {(market.noPrice * 100).toFixed(0)}¢
-                      </div>
-                    </button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => handleViewDetails(market)}
-                    >
-                      View
-                    </Button>
-                    <Button
-                      size="sm"
-                      disabled={!isActive}
-                      onClick={() => handleTrade(market, "yes", "buy")}
-                    >
-                      Trade
-                    </Button>
+                  {/* Prices & Trade - Responsive layout */}
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                    {/* YES/NO Price buttons */}
+                    <div className="flex gap-2 flex-1 sm:flex-none">
+                      <button
+                        onClick={() => isActive && handleTrade(market, "yes")}
+                        disabled={!isActive}
+                        className={`flex-1 sm:flex-none p-2 sm:p-3 rounded-xl bg-neon-green/10 border border-neon-green/30 text-center min-w-[60px] sm:min-w-[80px] transition-all ${
+                          isActive ? "hover:bg-neon-green/20 hover:border-neon-green/50 cursor-pointer" : "cursor-not-allowed opacity-60"
+                        }`}
+                      >
+                        <div className="text-[10px] sm:text-xs text-neon-green mb-0.5">YES</div>
+                        <div className="text-base sm:text-lg font-bold text-neon-green">
+                          {(market.yesPrice * 100).toFixed(0)}¢
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => isActive && handleTrade(market, "no")}
+                        disabled={!isActive}
+                        className={`flex-1 sm:flex-none p-2 sm:p-3 rounded-xl bg-error/10 border border-error/30 text-center min-w-[60px] sm:min-w-[80px] transition-all ${
+                          isActive ? "hover:bg-error/20 hover:border-error/50 cursor-pointer" : "cursor-not-allowed opacity-60"
+                        }`}
+                      >
+                        <div className="text-[10px] sm:text-xs text-error mb-0.5">NO</div>
+                        <div className="text-base sm:text-lg font-bold text-error">
+                          {(market.noPrice * 100).toFixed(0)}¢
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex gap-2 ml-auto">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleViewDetails(market)}
+                        className="text-xs px-2 sm:px-3"
+                      >
+                        View
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={!isActive}
+                        onClick={() => handleTrade(market, "yes", "buy")}
+                        className="text-xs px-2 sm:px-3"
+                      >
+                        Trade
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </Card>
@@ -1089,44 +1100,44 @@ export default function MarketsPage() {
             </div>
 
             {/* Prices */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-neon-green/10 border border-neon-green/30 text-center">
-                <div className="text-xs text-neon-green mb-1">YES Price</div>
-                <div className="text-2xl font-bold text-neon-green">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 sm:p-4 rounded-xl bg-neon-green/10 border border-neon-green/30 text-center">
+                <div className="text-[10px] sm:text-xs text-neon-green mb-1">YES Price</div>
+                <div className="text-xl sm:text-2xl font-bold text-neon-green">
                   {(detailsMarket.yesPrice * 100).toFixed(1)}¢
                 </div>
-                <div className="text-xs text-text-muted mt-1">
-                  {detailsMarket.yesMultiplier.toFixed(2)}x multiplier
+                <div className="text-[10px] sm:text-xs text-text-muted mt-1">
+                  {detailsMarket.yesMultiplier.toFixed(2)}x
                 </div>
               </div>
-              <div className="p-4 rounded-xl bg-error/10 border border-error/30 text-center">
-                <div className="text-xs text-error mb-1">NO Price</div>
-                <div className="text-2xl font-bold text-error">
+              <div className="p-3 sm:p-4 rounded-xl bg-error/10 border border-error/30 text-center">
+                <div className="text-[10px] sm:text-xs text-error mb-1">NO Price</div>
+                <div className="text-xl sm:text-2xl font-bold text-error">
                   {(detailsMarket.noPrice * 100).toFixed(1)}¢
                 </div>
-                <div className="text-xs text-text-muted mt-1">
-                  {detailsMarket.noMultiplier.toFixed(2)}x multiplier
+                <div className="text-[10px] sm:text-xs text-text-muted mt-1">
+                  {detailsMarket.noMultiplier.toFixed(2)}x
                 </div>
               </div>
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-xl bg-bg-elevated">
-                <div className="text-xs text-text-muted">Volume</div>
-                <div className="text-sm font-semibold text-text-primary">{formatVolume(detailsMarket.volume)}</div>
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <div className="p-2 sm:p-3 rounded-xl bg-bg-elevated text-center">
+                <div className="text-[10px] sm:text-xs text-text-muted">Volume</div>
+                <div className="text-xs sm:text-sm font-semibold text-text-primary">{formatVolume(detailsMarket.volume)}</div>
               </div>
-              <div className="p-3 rounded-xl bg-bg-elevated">
-                <div className="text-xs text-text-muted">Liquidity</div>
-                <div className="text-sm font-semibold text-text-primary">{formatLiquidity(detailsMarket.liquidity)}</div>
+              <div className="p-2 sm:p-3 rounded-xl bg-bg-elevated text-center">
+                <div className="text-[10px] sm:text-xs text-text-muted">Liquidity</div>
+                <div className="text-xs sm:text-sm font-semibold text-text-primary">{formatLiquidity(detailsMarket.liquidity)}</div>
               </div>
-              <div className="p-3 rounded-xl bg-bg-elevated">
-                <div className="text-xs text-text-muted">End Date</div>
-                <div className="text-sm font-semibold text-text-primary">{formatDate(detailsMarket.endDate)}</div>
+              <div className="p-2 sm:p-3 rounded-xl bg-bg-elevated text-center">
+                <div className="text-[10px] sm:text-xs text-text-muted">End Date</div>
+                <div className="text-xs sm:text-sm font-semibold text-text-primary">{formatDate(detailsMarket.endDate)}</div>
               </div>
-              <div className="p-3 rounded-xl bg-bg-elevated">
-                <div className="text-xs text-text-muted">Min Trade</div>
-                <div className="text-sm font-semibold text-text-primary">
+              <div className="p-2 sm:p-3 rounded-xl bg-bg-elevated text-center">
+                <div className="text-[10px] sm:text-xs text-text-muted">Min Trade</div>
+                <div className="text-xs sm:text-sm font-semibold text-text-primary">
                   ${getMinimumTradeAmount(detailsMarket.liquidity).toFixed(2)}
                 </div>
               </div>

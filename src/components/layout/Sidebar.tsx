@@ -6,8 +6,11 @@ import { ReactNode, useMemo, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TierBadge } from "../ui/Badge";
 import WhaleLogo from "../ui/WhaleLogo";
+import NetworkSelectModal from "../ui/NetworkSelectModal";
 import { useUser, useWallet } from "@/store";
 import { useNetwork, type FeatureKey } from "@/hooks/useNetwork";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { useAuth } from "@/lib/privy/hooks";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -38,8 +41,10 @@ const SIDEBAR_COLLAPSED = 80; // Comfortable width for icons
 export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { userNumber, badgeTier, privacyScore } = useUser();
-  const { wallet } = useWallet();
-  const { network, isFeatureAvailable } = useNetwork();
+  const { wallet, hiddenBalance } = useWallet();
+  const { network, rpcPing, isFeatureAvailable } = useNetwork();
+  const { walletAddress } = useAuth();
+  const { balance, loading: balanceLoading } = useWalletBalance(walletAddress);
 
   // Collapsed state for desktop toggle - default to false (expanded)
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -184,8 +189,12 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           privacyScore={privacyScore}
           shortWallet={shortWallet}
           network={network}
+          rpcPing={rpcPing}
           isFeatureAvailable={isFeatureAvailable}
           onClose={onClose}
+          balance={balance}
+          balanceLoading={balanceLoading}
+          hiddenBalance={hiddenBalance}
         />
       </aside>
 
@@ -487,8 +496,12 @@ function MobileSidebarContent({
   privacyScore,
   shortWallet,
   network,
+  rpcPing,
   isFeatureAvailable,
   onClose,
+  balance,
+  balanceLoading,
+  hiddenBalance,
 }: {
   navGroups: NavGroup[];
   bottomItems: { href: string; icon: ReactNode; label: string }[];
@@ -498,9 +511,25 @@ function MobileSidebarContent({
   privacyScore: number;
   shortWallet: string;
   network: 'mainnet' | 'devnet';
+  rpcPing: number | null;
   isFeatureAvailable: (key: FeatureKey) => boolean;
   onClose?: () => void;
+  balance: number;
+  balanceLoading: boolean;
+  hiddenBalance: number;
 }) {
+  const [showNetworkModal, setShowNetworkModal] = useState(false);
+
+  const pingStatus = rpcPing === null
+    ? 'loading'
+    : rpcPing < 0
+    ? 'error'
+    : rpcPing < 200
+    ? 'excellent'
+    : rpcPing < 500
+    ? 'good'
+    : 'slow';
+
   return (
     <>
       {/* User Card */}
@@ -520,6 +549,79 @@ function MobileSidebarContent({
           {badgeTier && badgeTier !== 'none' && (
             <TierBadge tier={badgeTier as "bronze" | "silver" | "gold" | "diamond" | "legendary"} size="sm" />
           )}
+        </div>
+      </div>
+
+      {/* Network Switch - Mobile */}
+      <div className="px-4 pb-2">
+        <button
+          onClick={() => setShowNetworkModal(true)}
+          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+            network === 'mainnet'
+              ? 'bg-neon-green/10 text-neon-green border border-neon-green/30'
+              : 'bg-warning/10 text-warning border border-warning/30'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${network === 'mainnet' ? 'bg-neon-green' : 'bg-warning'} animate-pulse`} />
+            <span className="font-semibold">{network === 'mainnet' ? 'Mainnet' : 'Devnet'}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs px-2 py-0.5 rounded ${
+              pingStatus === 'loading' ? 'bg-bg-tertiary text-text-muted'
+              : pingStatus === 'error' ? 'bg-error/20 text-error'
+              : pingStatus === 'excellent' ? 'bg-neon-green/20 text-neon-green'
+              : 'bg-warning/20 text-warning'
+            }`}>
+              {pingStatus === 'loading' ? '...' : pingStatus === 'error' ? 'Error' : `${rpcPing}ms`}
+            </span>
+            <ChevronRightIcon className="w-4 h-4 opacity-50" />
+          </div>
+        </button>
+      </div>
+
+      {/* Balance Card - Mobile */}
+      <div className="px-4 pb-3">
+        <div className="p-3 rounded-xl bg-bg-tertiary/50 border border-border-primary">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">Balances</span>
+          </div>
+
+          {/* SOL Balance */}
+          <div className="flex items-center justify-between py-2">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#9945FF] to-[#14F195] flex items-center justify-center">
+                <span className="text-xs">◎</span>
+              </div>
+              <span className="text-sm font-medium text-text-primary">SOL</span>
+            </div>
+            {balanceLoading ? (
+              <span className="text-sm font-semibold text-text-muted animate-pulse">...</span>
+            ) : (
+              <span className="text-sm font-bold text-text-primary">{balance.toFixed(4)}</span>
+            )}
+          </div>
+
+          {/* Hidden Balance */}
+          {hiddenBalance > 0 && (
+            <div className="flex items-center justify-between py-2 border-t border-border-primary/50">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-neon-cyan/20 flex items-center justify-center">
+                  <EyeOffIcon className="w-3.5 h-3.5 text-neon-cyan" />
+                </div>
+                <span className="text-sm font-medium text-neon-cyan">Hidden</span>
+              </div>
+              <span className="text-sm font-bold text-neon-cyan">{hiddenBalance.toFixed(4)}</span>
+            </div>
+          )}
+
+          {/* Total USD */}
+          <div className="flex items-center justify-between pt-2 mt-2 border-t border-border-primary/50">
+            <span className="text-xs text-text-muted">Total Value</span>
+            <span className="text-sm font-bold text-neon-green">
+              ${((balance + hiddenBalance) * 230).toFixed(2)}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -601,6 +703,12 @@ function MobileSidebarContent({
           <span className="text-text-muted">v1.0.0</span>
         </div>
       </div>
+
+      {/* Network Select Modal */}
+      <NetworkSelectModal
+        isOpen={showNetworkModal}
+        onClose={() => setShowNetworkModal(false)}
+      />
     </>
   );
 }
@@ -783,6 +891,18 @@ function DesktopSidebarLink({
 const CloseIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
+
+const ChevronRightIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+  </svg>
+);
+
+const EyeOffIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
   </svg>
 );
 

@@ -18,7 +18,7 @@ interface DashboardLayoutProps {
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { ready, authenticated, walletAddress, isLoading } = useAuth();
+  const { ready, walletAddress, isLoading } = useAuth();
   const { sidebarOpen, setSidebarOpen } = useUI();
 
   // Track sidebar collapsed state for main content margin
@@ -151,7 +151,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       <Header
         variant="app"
         wallet={walletAddress || undefined}
-        notifications={authenticated ? 3 : 0}
       />
 
       {/* Sidebar */}
