@@ -495,13 +495,13 @@ function DashboardContent() {
           </CardHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {whaleFeedLoading ? (
-              [...Array(4)].map((_, i) => (
+              [...Array(6)].map((_, i) => (
                 <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary animate-pulse">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-bg-elevated" />
                     <div className="space-y-1">
-                      <div className="h-4 w-32 bg-bg-elevated rounded" />
-                      <div className="h-3 w-16 bg-bg-elevated rounded" />
+                      <div className="h-3.5 w-28 bg-bg-elevated rounded" />
+                      <div className="h-2.5 w-14 bg-bg-elevated rounded" />
                     </div>
                   </div>
                 </div>

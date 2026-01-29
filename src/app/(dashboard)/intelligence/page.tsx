@@ -10,6 +10,7 @@ import { LeaderboardTable, PointsDisplay, StreakCounter, RankBadge } from '@/com
 import { useLeaderboard, type LeaderboardPeriod } from '@/hooks/useLeaderboard';
 import { useUserStats } from '@/hooks/useUserStats';
 import { useRequireAuth } from '@/hooks/useAuth';
+import { useTokenPrices } from '@/hooks/useTokenPrices';
 import {
   Activity,
   TrendingUp,
@@ -28,7 +29,6 @@ import {
   Flame,
   Shield,
   ExternalLink,
-  Sparkles,
   BarChart3,
   Eye,
 } from 'lucide-react';
@@ -136,6 +136,7 @@ export default function IntelligencePage() {
   // Hooks
   const { leaderboard, podium, loading: leaderboardLoading, loadMore, pagination, refresh: refreshLeaderboard } = useLeaderboard(leaderboardPeriod);
   const { stats: userStats, rank, points, streak, refresh: refreshUserStats } = useUserStats();
+  const { formatUSD: formatTokenUSD } = useTokenPrices();
 
   // Fetch global activity
   const fetchActivity = useCallback(async (isPolling = false) => {
@@ -211,16 +212,6 @@ export default function IntelligencePage() {
     return `${Math.floor(hours / 24)}d ago`;
   };
 
-  // Format currency
-  const formatUSD = (value: number) => {
-    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-    if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`;
-    return `$${value.toFixed(0)}`;
-  };
-
-  // Shorten signature for display
-  const shortenSig = (sig: string) => `${sig.slice(0, 4)}...${sig.slice(-4)}`;
-
   const mainTabs = [
     { id: 'feed', label: 'Live Activity', icon: Activity },
     { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
@@ -281,7 +272,7 @@ export default function IntelligencePage() {
         {[
           {
             label: '24h Volume',
-            value: formatUSD(activityStats.volume24h),
+            value: formatTokenUSD(activityStats.volume24h, 'SOL'),
             icon: TrendingUp,
             color: 'text-neon-green',
             gradient: 'from-emerald-500/20 to-transparent',
@@ -302,7 +293,7 @@ export default function IntelligencePage() {
           },
           {
             label: 'Net Flow',
-            value: `${activityStats.netFlow >= 0 ? '+' : ''}${formatUSD(activityStats.netFlow)}`,
+            value: `${activityStats.netFlow >= 0 ? '+' : ''}${formatTokenUSD(Math.abs(activityStats.netFlow), 'SOL')}`,
             icon: activityStats.netFlow >= 0 ? TrendingUp : TrendingDown,
             color: activityStats.netFlow >= 0 ? 'text-neon-green' : 'text-error',
             gradient: activityStats.netFlow >= 0 ? 'from-emerald-500/20 to-transparent' : 'from-red-500/20 to-transparent',
@@ -398,8 +389,15 @@ export default function IntelligencePage() {
 
               <div className="p-4 space-y-3 max-h-[650px] overflow-y-auto">
                 {activityLoading && activity.length === 0 ? (
-                  [...Array(5)].map((_, i) => (
-                    <div key={i} className="h-24 bg-bg-tertiary rounded-xl animate-pulse" />
+                  [...Array(8)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 px-3 py-2.5 bg-bg-tertiary/50 rounded-lg animate-pulse">
+                      <div className="w-9 h-9 rounded-lg bg-bg-elevated" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-3.5 bg-bg-elevated rounded w-32" />
+                        <div className="h-3 bg-bg-elevated rounded w-48" />
+                      </div>
+                      <div className="w-6 h-6 rounded bg-bg-elevated" />
+                    </div>
                   ))
                 ) : filteredActivity.length === 0 ? (
                   <div className="text-center py-12">
@@ -427,29 +425,24 @@ export default function IntelligencePage() {
                           key={item._id}
                           initial={{ opacity: 0, x: -20 }}
                           animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.02 }}
-                          className={`group relative rounded-xl transition-all ${
+                          transition={{ delay: index * 0.015 }}
+                          className={`group relative rounded-lg transition-all ${
                             isCurrentUser
                               ? 'bg-gradient-to-r from-neon-green/10 to-transparent border border-neon-green/30'
-                              : 'bg-bg-tertiary hover:bg-bg-elevated border border-transparent hover:border-border-primary'
+                              : 'bg-bg-tertiary/50 hover:bg-bg-elevated border border-transparent hover:border-border-primary'
                           }`}
                         >
-                          <div className="p-4">
-                            <div className="flex items-start gap-4">
-                              {/* Icon */}
-                              <div className={`relative w-12 h-12 rounded-xl bg-gradient-to-br ${config.gradient} flex items-center justify-center shadow-lg ${config.bgGlow} flex-shrink-0`}>
-                                <Icon className="w-6 h-6 text-white" />
-                                {isCurrentUser && (
-                                  <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-neon-green flex items-center justify-center">
-                                    <Sparkles className="w-2.5 h-2.5 text-bg-primary" />
-                                  </div>
-                                )}
+                          <div className="px-3 py-2.5">
+                            <div className="flex items-center gap-3">
+                              {/* Compact Icon */}
+                              <div className={`relative w-9 h-9 rounded-lg bg-gradient-to-br ${config.gradient} flex items-center justify-center flex-shrink-0`}>
+                                <Icon className="w-4 h-4 text-white" />
                               </div>
 
-                              {/* Content */}
+                              {/* Content - Compact */}
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-semibold text-text-primary">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-medium text-sm text-text-primary truncate max-w-[100px]">
                                     {item.displayName}
                                   </span>
                                   {item.badgeTier !== 'none' && (
@@ -462,54 +455,46 @@ export default function IntelligencePage() {
                                   {isCurrentUser && (
                                     <Badge variant="success" size="xs">You</Badge>
                                   )}
-                                  <span className="text-text-muted text-sm">{config.action}</span>
+                                  <span className="text-text-muted text-xs">{config.action}</span>
                                 </div>
 
-                                {/* Amount Display */}
-                                <div className="mt-1">
+                                {/* Amount + Meta on same line */}
+                                <div className="flex items-center gap-2 mt-0.5 text-xs">
                                   {item.type === 'jupiter_swap' && item.metadata?.fromToken && item.metadata?.toToken ? (
-                                    <div className="flex items-center gap-2 text-sm">
-                                      <span className="font-mono font-medium text-text-primary">
-                                        {item.amount.toFixed(4)} {item.metadata.fromToken}
+                                    <>
+                                      <span className="font-mono text-text-primary">
+                                        {item.amount.toFixed(2)} {item.metadata.fromToken}
                                       </span>
                                       <span className="text-text-muted">→</span>
-                                      <span className="font-mono font-medium text-neon-green">
-                                        {item.metadata.toAmount?.toFixed(4) || '?'} {item.metadata.toToken}
+                                      <span className="font-mono text-neon-green">
+                                        {item.metadata.toAmount?.toFixed(2) || '?'} {item.metadata.toToken}
                                       </span>
-                                    </div>
+                                    </>
                                   ) : (
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-mono font-medium text-lg text-text-primary">
+                                    <>
+                                      <span className="font-mono font-medium text-text-primary">
                                         {item.amount.toFixed(4)} {item.token}
                                       </span>
-                                      <span className="text-xs text-text-muted">
-                                        ≈ {formatUSD(item.amount * 150)}
+                                      <span className="text-text-muted">
+                                        ({formatTokenUSD(item.amount, item.token)})
                                       </span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Meta */}
-                                <div className="flex items-center gap-3 mt-2 text-xs text-text-muted">
-                                  <span>{formatTimeAgo(item.createdAt)}</span>
-                                  {item.userPoints > 0 && (
-                                    <>
-                                      <span>•</span>
-                                      <span className="text-neon-green font-medium">+{item.userPoints} pts</span>
                                     </>
                                   )}
-                                  <span>•</span>
-                                  <a
-                                    href={`https://solscan.io/tx/${item.signature}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1 hover:text-neon-cyan transition-colors"
-                                  >
-                                    {shortenSig(item.signature)}
-                                    <ExternalLink className="w-3 h-3" />
-                                  </a>
+                                  <span className="text-text-muted">•</span>
+                                  <span className="text-text-muted">{formatTimeAgo(item.createdAt)}</span>
                                 </div>
                               </div>
+
+                              {/* Right side - Tx link */}
+                              <a
+                                href={`https://solscan.io/tx/${item.signature}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 rounded hover:bg-bg-primary transition-colors text-text-muted hover:text-neon-cyan"
+                                title="View on Solscan"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
                             </div>
                           </div>
                         </motion.div>

@@ -56,3 +56,6 @@ export { useLeaderboard } from './useLeaderboard';
 export type { LeaderboardEntry } from './useLeaderboard';
 export { usePoints } from './usePoints';
 export { useUserStats } from './useUserStats';
+
+// Token Prices
+export { useTokenPrices } from './useTokenPrices';

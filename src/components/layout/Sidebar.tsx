@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode, useMemo } from "react";
+import { ReactNode, useMemo, useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { TierBadge } from "../ui/Badge";
+import WhaleLogo from "../ui/WhaleLogo";
 import { useUser, useWallet } from "@/store";
 import { useNetwork, type FeatureKey } from "@/hooks/useNetwork";
 
@@ -26,11 +28,40 @@ interface NavGroup {
   items: NavItem[];
 }
 
+// Persist collapsed state
+const COLLAPSED_KEY = "whale-sidebar-collapsed";
+
+// Sidebar widths
+const SIDEBAR_EXPANDED = 280; // Wider for better readability
+const SIDEBAR_COLLAPSED = 80; // Comfortable width for icons
+
 export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { userNumber, badgeTier, privacyScore } = useUser();
   const { wallet } = useWallet();
   const { network, isFeatureAvailable } = useNetwork();
+
+  // Collapsed state for desktop toggle - default to false (expanded)
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Load collapsed state from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem(COLLAPSED_KEY);
+    if (stored === "true") {
+      setIsCollapsed(true);
+    }
+  }, []);
+
+  // Toggle collapsed state and dispatch event for DashboardLayout
+  const toggleCollapsed = useCallback(() => {
+    setIsCollapsed((prev) => {
+      const newValue = !prev;
+      localStorage.setItem(COLLAPSED_KEY, String(newValue));
+      // Dispatch custom event for DashboardLayout to listen
+      window.dispatchEvent(new CustomEvent('sidebar-toggle', { detail: { collapsed: newValue } }));
+      return newValue;
+    });
+  }, []);
 
   // Format wallet address for display
   const shortWallet = wallet
@@ -38,7 +69,6 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     : "...";
 
   // Sort items within each group: available first, then unavailable
-  // Network-aware navigation groups with sorting
   const navGroups = useMemo(() => {
     const baseNavGroups: NavGroup[] = [
       {
@@ -89,7 +119,6 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       items: [...group.items].sort((a, b) => {
         const aAvailable = a.featureKey ? isFeatureAvailable(a.featureKey) : true;
         const bAvailable = b.featureKey ? isFeatureAvailable(b.featureKey) : true;
-        // Available items come first
         if (aAvailable && !bAvailable) return -1;
         if (!aAvailable && bAvailable) return 1;
         return 0;
@@ -103,34 +132,39 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     { href: "/settings", icon: <SettingsIcon />, label: "Settings" },
   ];
 
+  // Current sidebar width
+  const sidebarWidth = isCollapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
+
   return (
     <>
       {/* Mobile Overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
-          onClick={onClose}
-        />
-      )}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+            onClick={onClose}
+          />
+        )}
+      </AnimatePresence>
 
-      {/* Sidebar */}
+      {/* Mobile Sidebar */}
       <aside
         className={`
           fixed top-0 left-0 z-50 h-full w-64
           bg-bg-secondary/95 backdrop-blur-xl border-r border-border-primary
           transform transition-transform duration-300 ease-out
-          lg:translate-x-0 lg:top-14
+          lg:hidden
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
           flex flex-col
         `}
       >
         {/* Mobile Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border-primary lg:hidden">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-lg">🐋</span>
-            <span className="font-bold text-base bg-gradient-to-r from-neon-green to-neon-cyan bg-clip-text text-transparent">
-              WHALE SUITE
-            </span>
+        <div className="flex items-center justify-between p-4 border-b border-border-primary">
+          <Link href="/" className="flex items-center">
+            <WhaleLogo size="sm" showText={true} animated={false} />
           </Link>
           <button
             onClick={onClose}
@@ -140,24 +174,52 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           </button>
         </div>
 
+        {/* Mobile Nav Content */}
+        <MobileSidebarContent
+          navGroups={navGroups}
+          bottomItems={bottomItems}
+          pathname={pathname}
+          userNumber={userNumber}
+          badgeTier={badgeTier}
+          privacyScore={privacyScore}
+          shortWallet={shortWallet}
+          network={network}
+          isFeatureAvailable={isFeatureAvailable}
+          onClose={onClose}
+        />
+      </aside>
+
+      {/* Desktop Sidebar - Always visible */}
+      <motion.aside
+        initial={false}
+        animate={{ width: sidebarWidth }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="hidden lg:flex fixed top-14 left-0 z-40 h-[calc(100vh-56px)] bg-bg-secondary/95 backdrop-blur-xl border-r border-border-primary flex-col overflow-visible"
+      >
+        {/* Desktop Toggle Button */}
+        <motion.button
+          onClick={toggleCollapsed}
+          className="absolute -right-3 top-6 z-50 w-6 h-6 rounded-full bg-bg-tertiary border border-border-primary flex items-center justify-center hover:bg-neon-green/10 hover:border-neon-green/30 transition-colors group"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <motion.div
+            animate={{ rotate: isCollapsed ? 180 : 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <ChevronLeftIcon className="w-3 h-3 text-text-muted group-hover:text-neon-green transition-colors" />
+          </motion.div>
+        </motion.button>
+
         {/* User Card */}
-        <div className="p-4 lg:pt-4">
-          <div className="p-3 rounded-xl bg-gradient-to-br from-bg-tertiary to-bg-elevated border border-border-primary hover:border-neon-green/30 transition-colors">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-green to-neon-cyan flex items-center justify-center text-bg-primary font-bold text-sm">
-                {badgeTier !== 'none' ? badgeTier.charAt(0).toUpperCase() : 'W'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-text-primary truncate">
-                  {userNumber ? `Whale #${userNumber}` : 'Loading...'}
-                </p>
-                <p className="text-xs text-text-muted font-mono">{shortWallet}</p>
-              </div>
-            </div>
-            {badgeTier && badgeTier !== 'none' && (
-              <TierBadge tier={badgeTier as "bronze" | "silver" | "gold" | "diamond" | "legendary"} size="sm" />
-            )}
-          </div>
+        <div className={`p-3 ${isCollapsed ? 'px-2' : 'p-4'}`}>
+          <UserCardWithTooltip
+            isCollapsed={isCollapsed}
+            userNumber={userNumber}
+            badgeTier={badgeTier}
+            shortWallet={shortWallet}
+            privacyScore={privacyScore}
+          />
         </div>
 
         {/* Navigation */}
@@ -165,18 +227,38 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           {navGroups.map((group, groupIndex) => (
             <div key={group.title} className={groupIndex > 0 ? "mt-4" : ""}>
               {/* Section Label */}
-              <div className="px-3 mb-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted/70">
-                  {group.title}
-                </span>
-              </div>
+              <AnimatePresence mode="wait">
+                {!isCollapsed ? (
+                  <motion.div
+                    key="label"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="px-3 mb-2"
+                  >
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted/70">
+                      {group.title}
+                    </span>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="divider"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="px-3 mb-2"
+                  >
+                    <div className="h-px bg-border-secondary/30" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-              {/* Section Items - with transition for reordering */}
-              <div className="space-y-0.5 relative">
-                {group.items.map((item, itemIndex) => {
+              {/* Section Items */}
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
                   const isAvailable = item.featureKey ? isFeatureAvailable(item.featureKey) : true;
                   return (
-                    <SidebarLink
+                    <DesktopSidebarLink
                       key={item.href}
                       href={item.href}
                       icon={item.icon}
@@ -185,11 +267,8 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                       badgeColor={item.badgeColor}
                       isActive={pathname === item.href}
                       isDisabled={!isAvailable}
+                      isCollapsed={isCollapsed}
                       network={network}
-                      onClick={onClose}
-                      style={{
-                        transitionDelay: `${itemIndex * 50}ms`,
-                      }}
                     />
                   );
                 })}
@@ -203,65 +282,382 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           {/* Bottom Items */}
           <div className="space-y-0.5">
             {bottomItems.map((item) => (
-              <SidebarLink
+              <DesktopSidebarLink
                 key={item.href}
                 href={item.href}
                 icon={item.icon}
                 label={item.label}
                 isActive={pathname === item.href}
-                onClick={onClose}
+                isCollapsed={isCollapsed}
               />
             ))}
           </div>
         </nav>
 
         {/* Stealth Rating */}
-        <div className="p-4 border-t border-border-primary bg-bg-primary/30">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-text-muted">Stealth Rating</span>
-            <span className="text-xs font-bold text-neon-green">
-              {privacyScore || 0}/1000
-            </span>
-          </div>
-          <div className="h-2 bg-bg-primary rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-neon-green via-neon-cyan to-neon-green rounded-full transition-all duration-500 relative"
-              style={{ width: `${(privacyScore / 1000) * 100}%` }}
+        <AnimatePresence mode="wait">
+          {!isCollapsed ? (
+            <motion.div
+              key="full"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-4 border-t border-border-primary bg-bg-primary/30"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-            </div>
-          </div>
-          <p className="text-[10px] text-text-muted mt-2">
-            Use privacy tools to increase your rating
-          </p>
-        </div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-text-muted">Stealth Rating</span>
+                <span className="text-xs font-bold text-neon-green">
+                  {privacyScore || 0}/1000
+                </span>
+              </div>
+              <div className="h-2 bg-bg-primary rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-neon-green via-neon-cyan to-neon-green rounded-full relative"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(privacyScore / 1000) * 100}%` }}
+                  transition={{ duration: 0.5 }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                </motion.div>
+              </div>
+              <p className="text-[10px] text-text-muted mt-2">
+                Use privacy tools to increase your rating
+              </p>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="compact"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-3 border-t border-border-primary bg-bg-primary/30"
+            >
+              <div className="flex items-center justify-center">
+                <div className="w-12 h-12 rounded-full bg-bg-tertiary border border-border-primary flex items-center justify-center relative overflow-hidden">
+                  <svg className="absolute inset-0 w-full h-full -rotate-90">
+                    <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(0,255,136,0.1)" strokeWidth="3" />
+                    <motion.circle
+                      cx="24" cy="24" r="20"
+                      fill="none"
+                      stroke="url(#stealthGrad)"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeDasharray={125.6}
+                      initial={{ strokeDashoffset: 125.6 }}
+                      animate={{ strokeDashoffset: 125.6 - (privacyScore / 1000) * 125.6 }}
+                      transition={{ duration: 0.5 }}
+                    />
+                    <defs>
+                      <linearGradient id="stealthGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#00ff88" />
+                        <stop offset="100%" stopColor="#00d4ff" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <span className="text-[10px] font-bold text-neon-green relative z-10">
+                    {Math.round((privacyScore / 1000) * 100)}%
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Version Badge - Network Aware */}
+        {/* Version Badge */}
         <div className="px-4 pb-4">
-          <div className={`flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] text-text-muted transition-all duration-500 ${
+          <div className={`flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] text-text-muted transition-all ${
             network === 'mainnet'
               ? 'bg-neon-green/5 border border-neon-green/20'
               : 'bg-warning/5 border border-warning/20'
           }`}>
-            <span className={`w-1.5 h-1.5 rounded-full animate-pulse transition-colors duration-500 ${
+            <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${
               network === 'mainnet' ? 'bg-neon-green' : 'bg-warning'
             }`} />
-            <span className={`transition-colors duration-500 ${
-              network === 'mainnet' ? 'text-neon-green' : 'text-warning'
-            }`}>
-              {network === 'mainnet' ? 'Mainnet' : 'Devnet'}
-            </span>
-            <span className="text-text-muted/50">|</span>
-            <span>v1.0.0</span>
+            <AnimatePresence mode="wait">
+              {!isCollapsed && (
+                <motion.span
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className={`whitespace-nowrap ${
+                    network === 'mainnet' ? 'text-neon-green' : 'text-warning'
+                  }`}
+                >
+                  {network === 'mainnet' ? 'Mainnet' : 'Devnet'}
+                  <span className="text-text-muted/50 mx-1">|</span>
+                  v1.0.0
+                </motion.span>
+              )}
+            </AnimatePresence>
           </div>
         </div>
-      </aside>
+      </motion.aside>
     </>
   );
 }
 
-// Sidebar Link
-interface SidebarLinkProps {
+// Mobile sidebar content (full width, no collapse)
+// User Card with Tooltip for collapsed state
+function UserCardWithTooltip({
+  isCollapsed,
+  userNumber,
+  badgeTier,
+  shortWallet,
+  privacyScore,
+}: {
+  isCollapsed: boolean;
+  userNumber: number | null;
+  badgeTier: string;
+  shortWallet: string;
+  privacyScore: number;
+}) {
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  // Get badge initial and color
+  const getBadgeDisplay = () => {
+    if (badgeTier === 'none' || !badgeTier) return { initial: 'W', color: 'from-neon-green to-neon-cyan' };
+    const colors: Record<string, string> = {
+      bronze: 'from-amber-600 to-amber-400',
+      silver: 'from-gray-400 to-gray-200',
+      gold: 'from-yellow-500 to-yellow-300',
+      diamond: 'from-cyan-400 to-blue-300',
+      legendary: 'from-purple-500 to-pink-400',
+    };
+    return {
+      initial: badgeTier.charAt(0).toUpperCase(),
+      color: colors[badgeTier] || 'from-neon-green to-neon-cyan'
+    };
+  };
+
+  const { initial, color } = getBadgeDisplay();
+
+  if (isCollapsed) {
+    return (
+      <div
+        className="relative flex justify-center"
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+      >
+        {/* Collapsed Avatar */}
+        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center text-bg-primary font-bold text-lg shadow-lg shadow-neon-green/20 cursor-pointer hover:scale-105 transition-transform`}>
+          {initial}
+        </div>
+
+        {/* Tooltip */}
+        <AnimatePresence>
+          {showTooltip && (
+            <motion.div
+              initial={{ opacity: 0, x: -10, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: -10, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="absolute left-full ml-3 top-0 z-50 w-56"
+            >
+              <div className="bg-bg-elevated border border-border-primary rounded-xl shadow-xl p-4">
+                {/* User Info */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${color} flex items-center justify-center text-bg-primary font-bold text-sm`}>
+                    {initial}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-text-primary">
+                      {userNumber ? `Whale #${userNumber}` : 'Loading...'}
+                    </p>
+                    <p className="text-xs text-text-muted font-mono">{shortWallet}</p>
+                  </div>
+                </div>
+
+                {/* Badge */}
+                {badgeTier && badgeTier !== 'none' && (
+                  <div className="mb-3">
+                    <TierBadge tier={badgeTier as "bronze" | "silver" | "gold" | "diamond" | "legendary"} size="sm" />
+                  </div>
+                )}
+
+                {/* Stealth Rating */}
+                <div className="pt-3 border-t border-border-secondary">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] text-text-muted uppercase tracking-wider">Stealth Rating</span>
+                    <span className="text-xs font-bold text-neon-green">{privacyScore}/1000</span>
+                  </div>
+                  <div className="h-1.5 bg-bg-primary rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-neon-green to-neon-cyan rounded-full"
+                      style={{ width: `${(privacyScore / 1000) * 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Arrow */}
+                <div className="absolute left-0 top-4 -translate-x-1.5 w-3 h-3 bg-bg-elevated border-l border-b border-border-primary rotate-45" />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  // Expanded state
+  return (
+    <div className="p-3 rounded-xl bg-gradient-to-br from-bg-tertiary to-bg-elevated border border-border-primary hover:border-neon-green/30 transition-colors">
+      <div className="flex items-center gap-3 mb-2">
+        <div className={`flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br ${color} flex items-center justify-center text-bg-primary font-bold text-sm shadow-md`}>
+          {initial}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-text-primary truncate">
+            {userNumber ? `Whale #${userNumber}` : 'Loading...'}
+          </p>
+          <p className="text-xs text-text-muted font-mono">{shortWallet}</p>
+        </div>
+      </div>
+      {badgeTier && badgeTier !== 'none' && (
+        <TierBadge tier={badgeTier as "bronze" | "silver" | "gold" | "diamond" | "legendary"} size="sm" />
+      )}
+    </div>
+  );
+}
+
+function MobileSidebarContent({
+  navGroups,
+  bottomItems,
+  pathname,
+  userNumber,
+  badgeTier,
+  privacyScore,
+  shortWallet,
+  network,
+  isFeatureAvailable,
+  onClose,
+}: {
+  navGroups: NavGroup[];
+  bottomItems: { href: string; icon: ReactNode; label: string }[];
+  pathname: string;
+  userNumber: number | null;
+  badgeTier: string;
+  privacyScore: number;
+  shortWallet: string;
+  network: 'mainnet' | 'devnet';
+  isFeatureAvailable: (key: FeatureKey) => boolean;
+  onClose?: () => void;
+}) {
+  return (
+    <>
+      {/* User Card */}
+      <div className="p-4">
+        <div className="p-3 rounded-xl bg-gradient-to-br from-bg-tertiary to-bg-elevated border border-border-primary">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-green to-neon-cyan flex items-center justify-center text-bg-primary font-bold text-sm">
+              {badgeTier !== 'none' ? badgeTier.charAt(0).toUpperCase() : 'W'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-text-primary truncate">
+                {userNumber ? `Whale #${userNumber}` : 'Loading...'}
+              </p>
+              <p className="text-xs text-text-muted font-mono">{shortWallet}</p>
+            </div>
+          </div>
+          {badgeTier && badgeTier !== 'none' && (
+            <TierBadge tier={badgeTier as "bronze" | "silver" | "gold" | "diamond" | "legendary"} size="sm" />
+          )}
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 px-3 py-2 overflow-y-auto">
+        {navGroups.map((group, groupIndex) => (
+          <div key={group.title} className={groupIndex > 0 ? "mt-4" : ""}>
+            <div className="px-3 mb-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted/70">
+                {group.title}
+              </span>
+            </div>
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const isAvailable = item.featureKey ? isFeatureAvailable(item.featureKey) : true;
+                return (
+                  <MobileSidebarLink
+                    key={item.href}
+                    href={item.href}
+                    icon={item.icon}
+                    label={item.label}
+                    badge={item.badge}
+                    badgeColor={item.badgeColor}
+                    isActive={pathname === item.href}
+                    isDisabled={!isAvailable}
+                    network={network}
+                    onClick={onClose}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        <div className="my-4 h-px bg-border-secondary/50" />
+
+        <div className="space-y-0.5">
+          {bottomItems.map((item) => (
+            <MobileSidebarLink
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+              isActive={pathname === item.href}
+              onClick={onClose}
+            />
+          ))}
+        </div>
+      </nav>
+
+      {/* Stealth Rating */}
+      <div className="p-4 border-t border-border-primary bg-bg-primary/30">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-text-muted">Stealth Rating</span>
+          <span className="text-xs font-bold text-neon-green">{privacyScore || 0}/1000</span>
+        </div>
+        <div className="h-2 bg-bg-primary rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-neon-green via-neon-cyan to-neon-green rounded-full relative"
+            style={{ width: `${(privacyScore / 1000) * 100}%` }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+          </div>
+        </div>
+      </div>
+
+      {/* Version */}
+      <div className="px-4 pb-4">
+        <div className={`flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] ${
+          network === 'mainnet'
+            ? 'bg-neon-green/5 border border-neon-green/20 text-neon-green'
+            : 'bg-warning/5 border border-warning/20 text-warning'
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+            network === 'mainnet' ? 'bg-neon-green' : 'bg-warning'
+          }`} />
+          {network === 'mainnet' ? 'Mainnet' : 'Devnet'}
+          <span className="text-text-muted/50">|</span>
+          <span className="text-text-muted">v1.0.0</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// Mobile Sidebar Link
+function MobileSidebarLink({
+  href,
+  icon,
+  label,
+  badge,
+  badgeColor = "green",
+  isActive,
+  isDisabled,
+  network,
+  onClick,
+}: {
   href: string;
   icon: ReactNode;
   label: string;
@@ -271,38 +667,16 @@ interface SidebarLinkProps {
   isDisabled?: boolean;
   network?: 'mainnet' | 'devnet';
   onClick?: () => void;
-  style?: React.CSSProperties;
-}
-
-function SidebarLink({ href, icon, label, badge, badgeColor = "green", isActive, isDisabled, network, onClick, style }: SidebarLinkProps) {
-  // If disabled, show as non-clickable with visual feedback
+}) {
   if (isDisabled) {
     return (
       <div
-        className={`
-          group flex items-center gap-3 px-3 py-2.5 rounded-lg
-          text-sm font-medium
-          text-text-muted/50 border-l-2 border-transparent
-          cursor-not-allowed select-none
-          transition-all duration-500 ease-out
-          opacity-50 hover:opacity-60
-          transform translate-y-0
-        `}
-        style={style}
+        className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-text-muted/50 opacity-50 cursor-not-allowed"
         title={`Not available on ${network}`}
       >
-        <span className="transition-all duration-500 text-text-muted/40">
-          {icon}
-        </span>
-        <span className="flex-1 line-through decoration-text-muted/30">{label}</span>
-        {badge && (
-          <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-bg-tertiary/50 text-text-muted/50">
-            {badge}
-          </span>
-        )}
-        <span className="text-[8px] uppercase tracking-wider text-text-muted/40">
-          {network === 'mainnet' ? 'devnet' : 'mainnet'}
-        </span>
+        <span className="text-text-muted/40">{icon}</span>
+        <span className="flex-1 line-through">{label}</span>
+        {badge && <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-bg-tertiary/50 text-text-muted/50">{badge}</span>}
       </div>
     );
   }
@@ -311,37 +685,171 @@ function SidebarLink({ href, icon, label, badge, badgeColor = "green", isActive,
     <Link
       href={href}
       onClick={onClick}
-      className={`
-        group flex items-center gap-3 px-3 py-2.5 rounded-lg
-        text-sm font-medium
-        transition-all duration-500 ease-out
-        transform translate-y-0
-        ${
-          isActive
-            ? "bg-neon-green/10 text-neon-green border-l-2 border-neon-green shadow-[0_0_10px_rgba(0,255,136,0.1)]"
-            : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/70 border-l-2 border-transparent"
-        }
-      `}
-      style={style}
+      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+        isActive
+          ? "bg-neon-green/10 text-neon-green border-l-2 border-neon-green"
+          : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/70 border-l-2 border-transparent"
+      }`}
     >
-      <span className={`transition-all duration-500 ${isActive ? "text-neon-green" : "text-text-muted group-hover:text-text-primary"}`}>
-        {icon}
-      </span>
+      <span className={isActive ? "text-neon-green" : "text-text-muted"}>{icon}</span>
       <span className="flex-1">{label}</span>
       {badge && (
-        <span className={`
-          px-1.5 py-0.5 text-[9px] font-bold rounded
-          transition-all duration-500
-          ${badgeColor === "green"
-            ? "bg-neon-green/20 text-neon-green"
-            : badgeColor === "cyan"
-            ? "bg-neon-cyan/20 text-neon-cyan"
-            : "bg-warning/20 text-warning"
-          }
-        `}>
+        <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+          badgeColor === "green" ? "bg-neon-green/20 text-neon-green"
+          : badgeColor === "cyan" ? "bg-neon-cyan/20 text-neon-cyan"
+          : "bg-warning/20 text-warning"
+        }`}>
           {badge}
         </span>
       )}
+    </Link>
+  );
+}
+
+// Desktop Sidebar Link with enhanced tooltip on collapse
+function DesktopSidebarLink({
+  href,
+  icon,
+  label,
+  badge,
+  badgeColor = "green",
+  isActive,
+  isDisabled,
+  isCollapsed,
+  network,
+}: {
+  href: string;
+  icon: ReactNode;
+  label: string;
+  badge?: string;
+  badgeColor?: string;
+  isActive?: boolean;
+  isDisabled?: boolean;
+  isCollapsed?: boolean;
+  network?: 'mainnet' | 'devnet';
+}) {
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  // Get badge color classes
+  const getBadgeClasses = (color: string) => {
+    switch (color) {
+      case "green": return "bg-neon-green/20 text-neon-green";
+      case "cyan": return "bg-neon-cyan/20 text-neon-cyan";
+      default: return "bg-warning/20 text-warning";
+    }
+  };
+
+  if (isDisabled) {
+    return (
+      <div
+        className={`group flex items-center gap-3 rounded-xl text-sm font-medium relative text-text-muted/50 opacity-60 cursor-not-allowed ${
+          isCollapsed ? 'justify-center px-2 py-3' : 'px-3 py-2.5'
+        }`}
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+      >
+        <span className={`text-text-muted/40 flex-shrink-0 ${isCollapsed ? 'w-5 h-5' : 'w-4 h-4'}`}>{icon}</span>
+        {!isCollapsed && (
+          <>
+            <span className="flex-1 line-through">{label}</span>
+            {badge && <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-bg-tertiary/50 text-text-muted/50">{badge}</span>}
+          </>
+        )}
+        {/* Enhanced Tooltip for disabled */}
+        <AnimatePresence>
+          {isCollapsed && showTooltip && (
+            <motion.div
+              initial={{ opacity: 0, x: -8, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: -8, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="absolute left-full ml-3 z-50"
+            >
+              <div className="relative bg-bg-elevated border border-border-primary rounded-xl shadow-xl px-4 py-3 min-w-[160px]">
+                <p className="text-sm font-medium text-text-muted line-through">{label}</p>
+                <p className="text-[10px] text-error mt-1">
+                  {network === 'mainnet' ? 'Devnet' : 'Mainnet'} only
+                </p>
+                {/* Arrow */}
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1.5 w-3 h-3 bg-bg-elevated border-l border-b border-border-primary rotate-45" />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      className={`group flex items-center gap-3 rounded-xl text-sm font-medium relative transition-all ${
+        isCollapsed ? 'justify-center px-2 py-3' : 'px-3 py-2.5'
+      } ${
+        isActive
+          ? "bg-neon-green/10 text-neon-green shadow-[0_0_15px_rgba(0,255,136,0.15)] border border-neon-green/30"
+          : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50 border border-transparent"
+      }`}
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
+      <span className={`flex-shrink-0 transition-all ${isCollapsed ? 'w-5 h-5' : 'w-4 h-4'} ${isActive ? "text-neon-green" : "text-text-muted group-hover:text-neon-green"}`}>
+        {icon}
+      </span>
+      <AnimatePresence mode="wait">
+        {!isCollapsed && (
+          <motion.span
+            initial={{ opacity: 0, width: 0 }}
+            animate={{ opacity: 1, width: "auto" }}
+            exit={{ opacity: 0, width: 0 }}
+            transition={{ duration: 0.15 }}
+            className="flex-1 truncate"
+          >
+            {label}
+          </motion.span>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {!isCollapsed && badge && (
+          <motion.span
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            className={`px-1.5 py-0.5 text-[9px] font-bold rounded-md flex-shrink-0 ${getBadgeClasses(badgeColor)}`}
+          >
+            {badge}
+          </motion.span>
+        )}
+      </AnimatePresence>
+
+      {/* Enhanced Tooltip on collapse */}
+      <AnimatePresence>
+        {isCollapsed && showTooltip && (
+          <motion.div
+            initial={{ opacity: 0, x: -8, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: -8, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute left-full ml-3 z-50"
+          >
+            <div className="relative bg-bg-elevated border border-border-primary rounded-xl shadow-xl px-4 py-3 min-w-[160px]">
+              <div className="flex items-center gap-2">
+                <p className={`text-sm font-semibold ${isActive ? 'text-neon-green' : 'text-text-primary'}`}>{label}</p>
+                {badge && (
+                  <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded-md ${getBadgeClasses(badgeColor)}`}>
+                    {badge}
+                  </span>
+                )}
+              </div>
+              {isActive && (
+                <p className="text-[10px] text-neon-green/70 mt-1">Currently viewing</p>
+              )}
+              {/* Arrow */}
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1.5 w-3 h-3 bg-bg-elevated border-l border-b border-border-primary rotate-45" />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Link>
   );
 }
@@ -350,6 +858,12 @@ function SidebarLink({ href, icon, label, badge, badgeColor = "green", isActive,
 const CloseIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
+
+const ChevronLeftIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
   </svg>
 );
 

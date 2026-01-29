@@ -7,6 +7,7 @@ import { WalletAvatar } from "../ui/Avatar";
 import Dropdown, { DropdownItem, DropdownDivider } from "../ui/Dropdown";
 import { CountBadge, TierBadge } from "../ui/Badge";
 import NetworkSelectModal from "../ui/NetworkSelectModal";
+import WhaleLogo from "../ui/WhaleLogo";
 import { useAuth } from "@/lib/privy/hooks";
 import { useUser, useWallet, useUI } from "@/store";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
@@ -66,11 +67,19 @@ export default function Header({ variant = "landing", wallet, notifications = 0 
               </button>
             )}
 
-            <Link href={variant === "app" ? "/dashboard" : "/"} className="flex items-center gap-2">
-              <span className="text-lg">🐋</span>
-              <span className="font-bold text-base bg-gradient-to-r from-neon-green to-neon-cyan bg-clip-text text-transparent hidden sm:block">
-                WHALE SUITE
-              </span>
+            <Link href={variant === "app" ? "/dashboard" : "/"} className="flex items-center">
+              <WhaleLogo
+                size="sm"
+                showText={true}
+                animated={true}
+                className="hidden sm:flex"
+              />
+              <WhaleLogo
+                size="xs"
+                showText={false}
+                animated={false}
+                className="sm:hidden"
+              />
             </Link>
 
             {/* Network Toggle - Show in app variant */}

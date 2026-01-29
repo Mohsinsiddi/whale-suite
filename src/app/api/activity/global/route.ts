@@ -116,10 +116,11 @@ export async function GET(request: NextRequest) {
         hasMore: offset + limit < total,
       },
       stats: {
-        volume24h: (stats24h.totalVolume || 0) * 150, // Approximate USD
+        // Return raw SOL values - frontend will convert using live prices
+        volume24h: stats24h.totalVolume || 0,
         activeUsers: stats24h.uniqueWallets?.length || 0,
         totalTxs: stats24h.txCount || 0,
-        netFlow: ((stats24h.deposits || 0) - (stats24h.withdraws || 0)) * 150,
+        netFlow: (stats24h.deposits || 0) - (stats24h.withdraws || 0),
       },
       lastUpdated: new Date().toISOString(),
     });
