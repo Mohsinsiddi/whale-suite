@@ -6,13 +6,13 @@ import { useStore } from '@/store';
 import { useAuth } from '@/lib/privy/hooks';
 
 /**
- * CRITICAL HOOK: Handles wallet switching
+ * CRITICAL HOOK: Handles wallet switching and user sync
  *
- * When the connected wallet changes:
+ * When the connected wallet changes OR on initial load:
  * 1. Updates store with new wallet
  * 2. Clears old user data
  * 3. Invalidates all SWR caches
- * 4. Syncs user data for new wallet
+ * 4. Syncs user data (creates user if not exists in DB)
  */
 export function useWalletChange() {
   const { walletAddress, authenticated } = useAuth();
@@ -27,6 +27,7 @@ export function useWalletChange() {
 
   const previousWalletRef = useRef<string | null>(null);
   const isInitializedRef = useRef(false);
+  const hasSyncedRef = useRef(false); // Track if we've synced this session
 
   // Sync user to backend
   const syncUserToBackend = useCallback(async (wallet: string) => {
@@ -80,51 +81,59 @@ export function useWalletChange() {
         resetUser();
         mutate(() => true, undefined, { revalidate: false });
         previousWalletRef.current = null;
+        hasSyncedRef.current = false; // Reset sync flag on logout
       }
       return;
     }
 
-    // Check if wallet actually changed
-    if (previousWalletRef.current === walletAddress) {
-      return; // No change, skip
-    }
+    // ALWAYS sync on first authenticated state (handles DB reset scenario)
+    // This ensures user exists in DB even if session is from before DB reset
+    const shouldSync = !hasSyncedRef.current || previousWalletRef.current !== walletAddress;
 
-    console.log('Wallet changed:', {
-      from: previousWalletRef.current,
-      to: walletAddress,
-    });
+    if (previousWalletRef.current !== walletAddress) {
+      console.log('Wallet changed:', {
+        from: previousWalletRef.current,
+        to: walletAddress,
+      });
 
-    // Clear previous wallet data if exists
-    if (previousWalletRef.current) {
-      resetUser();
-      mutate(
-        (key: unknown) =>
-          typeof key === 'string' && key.includes(previousWalletRef.current!),
-        undefined,
-        { revalidate: false }
-      );
-    }
-
-    // Update to new wallet
-    setWallet(walletAddress);
-    previousWalletRef.current = walletAddress;
-
-    // Sync user data
-    syncUserToBackend(walletAddress);
-
-    // Trigger revalidation for new wallet
-    mutate((key: unknown) => {
-      if (typeof key === 'string') {
-        return (
-          key.includes(`/api/users/${walletAddress}`) ||
-          key.includes(`/api/transactions/${walletAddress}`) ||
-          key.includes(`/api/referrals/${walletAddress}`) ||
-          key.includes('/api/whale-feed') ||
-          key.includes('/api/badges')
+      // Clear previous wallet data if exists
+      if (previousWalletRef.current) {
+        resetUser();
+        mutate(
+          (key: unknown) =>
+            typeof key === 'string' && key.includes(previousWalletRef.current!),
+          undefined,
+          { revalidate: false }
         );
       }
-      return false;
-    });
+
+      // Update to new wallet
+      setWallet(walletAddress);
+      previousWalletRef.current = walletAddress;
+    }
+
+    // Sync user data (creates user if not exists in DB)
+    if (shouldSync) {
+      console.log('Syncing user to backend...');
+      syncUserToBackend(walletAddress);
+      hasSyncedRef.current = true;
+    }
+
+    // Trigger revalidation for wallet data
+    if (shouldSync) {
+      mutate((key: unknown) => {
+        if (typeof key === 'string') {
+          return (
+            key.includes(`/api/users/${walletAddress}`) ||
+            key.includes(`/api/transactions/${walletAddress}`) ||
+            key.includes(`/api/referrals/${walletAddress}`) ||
+            key.includes('/api/whale-feed') ||
+            key.includes('/api/badges')
+          );
+        }
+        return false;
+      });
+    }
   }, [walletAddress, authenticated]); // Minimal dependencies
 
   return {

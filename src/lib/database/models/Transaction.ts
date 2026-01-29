@@ -116,6 +116,10 @@ const TransactionSchema = new Schema<ITransaction>({
 TransactionSchema.index({ userId: 1, network: 1, createdAt: -1 });
 TransactionSchema.index({ wallet: 1, network: 1, type: 1, createdAt: -1 });
 TransactionSchema.index({ wallet: 1, network: 1, createdAt: -1 });
+// Global activity API indexes
+TransactionSchema.index({ status: 1, createdAt: -1 }); // Global feed sorted by time
+TransactionSchema.index({ status: 1, type: 1, createdAt: -1 }); // Filtered global feed
+TransactionSchema.index({ wallet: 1, status: 1 }); // User transaction counts
 
 const Transaction: Model<ITransaction> = mongoose.models.Transaction || mongoose.model<ITransaction>('Transaction', TransactionSchema);
 

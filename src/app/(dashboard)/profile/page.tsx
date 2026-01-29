@@ -55,6 +55,12 @@ interface Transaction {
   signature: string;
   status: string;
   createdAt: string;
+  metadata?: {
+    fromToken?: string;
+    toToken?: string;
+    toAmount?: number;
+    [key: string]: unknown;
+  };
 }
 
 // Badge tier info
@@ -173,11 +179,18 @@ export default function ProfilePage() {
             return 'swap'; // Default fallback
           };
 
+          // Format description based on transaction type
+          let description = `${tx.amount?.toFixed(4) || ''} ${tx.token || 'SOL'}`;
+          if (tx.type === 'jupiter_swap' && tx.metadata?.fromToken && tx.metadata?.toToken) {
+            const toAmount = tx.metadata.toAmount ? tx.metadata.toAmount.toFixed(4) : '?';
+            description = `${tx.amount?.toFixed(4) || ''} ${tx.metadata.fromToken} → ${toAmount} ${tx.metadata.toToken}`;
+          }
+
           return {
             id: tx._id,
             type: getType(tx.type),
             action: tx.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-            description: `${tx.amount?.toFixed(4) || ''} ${tx.token || 'SOL'}`,
+            description,
             amount: tx.amount,
             status: tx.status as ActivityItem['status'],
             timestamp: tx.createdAt,
@@ -227,6 +240,12 @@ export default function ProfilePage() {
   const user = stats?.user;
   const badgeInfo = BADGE_INFO[user?.badgeTier || 'none'];
   const userStats = stats?.stats;
+
+  // Activity counts from transactions (for achievements that shouldn't reset on withdraw)
+  const activityCounts = stats?.activity || {};
+  const depositCount = activityCounts.privacy_deposit?.count || 0;
+  const totalDeposited = activityCounts.privacy_deposit?.amount || 0;
+  const transferCount = (activityCounts.shadow_transfer?.count || 0) + (userStats?.privateTransfers || 0);
 
   return (
     <div className="space-y-6">
@@ -324,7 +343,7 @@ export default function ProfilePage() {
                   Hidden Volume
                 </div>
                 <div className="text-lg font-bold text-text-primary">
-                  ${((userStats?.hiddenBalance || 0) * 150).toLocaleString()}
+                  ${(Math.max(0, totalDeposited) * 150).toLocaleString()}
                 </div>
               </Card>
 
@@ -434,9 +453,9 @@ export default function ProfilePage() {
               </CardHeader>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                  { icon: '🔒', name: 'First Deposit', unlocked: (userStats?.hiddenBalance || 0) > 0 },
-                  { icon: '👻', name: '100 Transfers', unlocked: (userStats?.privateTransfers || 0) >= 100 },
-                  { icon: '💎', name: 'Diamond Hands', unlocked: (userStats?.hiddenBalance || 0) > 10 },
+                  { icon: '🔒', name: 'First Deposit', unlocked: depositCount >= 1 },
+                  { icon: '👻', name: '100 Transfers', unlocked: transferCount >= 100 },
+                  { icon: '💎', name: 'Diamond Hands', unlocked: totalDeposited >= 10 },
                   { icon: '🐋', name: 'Whale Status', unlocked: points >= 1000 },
                   { icon: '🎯', name: 'Perfect Score', unlocked: (user?.privacyScore || 0) >= 900 },
                   { icon: '🏆', name: 'Top 100', unlocked: rank <= 100 },
@@ -469,12 +488,12 @@ export default function ProfilePage() {
               <StealthRating score={user?.privacyScore || 0} />
               <div className="mt-4 space-y-2">
                 <div className="flex justify-between text-xs">
-                  <span className="text-text-muted">Hidden Balance</span>
-                  <span className="text-neon-green">+{Math.floor((userStats?.hiddenBalance || 0) * 10)} pts</span>
+                  <span className="text-text-muted">Total Deposited</span>
+                  <span className="text-neon-green">+{Math.floor(Math.max(0, totalDeposited) * 10)} pts</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-text-muted">Private Transfers</span>
-                  <span className="text-neon-green">+{(userStats?.privateTransfers || 0) * 5} pts</span>
+                  <span className="text-neon-green">+{transferCount * 5} pts</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-text-muted">Badge Boost</span>

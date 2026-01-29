@@ -38,28 +38,33 @@ export async function GET(
       .limit(10)
       .lean();
 
-    // Calculate points earned today/week/month
+    // Calculate points earned today/week/month in a single aggregation
     const now = new Date();
-    const todayStart = new Date(now.setHours(0, 0, 0, 0));
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
     const weekStart = new Date(now);
     weekStart.setDate(weekStart.getDate() - 7);
     const monthStart = new Date(now);
     monthStart.setMonth(monthStart.getMonth() - 1);
 
-    const [pointsToday, pointsWeek, pointsMonth] = await Promise.all([
-      PointsHistory.aggregate([
-        { $match: { wallet, createdAt: { $gte: todayStart } } },
-        { $group: { _id: null, total: { $sum: '$totalPoints' } } },
-      ]),
-      PointsHistory.aggregate([
-        { $match: { wallet, createdAt: { $gte: weekStart } } },
-        { $group: { _id: null, total: { $sum: '$totalPoints' } } },
-      ]),
-      PointsHistory.aggregate([
-        { $match: { wallet, createdAt: { $gte: monthStart } } },
-        { $group: { _id: null, total: { $sum: '$totalPoints' } } },
-      ]),
+    // Single aggregation for all time periods
+    const pointsAggregation = await PointsHistory.aggregate([
+      { $match: { wallet, createdAt: { $gte: monthStart } } },
+      {
+        $group: {
+          _id: null,
+          totalMonth: { $sum: '$totalPoints' },
+          totalWeek: {
+            $sum: { $cond: [{ $gte: ['$createdAt', weekStart] }, '$totalPoints', 0] }
+          },
+          totalToday: {
+            $sum: { $cond: [{ $gte: ['$createdAt', todayStart] }, '$totalPoints', 0] }
+          },
+        },
+      },
     ]);
+
+    const pointsData = pointsAggregation[0] || { totalMonth: 0, totalWeek: 0, totalToday: 0 };
 
     // Get transaction counts
     const [transactionStats, cardCount, referralCount] = await Promise.all([
@@ -109,9 +114,9 @@ export async function GET(
       },
       points: {
         total: user.points || 0,
-        today: pointsToday[0]?.total || 0,
-        week: pointsWeek[0]?.total || 0,
-        month: pointsMonth[0]?.total || 0,
+        today: pointsData.totalToday || 0,
+        week: pointsData.totalWeek || 0,
+        month: pointsData.totalMonth || 0,
         recentHistory: recentPoints,
       },
       leaderboard: {

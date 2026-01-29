@@ -91,9 +91,10 @@ const PointsHistorySchema = new Schema<IPointsHistory>({
   timestamps: { createdAt: true, updatedAt: false },
 });
 
-// Compound index for efficient querying
-PointsHistorySchema.index({ wallet: 1, createdAt: -1 });
-PointsHistorySchema.index({ createdAt: -1 });
+// Compound indexes for efficient querying
+PointsHistorySchema.index({ wallet: 1, createdAt: -1 }); // User points history
+PointsHistorySchema.index({ createdAt: -1 }); // Global recent activity
+PointsHistorySchema.index({ wallet: 1, action: 1, createdAt: -1 }); // Action-specific queries
 
 /**
  * Calculate points for an action with badge multiplier

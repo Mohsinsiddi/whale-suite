@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRequireAuth } from './useAuth';
 
 export interface UserStats {
@@ -50,47 +50,78 @@ export interface UserStats {
   activity: Record<string, { count: number; amount: number }>;
 }
 
+// Cache to prevent duplicate calls across component instances
+const statsCache: Map<string, { data: UserStats; timestamp: number }> = new Map();
+const CACHE_DURATION = 5000; // 5 seconds cache
+const pendingRequests: Map<string, Promise<UserStats | null>> = new Map();
+
 export function useUserStats() {
   const { isAuthenticated, walletAddress } = useRequireAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<UserStats | null>(null);
+  const lastFetchedWallet = useRef<string | null>(null);
 
-  const fetchStats = useCallback(async (wallet?: string) => {
+  const fetchStats = useCallback(async (wallet?: string, forceRefresh = false) => {
     const targetWallet = wallet || walletAddress;
     if (!targetWallet) {
       setError('No wallet address');
       return null;
     }
 
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      const cached = statsCache.get(targetWallet);
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        setStats(cached.data);
+        return cached.data;
+      }
+    }
+
+    // Check if there's already a pending request for this wallet
+    const pendingRequest = pendingRequests.get(targetWallet);
+    if (pendingRequest) {
+      return pendingRequest;
+    }
+
     setLoading(true);
     setError(null);
 
-    try {
-      const response = await fetch(`/api/users/${targetWallet}/stats`);
-      const data = await response.json();
+    const requestPromise = (async () => {
+      try {
+        const response = await fetch(`/api/users/${targetWallet}/stats`);
+        const data = await response.json();
 
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch stats');
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to fetch stats');
+        }
+
+        // Update cache
+        statsCache.set(targetWallet, { data, timestamp: Date.now() });
+        setStats(data);
+        return data as UserStats;
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Failed to fetch stats';
+        setError(message);
+        return null;
+      } finally {
+        setLoading(false);
+        pendingRequests.delete(targetWallet);
       }
+    })();
 
-      setStats(data);
-      return data as UserStats;
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to fetch stats';
-      setError(message);
-      return null;
-    } finally {
-      setLoading(false);
-    }
+    pendingRequests.set(targetWallet, requestPromise);
+    return requestPromise;
   }, [walletAddress]);
 
-  // Auto-fetch when authenticated
+  // Auto-fetch when wallet changes (not on every render)
   useEffect(() => {
-    if (isAuthenticated && walletAddress) {
+    if (isAuthenticated && walletAddress && walletAddress !== lastFetchedWallet.current) {
+      lastFetchedWallet.current = walletAddress;
       fetchStats();
     }
-  }, [isAuthenticated, walletAddress, fetchStats]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, walletAddress]);
 
   // Derived values
   const rank = stats?.leaderboard.rank || 0;
@@ -115,7 +146,7 @@ export function useUserStats() {
     rankTrend,
     // Actions
     fetchStats,
-    refresh: () => fetchStats(),
+    refresh: () => fetchStats(undefined, true), // Force refresh bypasses cache
   };
 }
 

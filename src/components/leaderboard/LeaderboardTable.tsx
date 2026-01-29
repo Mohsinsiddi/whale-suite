@@ -167,12 +167,12 @@ export default function LeaderboardTable({
                 </div>
                 <div className="flex items-center gap-3 text-xs text-text-muted mt-0.5">
                   <span className="flex items-center gap-1">
-                    <Shield className="w-3 h-3" />
-                    {entry.privacyScore}
+                    <TrendingUp className="w-3 h-3" />
+                    {entry.transactionCount || 0} txs
                   </span>
                   <span className="flex items-center gap-1">
-                    <TrendingUp className="w-3 h-3" />
-                    {entry.privateTransfers} txs
+                    <Shield className="w-3 h-3" />
+                    {entry.privacyScore} score
                   </span>
                 </div>
               </div>

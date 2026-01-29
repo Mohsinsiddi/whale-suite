@@ -13,6 +13,7 @@ export interface LeaderboardEntry {
   privacyScore: number;
   privateTransfers: number;
   swapVolume: number;
+  transactionCount: number;
   lastActive?: string;
 }
 

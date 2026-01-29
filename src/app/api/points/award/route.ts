@@ -80,10 +80,30 @@ export async function POST(request: NextRequest) {
 
     const wallet = solanaWallet.address;
 
-    // Find user
-    const user = await User.findOne({ wallet });
+    // Find or create user (auto-create if authenticated but missing from DB)
+    let user = await User.findOne({ wallet });
     if (!user) {
-      return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
+      // Auto-create user if they're authenticated but not in DB (e.g., after DB reset)
+      const lastUser = await User.findOne().sort({ userNumber: -1 });
+      const nextUserNumber = (lastUser?.userNumber || 0) + 1;
+      const trialExpiry = new Date();
+      trialExpiry.setDate(trialExpiry.getDate() + 30);
+
+      user = await User.create({
+        wallet,
+        privyId: verifiedClaims.userId,
+        userNumber: nextUserNumber,
+        badgeTier: 'none',
+        isPremium: true,
+        premiumExpiry: trialExpiry,
+        privacyScore: 0,
+        referralCode: `WHALE${nextUserNumber}`,
+        lastLoginAt: new Date(),
+        points: 0,
+        streak: 0,
+        stats: {},
+      });
+      console.log(`Auto-created user #${nextUserNumber} for wallet ${wallet}`);
     }
 
     // Calculate points with badge multiplier

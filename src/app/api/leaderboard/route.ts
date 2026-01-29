@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/database/mongodb';
-import { User } from '@/lib/database/models';
+import { User, Transaction } from '@/lib/database/models';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,22 +34,31 @@ export async function GET(request: NextRequest) {
       dateFilter = { lastActiveDate: { $gte: monthAgo } };
     }
 
-    // Fetch users sorted by points
-    const users = await User.find({
+    const userQuery = {
       points: { $gt: 0 },
       ...dateFilter,
-    })
-      .sort({ points: -1, streak: -1 })
-      .skip(offset)
-      .limit(limit)
-      .select('wallet userNumber badgeTier points streak lastActiveDate privacyScore stats.privateTransfers stats.swapVolume')
-      .lean();
+    };
 
-    // Get total count for pagination
-    const total = await User.countDocuments({
-      points: { $gt: 0 },
-      ...dateFilter,
-    });
+    // Run user fetch and count in parallel
+    const [users, total] = await Promise.all([
+      User.find(userQuery)
+        .sort({ points: -1, streak: -1 })
+        .skip(offset)
+        .limit(limit)
+        .select('wallet userNumber badgeTier points streak lastActiveDate privacyScore stats.privateTransfers stats.swapVolume')
+        .lean(),
+      User.countDocuments(userQuery),
+    ]);
+
+    // Get transaction counts for all users in one query
+    const wallets = users.map(u => u.wallet);
+    const txCounts = wallets.length > 0
+      ? await Transaction.aggregate([
+          { $match: { wallet: { $in: wallets }, status: 'confirmed' } },
+          { $group: { _id: '$wallet', count: { $sum: 1 } } },
+        ])
+      : [];
+    const txCountMap = new Map(txCounts.map(t => [t._id, t.count]));
 
     // Add rank to each user
     const leaderboard = users.map((user, index) => ({
@@ -63,6 +72,7 @@ export async function GET(request: NextRequest) {
       privacyScore: user.privacyScore || 0,
       privateTransfers: user.stats?.privateTransfers || 0,
       swapVolume: user.stats?.swapVolume || 0,
+      transactionCount: txCountMap.get(user.wallet) || 0,
       lastActive: user.lastActiveDate,
     }));
 

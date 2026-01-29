@@ -62,9 +62,10 @@ const WhaleFeedSchema = new Schema<IWhaleFeed>({
   timestamps: true,
 });
 
-// Index for time-based queries (most common for feeds)
-WhaleFeedSchema.index({ createdAt: -1 });
-WhaleFeedSchema.index({ blockTime: -1 });
+// Compound indexes for feed queries
+WhaleFeedSchema.index({ createdAt: -1 }); // Default time sort
+WhaleFeedSchema.index({ blockTime: -1 }); // Block time sort
+WhaleFeedSchema.index({ eventType: 1, blockTime: -1 }); // Filtered time queries
 
 const WhaleFeed: Model<IWhaleFeed> = mongoose.models.WhaleFeed || mongoose.model<IWhaleFeed>('WhaleFeed', WhaleFeedSchema);
 

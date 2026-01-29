@@ -243,6 +243,7 @@ export default function SwapPage() {
           fromToken: fromToken.symbol,
           toToken: toToken.symbol,
           amount: parseFloat(fromAmount),
+          toAmount: result.outputAmount,
           network,
         });
         if (pointsResult) {

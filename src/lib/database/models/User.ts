@@ -64,17 +64,17 @@ const UserSchema = new Schema<IUser>({
     index: true
   },
   email: { type: String },
-  privyId: { type: String, index: true },
+  privyId: { type: String },
   userNumber: {
     type: Number,
     required: true,
     unique: true,
-    index: true
   },
   badgeTier: {
     type: String,
     enum: ['none', 'bronze', 'silver', 'gold', 'diamond', 'legendary'],
-    default: 'none'
+    default: 'none',
+    index: true
   },
   badgeMint: { type: String },
   badgePurchasedAt: { type: Date },
@@ -86,12 +86,11 @@ const UserSchema = new Schema<IUser>({
     type: String,
     required: true,
     unique: true,
-    index: true
   },
   referredBy: { type: String },
   settings: { type: UserSettingsSchema, default: () => ({}) },
   // Points & Leaderboard
-  points: { type: Number, default: 0, index: true },
+  points: { type: Number, default: 0 },
   streak: { type: Number, default: 0 },
   lastActiveDate: { type: Date },
   rank: { type: Number },
@@ -100,6 +99,13 @@ const UserSchema = new Schema<IUser>({
 }, {
   timestamps: true,
 });
+
+// Compound indexes for fast queries
+UserSchema.index({ points: -1, streak: -1 }); // Leaderboard sorting (matches API sort)
+UserSchema.index({ points: -1, createdAt: -1 }); // Leaderboard with time tiebreaker
+UserSchema.index({ badgeTier: 1, points: -1 }); // Badge filtering + leaderboard
+UserSchema.index({ privyId: 1 }, { sparse: true }); // Privy lookup (sparse for null values)
+UserSchema.index({ lastActiveDate: 1, points: -1 }); // Period-based leaderboard queries
 
 // Avoid model recompilation in dev mode
 const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);
