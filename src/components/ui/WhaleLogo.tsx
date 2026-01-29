@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useId } from "react";
 
 interface WhaleLogoProps {
   size?: "xs" | "sm" | "md" | "lg" | "xl";
@@ -26,6 +27,8 @@ export default function WhaleLogo({
   className = "",
 }: WhaleLogoProps) {
   const { icon: iconSize, text: textSize } = sizeConfig[size];
+  // Generate unique IDs for gradients to prevent conflicts between multiple instances
+  const uniqueId = useId();
 
   return (
     <div className={`flex items-center gap-2.5 ${className}`}>
@@ -81,16 +84,16 @@ export default function WhaleLogo({
               >
                 <path
                   d="M44 8c0-2 1-5 2-5s2 3 2 5c0 1.5-0.5 2.5-2 2.5S44 9.5 44 8z"
-                  fill="url(#spoutGradient)"
+                  fill={`url(#spoutGradient-${uniqueId})`}
                 />
                 <path
                   d="M41 6c0-1.5 0.5-3 1.5-3s1.5 1.5 1.5 3c0 1-0.5 1.5-1.5 1.5S41 7 41 6z"
-                  fill="url(#spoutGradient)"
+                  fill={`url(#spoutGradient-${uniqueId})`}
                   opacity="0.6"
                 />
                 <path
                   d="M49 7c0-1.5 0.5-3.5 1.5-3.5s1.5 2 1.5 3.5c0 1-0.5 1.5-1.5 1.5S49 8 49 7z"
-                  fill="url(#spoutGradient)"
+                  fill={`url(#spoutGradient-${uniqueId})`}
                   opacity="0.6"
                 />
               </motion.g>
@@ -105,7 +108,7 @@ export default function WhaleLogo({
                    C42 50 32 52 24 50
                    C16 48 10 44 8 38
                    C7 36 8 34 8 32Z"
-                fill="url(#whaleBodyGradient)"
+                fill={`url(#whaleBodyGradient-${uniqueId})`}
               />
 
               {/* Whale belly (lighter area) */}
@@ -115,7 +118,7 @@ export default function WhaleLogo({
                    C36 48 42 46 46 43
                    C44 46 36 49 26 48
                    C18 47 12 42 12 36Z"
-                fill="url(#whaleBellyGradient)"
+                fill={`url(#whaleBellyGradient-${uniqueId})`}
                 opacity="0.5"
               />
 
@@ -126,7 +129,7 @@ export default function WhaleLogo({
                    C40 10 38 14 36 16
                    C34 18 32 18 32 16
                    L32 14Z"
-                fill="url(#finGradient)"
+                fill={`url(#finGradient-${uniqueId})`}
                 animate={animated ? { d: [
                   "M32 14 C34 14 38 10 40 8 C40 10 38 14 36 16 C34 18 32 18 32 16 L32 14Z",
                   "M32 14 C34 14 37 11 39 9 C39 11 37 14 35 16 C34 18 32 18 32 16 L32 14Z",
@@ -145,7 +148,7 @@ export default function WhaleLogo({
                    C4 36 2 40 2 42
                    C4 40 6 38 8 36
                    L8 32Z"
-                fill="url(#tailGradient)"
+                fill={`url(#tailGradient-${uniqueId})`}
                 animate={animated ? {
                   rotate: [-5, 5, -5],
                 } : undefined}
@@ -159,7 +162,7 @@ export default function WhaleLogo({
                    C30 40 34 44 36 46
                    C34 46 30 44 28 42
                    C26 40 26 38 28 38Z"
-                fill="url(#finGradient)"
+                fill={`url(#finGradient-${uniqueId})`}
                 opacity="0.8"
               />
 
@@ -185,24 +188,24 @@ export default function WhaleLogo({
               />
 
               <defs>
-                <linearGradient id="whaleBodyGradient" x1="8" y1="14" x2="56" y2="52">
+                <linearGradient id={`whaleBodyGradient-${uniqueId}`} x1="8" y1="14" x2="56" y2="52">
                   <stop offset="0%" stopColor="#00ff88" />
                   <stop offset="50%" stopColor="#00d4ff" />
                   <stop offset="100%" stopColor="#00ff88" />
                 </linearGradient>
-                <linearGradient id="whaleBellyGradient" x1="12" y1="36" x2="46" y2="48">
+                <linearGradient id={`whaleBellyGradient-${uniqueId}`} x1="12" y1="36" x2="46" y2="48">
                   <stop offset="0%" stopColor="#ffffff" stopOpacity="0.3" />
                   <stop offset="100%" stopColor="#00ffcc" stopOpacity="0.2" />
                 </linearGradient>
-                <linearGradient id="finGradient" x1="32" y1="8" x2="40" y2="18">
+                <linearGradient id={`finGradient-${uniqueId}`} x1="32" y1="8" x2="40" y2="18">
                   <stop offset="0%" stopColor="#00d4ff" />
                   <stop offset="100%" stopColor="#00ff88" />
                 </linearGradient>
-                <linearGradient id="tailGradient" x1="2" y1="22" x2="8" y2="42">
+                <linearGradient id={`tailGradient-${uniqueId}`} x1="2" y1="22" x2="8" y2="42">
                   <stop offset="0%" stopColor="#00ff88" />
                   <stop offset="100%" stopColor="#00d4ff" />
                 </linearGradient>
-                <linearGradient id="spoutGradient" x1="44" y1="3" x2="48" y2="10">
+                <linearGradient id={`spoutGradient-${uniqueId}`} x1="44" y1="3" x2="48" y2="10">
                   <stop offset="0%" stopColor="#00d4ff" stopOpacity="0.8" />
                   <stop offset="100%" stopColor="#00ffcc" stopOpacity="0.3" />
                 </linearGradient>
