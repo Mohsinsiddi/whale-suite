@@ -47,4 +47,16 @@ async function connectDB(): Promise<typeof mongoose> {
   return cached!.conn;
 }
 
+/**
+ * Connect to database and return native MongoDB db object
+ * Used for direct collection operations
+ */
+export async function connectToDatabase() {
+  const mongooseConn = await connectDB();
+  return {
+    db: mongooseConn.connection.db!,
+    client: mongooseConn.connection.getClient(),
+  };
+}
+
 export default connectDB;

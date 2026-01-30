@@ -88,6 +88,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           { href: "/privacy", icon: <ShieldIcon />, label: "Privacy Cash", featureKey: 'privacy-cash' },
           { href: "/transfer", icon: <GhostIcon />, label: "Ghost Send", featureKey: 'shadow-wire' },
           { href: "/swap", icon: <SwapIcon />, label: "Jupiter Swap", featureKey: 'jupiter-swap' },
+          { href: "/private-swap", icon: <PrivateSwapIcon />, label: "Private Swap", badge: "ZK", badgeColor: "cyan", featureKey: 'darklake' },
           { href: "/dark-pool", icon: <DarkPoolIcon />, label: "Dark Pool", badge: "Beta", badgeColor: "warning", featureKey: 'dark-pool' },
         ],
       },
@@ -912,6 +913,13 @@ const SwapIcon = () => (
 const DarkPoolIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+  </svg>
+);
+
+const PrivateSwapIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 3v2m0 14v2m-7-9H3m18 0h-2" />
   </svg>
 );
 

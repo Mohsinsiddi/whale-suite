@@ -24,6 +24,7 @@ export const FEATURE_NETWORK_SUPPORT = {
   "privacy-cash": { mainnet: true, devnet: false, label: "Privacy Cash" },
   "cross-chain": { mainnet: true, devnet: false, label: "Cross-Chain Swap" },
   "whale-feed": { mainnet: true, devnet: true, label: "Whale Intelligence" },
+  "darklake": { mainnet: true, devnet: false, label: "Darklake Private Swap" },
 
   // Devnet-only features (beta/testing)
   "dark-pool": { mainnet: false, devnet: true, label: "Dark Pool (Beta)" },

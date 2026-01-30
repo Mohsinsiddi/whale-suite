@@ -9,6 +9,7 @@ export type PointAction =
   | 'shadow_transfer'
   | 'standard_transfer'
   | 'jupiter_swap'
+  | 'private_swap'
   | 'card_order'
   | 'daily_login'
   | 'referral'
@@ -139,6 +140,7 @@ export function usePoints() {
       shadow_transfer: 'Private Transfer',
       standard_transfer: 'Transfer',
       jupiter_swap: 'Swap',
+      private_swap: 'Private Swap',
       card_order: 'Virtual Card',
       daily_login: 'Daily Login',
       referral: 'Referral',

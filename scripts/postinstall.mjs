@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Postinstall script for Privacy Cash SDK
+ * Postinstall script for Privacy SDKs
  * Copies required WASM and circuit files to the public folder
  */
 
@@ -16,13 +16,15 @@ const projectRoot = join(__dirname, '..');
 const publicDir = join(projectRoot, 'public');
 const wasmDir = join(publicDir, 'wasm');
 const circuitDir = join(publicDir, 'circuit2');
+const darklakeCircuitDir = join(publicDir, 'circuits'); // For Darklake ZK circuits
 
 // Source directories
 const hasherDir = join(projectRoot, 'node_modules', '@lightprotocol', 'hasher.rs', 'dist');
 const privacyCashCircuitDir = join(projectRoot, 'node_modules', 'privacycash', 'circuit2');
+const darklakeSrcCircuitDir = join(projectRoot, 'node_modules', '@darklakefi', 'ts-sdk-on-chain', 'dist', 'zk', 'circuits');
 
 // Ensure directories exist
-for (const dir of [wasmDir, circuitDir]) {
+for (const dir of [wasmDir, circuitDir, darklakeCircuitDir]) {
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
     console.log(`Created ${dir.replace(projectRoot, '')}`);
@@ -88,4 +90,25 @@ if (existsSync(privacyCashCircuitDir)) {
   console.warn('  Circuit directory not found in privacycash package');
 }
 
-console.log('\nPrivacy Cash SDK setup complete!');
+// ===== Copy Darklake ZK circuit files =====
+console.log('\nCopying Darklake ZK circuit files...');
+
+if (existsSync(darklakeSrcCircuitDir)) {
+  const darklakeFiles = readdirSync(darklakeSrcCircuitDir);
+
+  for (const file of darklakeFiles) {
+    const src = join(darklakeSrcCircuitDir, file);
+    const dest = join(darklakeCircuitDir, file);
+
+    try {
+      copyFileSync(src, dest);
+      console.log(`  Copied ${file}`);
+    } catch (error) {
+      console.error(`  Failed to copy ${file}:`, error.message);
+    }
+  }
+} else {
+  console.warn('  Darklake circuit directory not found');
+}
+
+console.log('\nPrivacy SDKs setup complete!');

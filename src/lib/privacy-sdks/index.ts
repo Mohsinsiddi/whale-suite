@@ -56,3 +56,10 @@ export {
   type OrderStatusResponse,
   type AccountInfo,
 } from './starpay';
+export {
+  darklakeService,
+  type PrivateSwapResult,
+  type PrivateSwapQuote,
+  type DarklakeOrder,
+  type SwapStep,
+} from './darklake';

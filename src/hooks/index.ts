@@ -68,3 +68,7 @@ export type {
   MultiSendResult,
   TokenType,
 } from './useMultiSend';
+
+// Darklake Private Swap
+export { useDarklake } from './useDarklake';
+export type { DarklakeState, UseDarklakeReturn } from './useDarklake';
