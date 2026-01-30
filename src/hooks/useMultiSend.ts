@@ -4,8 +4,10 @@ import { useState, useCallback } from 'react';
 import { useShadowWire } from './useShadowWire';
 import { useTokenPrices } from './useTokenPrices';
 import { useNetwork } from './useNetwork';
+import { type ShadowWireTokenSymbol } from '@/lib/tokens';
 
-export type TokenType = 'SOL' | 'USDC' | 'USDT' | 'USD1';
+// All supported tokens for multi-send (must be ShadowWire enabled)
+export type TokenType = ShadowWireTokenSymbol;
 
 export interface MultiSendRecipient {
   id: string;
@@ -52,6 +54,7 @@ export function useMultiSend() {
     loading: shadowWireLoading,
     batchTransfer,
     signAllTransactions,
+    getMinimumAmount, // SDK's minimum amount function
   } = useShadowWire();
 
   const { getPrice, getUSDValue } = useTokenPrices();
@@ -62,7 +65,7 @@ export function useMultiSend() {
   const [result, setResult] = useState<MultiSendResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Shielded balance in SOL
+  // Shielded balance in SOL (for backward compatibility)
   const shieldedBalanceSOL = shieldedBalance?.available ? shieldedBalance.available / 1e9 : 0;
 
   /**
@@ -182,7 +185,7 @@ export function useMultiSend() {
           recipient: r.address,
           amount: parseFloat(r.amount),
         })),
-        token: token as 'SOL', // ShadowWire TokenSymbol
+        token, // Pass the actual token (ShadowWireTokenSymbol)
         type: transferType,
         signAllTransactions, // Sign all at once!
         onProgress: (phaseLabel, current) => {
@@ -223,8 +226,8 @@ export function useMultiSend() {
       // Final progress
       updateProgress('complete', 'Complete!', recipients.length, batchResult.totalCompleted, batchResult.totalFailed);
 
-      // Refresh shielded balance
-      await fetchShieldedBalance();
+      // Refresh shielded balance for the token that was transferred
+      await fetchShieldedBalance(token);
 
       const finalResult: MultiSendResult = {
         success: batchResult.success,
@@ -260,10 +263,14 @@ export function useMultiSend() {
   /**
    * Validate recipients list
    * Note: Only shows error messages for actual invalid data, not for empty fields
+   * @param recipients - List of recipients to validate
+   * @param token - Token symbol
+   * @param poolBalance - Actual pool balance from transfer page (required for accurate validation)
    */
   const validateRecipients = useCallback((
     recipients: MultiSendRecipient[],
-    token: TokenType = 'SOL'
+    token: TokenType = 'SOL',
+    poolBalance: number = 0 // Pass actual pool balance from transfer page
   ): { valid: boolean; error?: string; totalAmount: number; totalUsd: number } => {
     if (recipients.length === 0) {
       return { valid: false, error: 'Add at least one recipient', totalAmount: 0, totalUsd: 0 };
@@ -297,9 +304,10 @@ export function useMultiSend() {
         return { valid: false, error: `Invalid amount for recipient ${i + 1}`, totalAmount: 0, totalUsd: 0 };
       }
 
-      // Minimum amount check (0.1 SOL for ShadowWire)
-      if (token === 'SOL' && amount > 0 && amount < 0.1) {
-        return { valid: false, error: `Minimum 0.1 SOL per transfer (recipient ${i + 1})`, totalAmount: 0, totalUsd: 0 };
+      // Minimum amount check using SDK's actual minimums for the token
+      const minAmount = getMinimumAmount(token);
+      if (amount > 0 && amount < minAmount) {
+        return { valid: false, error: `Minimum ${minAmount.toLocaleString()} ${token} per transfer (recipient ${i + 1})`, totalAmount: 0, totalUsd: 0 };
       }
 
       if (!isNaN(amount) && amount > 0) {
@@ -313,18 +321,18 @@ export function useMultiSend() {
       return { valid: false, totalAmount, totalUsd };
     }
 
-    // Check if total exceeds shielded balance
-    if (token === 'SOL' && totalAmount > shieldedBalanceSOL) {
+    // Check if total exceeds shielded balance (use passed poolBalance for accuracy)
+    if (totalAmount > poolBalance) {
       return {
         valid: false,
-        error: `Total ${totalAmount.toFixed(4)} SOL exceeds shielded balance of ${shieldedBalanceSOL.toFixed(4)} SOL`,
+        error: `Total ${totalAmount.toFixed(4)} ${token} exceeds shielded balance of ${poolBalance.toFixed(4)} ${token}`,
         totalAmount,
         totalUsd,
       };
     }
 
     return { valid: true, totalAmount, totalUsd };
-  }, [shieldedBalanceSOL, getUSDValue]);
+  }, [getUSDValue, getMinimumAmount]);
 
   /**
    * Calculate USD value for an amount

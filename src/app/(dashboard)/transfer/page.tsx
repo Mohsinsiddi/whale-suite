@@ -16,8 +16,8 @@ import { TransferType } from "@/lib/privacy-sdks";
 import { PointsEarned } from "@/components/leaderboard";
 import {
   SHADOWWIRE_POOL_TOKENS,
-  MULTI_SEND_TOKEN_LIST,
   TOKEN_MINTS,
+  getTokenDecimals,
   type ShadowWireTokenSymbol,
 } from "@/lib/tokens";
 
@@ -150,18 +150,19 @@ export default function TransferPage() {
     }
   }, [walletAddress, activeTab, poolToken, fetchShieldedBalance, lastFetchedToken]);
 
-  // Get decimals for the selected pool token
-  const getTokenDecimals = useCallback((token: ShadowWireTokenSymbol): number => {
-    const decimalsMap: Record<string, number> = {
-      SOL: 9,
-      USDC: 6,
-      USD1: 6,
-      BONK: 5,
-      RADR: 9,
-      WLFI: 6,
-    };
-    return decimalsMap[token] || 9;
-  }, []);
+  // Keep multiSendToken in sync with poolToken (Multi-Send uses the pool's selected token)
+  useEffect(() => {
+    if (activeTab === 'multi' && multiSendToken !== poolToken) {
+      setMultiSendToken(poolToken as TokenType);
+      // Recalculate USD values for recipients when token changes
+      setMultiSendRecipients(prev =>
+        prev.map(r => ({
+          ...r,
+          usdValue: calculateUsdValue(r.amount, poolToken as TokenType),
+        }))
+      );
+    }
+  }, [activeTab, poolToken, multiSendToken, calculateUsdValue]);
 
   // Shielded balance for selected token (convert from smallest units)
   // Only show balance when it matches the currently selected token to avoid race conditions
@@ -171,7 +172,7 @@ export default function TransferPage() {
     if (!shieldedBalance?.available) return 0;
     const decimals = getTokenDecimals(poolToken);
     return shieldedBalance.available / Math.pow(10, decimals);
-  }, [shieldedBalance, poolToken, lastFetchedToken, isBalanceLoading, getTokenDecimals]);
+  }, [shieldedBalance, poolToken, lastFetchedToken, isBalanceLoading]);
 
   // Combined loading state
   const isLoading = transferLoading || shadowWireLoading;
@@ -188,10 +189,10 @@ export default function TransferPage() {
     { id: "standard", label: "Standard", icon: <TransferIcon /> },
   ];
 
-  // Multi-send validation
+  // Multi-send validation - pass actual shieldedPoolBalance for accurate validation
   const multiSendValidation = useMemo(() => {
-    return validateRecipients(multiSendRecipients, multiSendToken);
-  }, [multiSendRecipients, multiSendToken, validateRecipients]);
+    return validateRecipients(multiSendRecipients, multiSendToken, shieldedPoolBalance);
+  }, [multiSendRecipients, multiSendToken, shieldedPoolBalance, validateRecipients]);
 
   // Token price for multi-send
   const multiSendTokenPrice = useMemo(() => getPrice(multiSendToken), [multiSendToken, getPrice]);
@@ -228,24 +229,13 @@ export default function TransferPage() {
     );
   }, [multiSendToken, calculateUsdValue]);
 
-  // Handle multi-send token change
-  const handleMultiSendTokenChange = useCallback((token: TokenType) => {
-    setMultiSendToken(token);
-    setMultiSendRecipients(prev =>
-      prev.map(r => ({
-        ...r,
-        usdValue: calculateUsdValue(r.amount, token),
-      }))
-    );
-  }, [calculateUsdValue]);
-
   // Execute multi-send
   const handleMultiSendExecute = async () => {
     if (!walletAddress || !multiSendValidation.valid) return;
 
     setIsMultiSendExecuting(true);
 
-    await executeMultiSend(
+    const result = await executeMultiSend(
       walletAddress,
       multiSendRecipients,
       multiSendToken,
@@ -254,6 +244,12 @@ export default function TransferPage() {
 
     setIsMultiSendExecuting(false);
     setShowMultiSendSuccess(true);
+
+    // Refresh the transfer page's pool balance after multi-send
+    // (useMultiSend has its own isolated state, so we need to refresh here too)
+    if (result && result.completedCount > 0) {
+      setTimeout(() => fetchShieldedBalance(poolToken), 2000);
+    }
   };
 
   // Reset multi-send
@@ -262,6 +258,22 @@ export default function TransferPage() {
     setShowMultiSendSuccess(false);
     resetMultiSend();
   };
+
+  // Handle pool token change from the pool card - sync both pool token and multi-send token
+  const handlePoolTokenChange = useCallback((token: ShadowWireTokenSymbol) => {
+    setPoolToken(token);
+    // If on multi-send tab, also sync multi-send token
+    if (activeTab === 'multi') {
+      setMultiSendToken(token as TokenType);
+      // Recalculate USD values for multi-send recipients
+      setMultiSendRecipients(prev =>
+        prev.map(r => ({
+          ...r,
+          usdValue: calculateUsdValue(r.amount, token as TokenType),
+        }))
+      );
+    }
+  }, [activeTab, calculateUsdValue]);
 
   // Validate recipient on change
   useEffect(() => {
@@ -707,7 +719,7 @@ export default function TransferPage() {
                     {SHADOWWIRE_POOL_TOKENS.slice(0, 6).map(token => (
                       <button
                         key={token.symbol}
-                        onClick={() => setPoolToken(token.symbol as ShadowWireTokenSymbol)}
+                        onClick={() => handlePoolTokenChange(token.symbol as ShadowWireTokenSymbol)}
                         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
                           poolToken === token.symbol
                             ? 'bg-neon-green/20 border-neon-green text-neon-green'
@@ -725,16 +737,16 @@ export default function TransferPage() {
                     ))}
                   </div>
 
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <div className="text-2xl font-bold text-text-primary">
+                      <div className="text-xl sm:text-2xl font-bold text-text-primary">
                         {isBalanceLoading || poolToken !== lastFetchedToken ? (
                           <span className="inline-flex items-center gap-2">
                             <span className="w-4 h-4 border-2 border-neon-green/30 border-t-neon-green rounded-full animate-spin" />
-                            <span className="text-text-muted">Loading...</span>
+                            <span className="text-text-muted text-base">Loading...</span>
                           </span>
                         ) : (
-                          <>{shieldedPoolBalance.toFixed(4)} <span className="text-base text-text-secondary">{poolToken}</span></>
+                          <>{shieldedPoolBalance.toFixed(4)} <span className="text-sm sm:text-base text-text-secondary">{poolToken}</span></>
                         )}
                       </div>
                       <div className="text-xs text-text-muted mt-1">Available for private transfers</div>
@@ -745,7 +757,7 @@ export default function TransferPage() {
                           setShowDepositSection(!showDepositSection);
                           if (showWithdrawSection) setShowWithdrawSection(false);
                         }}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                        className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                           showDepositSection
                             ? 'bg-neon-green text-bg-primary shadow-lg shadow-neon-green/20'
                             : 'bg-neon-green/20 text-neon-green hover:bg-neon-green/30'
@@ -759,7 +771,7 @@ export default function TransferPage() {
                           if (showDepositSection) setShowDepositSection(false);
                         }}
                         disabled={shieldedPoolBalance === 0}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                        className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                           showWithdrawSection
                             ? 'bg-neon-cyan text-bg-primary shadow-lg shadow-neon-cyan/20'
                             : 'bg-neon-cyan/20 text-neon-cyan hover:bg-neon-cyan/30 disabled:opacity-50 disabled:cursor-not-allowed'
@@ -779,17 +791,17 @@ export default function TransferPage() {
 
                 {/* Deposit Section */}
                 {showDepositSection && (
-                  <div className={`mt-4 p-4 rounded-xl bg-bg-tertiary border space-y-3 ${
+                  <div className={`mt-4 p-3 sm:p-4 rounded-xl bg-bg-tertiary border space-y-3 ${
                     depositError ? 'border-error/50' : 'border-neon-green/30'
                   }`}>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                       <span className="text-sm font-medium text-text-primary">Deposit {poolToken} to Pool</span>
                       <span className="text-xs text-text-muted">
                         Wallet: {tokenBalancesLoading ? '...' : poolTokenWalletBalance.toFixed(4)} {poolToken}
                       </span>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <div className="flex-1 relative">
                         <input
                           type="number"
@@ -798,7 +810,7 @@ export default function TransferPage() {
                           placeholder={`Min ${shadowWireMinAmount(poolToken)} ${poolToken}`}
                           min={shadowWireMinAmount(poolToken)}
                           step="0.1"
-                          className={`w-full px-4 py-2.5 pr-20 rounded-lg bg-bg-elevated border text-sm text-text-primary placeholder:text-text-muted focus:outline-none ${
+                          className={`w-full px-3 sm:px-4 py-2.5 pr-20 rounded-lg bg-bg-elevated border text-sm text-text-primary placeholder:text-text-muted focus:outline-none ${
                             depositError
                               ? 'border-error/50 focus:border-error'
                               : 'border-border-secondary focus:border-neon-green'
@@ -828,6 +840,7 @@ export default function TransferPage() {
                         onClick={handleDeposit}
                         disabled={!!depositError || !depositAmount || shadowWireLoading}
                         loading={shadowWireLoading}
+                        className="w-full sm:w-auto"
                       >
                         Deposit
                       </Button>
@@ -844,17 +857,17 @@ export default function TransferPage() {
 
                 {/* Withdraw Section */}
                 {showWithdrawSection && (
-                  <div className={`mt-4 p-4 rounded-xl bg-bg-tertiary border space-y-3 ${
+                  <div className={`mt-4 p-3 sm:p-4 rounded-xl bg-bg-tertiary border space-y-3 ${
                     withdrawError ? 'border-error/50' : 'border-neon-cyan/30'
                   }`}>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                       <span className="text-sm font-medium text-text-primary">Withdraw {poolToken} from Pool</span>
                       <span className="text-xs text-text-muted">
                         Available: {shieldedPoolBalance.toFixed(4)} {poolToken}
                       </span>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <div className="flex-1 relative">
                         <input
                           type="number"
@@ -864,7 +877,7 @@ export default function TransferPage() {
                           min={shadowWireMinAmount(poolToken)}
                           max={shieldedPoolBalance}
                           step="0.1"
-                          className={`w-full px-4 py-2.5 pr-20 rounded-lg bg-bg-elevated border text-sm text-text-primary placeholder:text-text-muted focus:outline-none ${
+                          className={`w-full px-3 sm:px-4 py-2.5 pr-20 rounded-lg bg-bg-elevated border text-sm text-text-primary placeholder:text-text-muted focus:outline-none ${
                             withdrawError
                               ? 'border-error/50 focus:border-error'
                               : 'border-border-secondary focus:border-neon-cyan'
@@ -886,6 +899,7 @@ export default function TransferPage() {
                         onClick={handleWithdraw}
                         disabled={!!withdrawError || !withdrawAmount || shadowWireLoading}
                         loading={shadowWireLoading}
+                        className="w-full sm:w-auto"
                       >
                         Withdraw
                       </Button>
@@ -912,29 +926,39 @@ export default function TransferPage() {
 
             <TabPanel value="private" activeValue={activeTab} className="mt-6">
               <div className="space-y-5">
-                {/* From Wallet */}
+                {/* Sending Token Display */}
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">
-                    From Wallet
+                    Sending Token
                   </label>
-                  <div className="p-3 rounded-xl bg-bg-tertiary border border-border-secondary">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-neon-green to-neon-cyan flex items-center justify-center text-bg-primary font-bold text-sm">
-                          W
-                        </div>
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-bg-tertiary border border-neon-green/30">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        {(() => {
+                          const tokenData = SHADOWWIRE_POOL_TOKENS.find(t => t.symbol === poolToken);
+                          return tokenData?.logoURI ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={tokenData.logoURI} alt={poolToken} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full" />
+                          ) : (
+                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-neon-green to-neon-cyan flex items-center justify-center text-bg-primary font-bold text-base sm:text-lg">
+                              {poolToken.charAt(0)}
+                            </div>
+                          );
+                        })()}
                         <div>
-                          <div className="text-sm font-medium text-text-primary">Connected Wallet</div>
-                          <div className="text-xs text-text-muted font-mono">
-                            {walletAddress ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : 'Not connected'}
+                          <div className="text-xs sm:text-sm font-medium text-text-primary">
+                            {SHADOWWIRE_POOL_TOKENS.find(t => t.symbol === poolToken)?.name || poolToken}
+                          </div>
+                          <div className="text-[10px] sm:text-xs text-text-muted">
+                            {poolToken} • From Shielded Pool
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-neon-green">
-                          {balanceLoading ? '...' : `${balance.toFixed(4)} SOL`}
+                      <div className="text-left sm:text-right pl-10 sm:pl-0">
+                        <div className="text-xs sm:text-sm font-medium text-neon-green">
+                          {isBalanceLoading ? '...' : `${shieldedPoolBalance.toFixed(4)} ${poolToken}`}
                         </div>
-                        <div className="text-xs text-text-muted">Public Balance</div>
+                        <div className="text-[10px] sm:text-xs text-text-muted">Pool Balance</div>
                       </div>
                     </div>
                   </div>
@@ -945,28 +969,28 @@ export default function TransferPage() {
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">
                     Privacy Type
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                     <button
                       onClick={() => setPrivateTransferType("internal")}
-                      className={`p-3 rounded-xl border transition-all ${
+                      className={`p-2 sm:p-3 rounded-lg sm:rounded-xl border transition-all ${
                         privateTransferType === "internal"
                           ? "bg-neon-green/10 border-neon-green text-neon-green"
                           : "bg-bg-tertiary border-border-secondary text-text-secondary hover:border-border-primary"
                       }`}
                     >
-                      <div className="text-xs font-medium mb-0.5">Hidden Amount</div>
-                      <div className="text-[10px] opacity-70">Amount hidden via ZK proof</div>
+                      <div className="text-[10px] sm:text-xs font-medium mb-0.5">Hidden Amount</div>
+                      <div className="text-[9px] sm:text-[10px] opacity-70 leading-tight">Amount hidden via ZK</div>
                     </button>
                     <button
                       onClick={() => setPrivateTransferType("external")}
-                      className={`p-3 rounded-xl border transition-all ${
+                      className={`p-2 sm:p-3 rounded-lg sm:rounded-xl border transition-all ${
                         privateTransferType === "external"
                           ? "bg-neon-cyan/10 border-neon-cyan text-neon-cyan"
                           : "bg-bg-tertiary border-border-secondary text-text-secondary hover:border-border-primary"
                       }`}
                     >
-                      <div className="text-xs font-medium mb-0.5">Anonymous Sender</div>
-                      <div className="text-[10px] opacity-70">Your identity is hidden</div>
+                      <div className="text-[10px] sm:text-xs font-medium mb-0.5">Anonymous Sender</div>
+                      <div className="text-[9px] sm:text-[10px] opacity-70 leading-tight">Your identity is hidden</div>
                     </button>
                   </div>
                 </div>
@@ -1021,15 +1045,26 @@ export default function TransferPage() {
                   </div>
                 </div>
 
-                {/* Fee Estimate */}
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-text-muted">Estimated Fee</span>
-                  <span className="text-text-secondary">
-                    ~{amount ? shadowWireCalculateFee(parseFloat(amount) || 0, poolToken).fee.toFixed(6) : '0.00'} {poolToken}
-                    <span className="text-text-muted ml-1">
-                      ({shadowWireCalculateFee(1, poolToken).feePercentage.toFixed(2)}%)
+                {/* Fee Estimate - Same structure as Multi-Send */}
+                <div className="space-y-2 pt-2 border-t border-border-secondary">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-text-muted">Amount</span>
+                    <span className="text-text-primary font-medium">
+                      {amount ? parseFloat(amount).toFixed(4) : '0.0000'} {poolToken}
                     </span>
-                  </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-text-muted">Estimated Fee ({(shadowWireCalculateFee(1, poolToken).feePercentage * 100).toFixed(2)}%)</span>
+                    <span className="text-text-secondary">
+                      ~{amount ? shadowWireCalculateFee(parseFloat(amount) || 0, poolToken).fee.toFixed(6) : '0.000000'} {poolToken}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-text-muted">Total (incl. fees)</span>
+                    <span className="text-neon-green font-bold">
+                      ~{amount ? (parseFloat(amount) + shadowWireCalculateFee(parseFloat(amount) || 0, poolToken).fee).toFixed(4) : '0.0000'} {poolToken}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Error Display */}
@@ -1057,6 +1092,14 @@ export default function TransferPage() {
                 >
                   {shadowWireLoading ? 'Generating ZK Proof...' : `Send ${privateTransferType === "internal" ? "with Hidden Amount" : "Anonymously"}`}
                 </Button>
+
+                {/* ZK Time Estimate & Info */}
+                <div className="p-2.5 rounded-lg bg-bg-tertiary border border-border-secondary">
+                  <div className="flex items-center gap-2 text-[10px] text-text-muted">
+                    <span>⏱</span>
+                    <span>ZK proof generation takes ~30-45 seconds • Creates 2 transactions (proof + transfer)</span>
+                  </div>
+                </div>
               </div>
             </TabPanel>
 
@@ -1076,71 +1119,75 @@ export default function TransferPage() {
                   onClose={handleMultiSendReset}
                 />
               ) : (
-                <div className="space-y-5">
-                  {/* Token Selector */}
+                <div className="space-y-4 sm:space-y-5">
+                  {/* Sending Token Display - same as Single Send */}
                   <div>
-                    <label className="block text-xs font-medium text-text-secondary mb-2">
-                      Select Token
+                    <label className="block text-xs font-medium text-text-secondary mb-1.5">
+                      Sending Token
                     </label>
-                    <div className="grid grid-cols-4 gap-2">
-                      {MULTI_SEND_TOKEN_LIST.map(token => (
-                        <button
-                          key={token.symbol}
-                          onClick={() => handleMultiSendTokenChange(token.symbol as TokenType)}
-                          className={`p-2.5 rounded-lg border text-center transition-all ${
-                            multiSendToken === token.symbol
-                              ? 'bg-neon-green/10 border-neon-green text-neon-green'
-                              : 'bg-bg-tertiary border-border-secondary text-text-secondary hover:border-border-primary'
-                          }`}
-                        >
-                          <div className="flex justify-center mb-1">
-                            {token.logoURI ? (
+                    <div className="p-2.5 sm:p-3 rounded-xl bg-bg-tertiary border border-neon-green/30">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          {(() => {
+                            const tokenData = SHADOWWIRE_POOL_TOKENS.find(t => t.symbol === multiSendToken);
+                            return tokenData?.logoURI ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={token.logoURI}
-                                alt={token.symbol}
-                                className="w-6 h-6 rounded-full"
-                              />
+                              <img src={tokenData.logoURI} alt={multiSendToken} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full" />
                             ) : (
-                              <span className="text-lg">{token.icon}</span>
-                            )}
+                              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-neon-green to-neon-cyan flex items-center justify-center text-bg-primary font-bold text-base sm:text-lg">
+                                {multiSendToken.charAt(0)}
+                              </div>
+                            );
+                          })()}
+                          <div>
+                            <div className="text-xs sm:text-sm font-medium text-text-primary">
+                              {SHADOWWIRE_POOL_TOKENS.find(t => t.symbol === multiSendToken)?.name || multiSendToken}
+                            </div>
+                            <div className="text-[10px] sm:text-xs text-text-muted">
+                              {multiSendToken} • ${multiSendTokenPrice.toFixed(2)}/token
+                            </div>
                           </div>
-                          <div className="text-xs font-medium">{token.symbol}</div>
-                        </button>
-                      ))}
+                        </div>
+                        <div className="text-left sm:text-right pl-10 sm:pl-0">
+                          <div className="text-xs sm:text-sm font-medium text-neon-green">
+                            {isBalanceLoading ? '...' : `${shieldedPoolBalance.toFixed(4)} ${multiSendToken}`}
+                          </div>
+                          <div className="text-[10px] sm:text-xs text-text-muted">Pool Balance</div>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-xs text-text-muted mt-2">
-                      Price: ${multiSendTokenPrice.toFixed(2)} per {multiSendToken}
+                    <p className="text-[10px] sm:text-xs text-text-muted mt-1.5 sm:mt-2">
+                      Token is selected from the pool card above
                     </p>
                   </div>
 
                   {/* Privacy Type */}
                   <div>
-                    <label className="block text-xs font-medium text-text-secondary mb-2">
+                    <label className="block text-xs font-medium text-text-secondary mb-1.5 sm:mb-2">
                       Privacy Type
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                       <button
                         onClick={() => setMultiSendType('internal')}
-                        className={`p-3 rounded-lg border transition-all ${
+                        className={`p-2 sm:p-3 rounded-lg border transition-all ${
                           multiSendType === 'internal'
                             ? 'bg-neon-green/10 border-neon-green text-neon-green'
                             : 'bg-bg-tertiary border-border-secondary text-text-secondary hover:border-border-primary'
                         }`}
                       >
-                        <div className="text-xs font-medium">Hidden Amount</div>
-                        <div className="text-[10px] opacity-70 mt-0.5">Amount hidden via ZK</div>
+                        <div className="text-[10px] sm:text-xs font-medium">Hidden Amount</div>
+                        <div className="text-[9px] sm:text-[10px] opacity-70 mt-0.5 leading-tight">Amount hidden via ZK</div>
                       </button>
                       <button
                         onClick={() => setMultiSendType('external')}
-                        className={`p-3 rounded-lg border transition-all ${
+                        className={`p-2 sm:p-3 rounded-lg border transition-all ${
                           multiSendType === 'external'
                             ? 'bg-neon-cyan/10 border-neon-cyan text-neon-cyan'
                             : 'bg-bg-tertiary border-border-secondary text-text-secondary hover:border-border-primary'
                         }`}
                       >
-                        <div className="text-xs font-medium">Anonymous Sender</div>
-                        <div className="text-[10px] opacity-70 mt-0.5">Your identity hidden</div>
+                        <div className="text-[10px] sm:text-xs font-medium">Anonymous Sender</div>
+                        <div className="text-[9px] sm:text-[10px] opacity-70 mt-0.5 leading-tight">Your identity hidden</div>
                       </button>
                     </div>
                   </div>
@@ -1160,25 +1207,25 @@ export default function TransferPage() {
                       </button>
                     </div>
 
-                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    <div className="space-y-2 max-h-64 sm:max-h-72 overflow-y-auto pr-1">
                       {multiSendRecipients.map((r, index) => (
                         <div
                           key={r.id}
-                          className="p-3 rounded-lg bg-bg-tertiary border border-border-secondary"
+                          className="p-2.5 sm:p-3 rounded-lg bg-bg-tertiary border border-border-secondary"
                         >
                           <div className="flex items-start gap-2">
-                            <div className="w-6 h-6 rounded-full bg-bg-elevated flex items-center justify-center text-xs font-medium text-text-muted flex-shrink-0 mt-1.5">
+                            <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-bg-elevated flex items-center justify-center text-[10px] sm:text-xs font-medium text-text-muted flex-shrink-0 mt-1.5">
                               {index + 1}
                             </div>
-                            <div className="flex-1 space-y-2">
+                            <div className="flex-1 space-y-2 min-w-0">
                               <input
                                 type="text"
                                 placeholder="Wallet address"
                                 value={r.address}
                                 onChange={(e) => updateMultiSendRecipient(r.id, 'address', e.target.value)}
-                                className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border-secondary text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-neon-green font-mono"
+                                className="w-full px-2.5 sm:px-3 py-2 rounded-lg bg-bg-elevated border border-border-secondary text-xs sm:text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-neon-green font-mono truncate"
                               />
-                              <div className="flex gap-2">
+                              <div className="flex flex-col xs:flex-row gap-2">
                                 <div className="flex-1 relative">
                                   <input
                                     type="number"
@@ -1187,13 +1234,13 @@ export default function TransferPage() {
                                     onChange={(e) => updateMultiSendRecipient(r.id, 'amount', e.target.value)}
                                     min="0.1"
                                     step="0.1"
-                                    className="w-full px-3 py-2 pr-16 rounded-lg bg-bg-elevated border border-border-secondary text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-neon-green"
+                                    className="w-full px-2.5 sm:px-3 py-2 pr-14 sm:pr-16 rounded-lg bg-bg-elevated border border-border-secondary text-xs sm:text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-neon-green"
                                   />
-                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">
+                                  <span className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-[10px] sm:text-xs text-text-muted">
                                     {multiSendToken}
                                   </span>
                                 </div>
-                                <div className="px-3 py-2 rounded-lg bg-bg-elevated border border-border-secondary text-sm text-text-secondary min-w-[80px] text-center">
+                                <div className="px-2.5 sm:px-3 py-2 rounded-lg bg-bg-elevated border border-border-secondary text-xs sm:text-sm text-text-secondary min-w-[70px] sm:min-w-[80px] text-center">
                                   ${r.usdValue.toFixed(2)}
                                 </div>
                               </div>
@@ -1201,9 +1248,9 @@ export default function TransferPage() {
                             {multiSendRecipients.length > 1 && (
                               <button
                                 onClick={() => removeMultiSendRecipient(r.id)}
-                                className="p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-colors flex-shrink-0"
+                                className="p-1 sm:p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-colors flex-shrink-0"
                               >
-                                <XIcon className="w-4 h-4" />
+                                <XIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                               </button>
                             )}
                           </div>
@@ -1212,18 +1259,50 @@ export default function TransferPage() {
                     </div>
                   </div>
 
-                  {/* Totals */}
-                  <div className="p-3 rounded-xl bg-bg-tertiary border border-border-secondary">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-text-muted">Total Amount</span>
-                      <span className="text-sm font-bold text-text-primary">
+                  {/* Privacy Info - Same as Single Send */}
+                  <div className={`p-3 rounded-xl ${
+                    multiSendType === "internal"
+                      ? "bg-neon-green/5 border border-neon-green/20"
+                      : "bg-neon-cyan/5 border border-neon-cyan/20"
+                  }`}>
+                    <div className="flex items-start gap-2">
+                      <ShieldIcon className={`w-4 h-4 mt-0.5 ${
+                        multiSendType === "internal" ? "text-neon-green" : "text-neon-cyan"
+                      }`} />
+                      <div>
+                        <p className={`text-xs font-medium mb-1 ${
+                          multiSendType === "internal" ? "text-neon-green" : "text-neon-cyan"
+                        }`}>
+                          {multiSendType === "internal" ? "Hidden Amount Transfer" : "Anonymous Transfer"}
+                        </p>
+                        <p className="text-xs text-text-secondary">
+                          {multiSendType === "internal"
+                            ? "Amount is hidden using Bulletproof zero-knowledge proofs. Only you and recipients will know the amounts."
+                            : "Your sender identity is hidden. Recipients receive funds from the ShadowWire pool without knowing who sent them."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Totals & Fees - Styled like Single Send */}
+                  <div className="space-y-2 pt-2 border-t border-border-secondary">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-text-muted">Total Amount</span>
+                      <span className="text-text-primary font-medium">
                         {multiSendValidation.totalAmount.toFixed(4)} {multiSendToken}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-text-muted">Total USD Value</span>
-                      <span className="text-sm font-bold text-neon-green">
-                        ${multiSendValidation.totalUsd.toFixed(2)}
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-text-muted">Estimated Fee ({(shadowWireCalculateFee(1, multiSendToken as ShadowWireTokenSymbol).feePercentage * 100).toFixed(2)}%)</span>
+                      <span className="text-text-secondary">
+                        ~{shadowWireCalculateFee(multiSendValidation.totalAmount, multiSendToken as ShadowWireTokenSymbol).fee.toFixed(6)} {multiSendToken}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-text-muted">Total (incl. fees)</span>
+                      <span className="text-neon-green font-bold">
+                        ~{(multiSendValidation.totalAmount + shadowWireCalculateFee(multiSendValidation.totalAmount, multiSendToken as ShadowWireTokenSymbol).fee).toFixed(4)} {multiSendToken}
+                        <span className="text-text-muted font-normal ml-1">(${multiSendValidation.totalUsd.toFixed(2)})</span>
                       </span>
                     </div>
                   </div>
@@ -1235,58 +1314,66 @@ export default function TransferPage() {
                     </div>
                   )}
 
-                  {/* ZK Info */}
-                  <div className="p-3 rounded-xl bg-neon-green/5 border border-neon-green/20">
-                    <div className="flex items-start gap-2">
-                      <InfoIcon className="w-4 h-4 text-neon-green mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="text-xs text-neon-green font-medium">Sequential ZK Transfers</p>
-                        <p className="text-xs text-text-secondary mt-1">
-                          Each transfer generates a unique Bulletproof ZK proof (~30-45 seconds per transfer).
-                          Total time: ~{Math.ceil(multiSendRecipients.length * 40 / 60)} minute{multiSendRecipients.length > 1 ? 's' : ''}.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Actions */}
                   <Button
                     fullWidth
                     onClick={handleMultiSendExecute}
-                    disabled={!multiSendValidation.valid || multiSendLoading}
+                    disabled={!multiSendValidation.valid || multiSendLoading || isBalanceLoading}
                     loading={multiSendLoading}
                   >
-                    Send to {multiSendRecipients.length} Recipient{multiSendRecipients.length > 1 ? 's' : ''}
+                    {multiSendLoading ? 'Generating ZK Proofs...' : `Send ${multiSendType === "internal" ? "with Hidden Amount" : "Anonymously"} to ${multiSendRecipients.length} Recipient${multiSendRecipients.length > 1 ? 's' : ''}`}
                   </Button>
+
+                  {/* ZK Time Estimate & Info */}
+                  <div className="p-2.5 sm:p-3 rounded-lg bg-bg-tertiary border border-border-secondary space-y-1.5 sm:space-y-2">
+                    <div className="flex items-start gap-2 text-[10px] sm:text-xs text-text-secondary">
+                      <span className="text-neon-green flex-shrink-0">⏱</span>
+                      <span>
+                        Est. ~{Math.ceil(multiSendRecipients.length * 45 / 60)} min ({multiSendRecipients.length} × 30-45s per ZK proof)
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2 text-[10px] sm:text-xs text-text-muted">
+                      <span className="flex-shrink-0">📝</span>
+                      <span>
+                        2 transactions per transfer (ZK proof + transfer)
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2 text-[10px] sm:text-xs text-text-muted">
+                      <span className="flex-shrink-0">🔄</span>
+                      <span>
+                        Sequential execution for pool consistency
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )}
             </TabPanel>
 
             <TabPanel value="standard" activeValue={activeTab} className="mt-6">
-              <div className="space-y-5">
+              <div className="space-y-4 sm:space-y-5">
                 {/* From Wallet */}
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">
                     From Wallet
                   </label>
-                  <div className="p-3 rounded-xl bg-bg-tertiary border border-border-secondary">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-neon-cyan to-neon-teal flex items-center justify-center text-bg-primary font-bold text-sm">
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-bg-tertiary border border-border-secondary">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-neon-cyan to-neon-teal flex items-center justify-center text-bg-primary font-bold text-xs sm:text-sm">
                           W
                         </div>
                         <div>
-                          <div className="text-sm font-medium text-text-primary">Connected Wallet</div>
-                          <div className="text-xs text-text-muted font-mono">
+                          <div className="text-xs sm:text-sm font-medium text-text-primary">Connected Wallet</div>
+                          <div className="text-[10px] sm:text-xs text-text-muted font-mono">
                             {walletAddress ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : 'Not connected'}
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-neon-cyan">
+                      <div className="text-left sm:text-right pl-9 sm:pl-0">
+                        <div className="text-xs sm:text-sm font-medium text-neon-cyan">
                           {balanceLoading ? '...' : `${balance.toFixed(4)} SOL`}
                         </div>
-                        <div className="text-xs text-text-muted">Available</div>
+                        <div className="text-[10px] sm:text-xs text-text-muted">Available</div>
                       </div>
                     </div>
                   </div>
@@ -1349,8 +1436,8 @@ export default function TransferPage() {
           </Card>
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-4">
+        {/* Sidebar - Hidden on mobile */}
+        <div className="hidden lg:block space-y-4">
           {/* Recent Transfers */}
           <Card variant="default" padding="md">
             <CardHeader>
@@ -1714,12 +1801,6 @@ const MultiSendIcon = () => (
 const XIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
-
-const InfoIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
   </svg>
 );
 
