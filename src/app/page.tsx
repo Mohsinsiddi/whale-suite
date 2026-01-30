@@ -89,43 +89,43 @@ const features = [
     icon: <ShieldIcon />,
     title: "Hidden Balance",
     description: "Shield your SOL holdings from prying eyes with Privacy Cash. Your wealth stays private.",
-    bounty: "$15K",
+    tag: "ZK Proofs",
   },
   {
     icon: <WalletIcon />,
     title: "Private Transfers",
     description: "Send funds via ShadowWire without revealing amounts or identity. True transfer privacy.",
-    bounty: "$15K",
+    tag: "Bulletproofs",
   },
   {
     icon: <SwapIcon />,
     title: "Anonymous Betting",
     description: "Place predictions on PNP Exchange without exposing your wallet size.",
-    bounty: "$2.5K",
+    tag: "P2P Markets",
   },
   {
     icon: <ChartIcon />,
     title: "Whale Intelligence",
     description: "Track what other whales are doing while staying anonymous yourself.",
-    bounty: null,
+    tag: null,
   },
   {
     icon: <UsersIcon />,
     title: "Best Swap Rates",
     description: "Integrated Jupiter for optimal token swaps with multi-wallet strategies.",
-    bounty: null,
+    tag: null,
   },
   {
     icon: <BoltIcon />,
     title: "Lightning Fast",
     description: "Powered by Helius RPC for instant transaction processing. No delays.",
-    bounty: null,
+    tag: null,
   },
 ];
 
 const stats = [
-  { value: "$32K+", label: "Bounty Pool" },
-  { value: "5", label: "Privacy SDKs" },
+  { value: "5+", label: "Privacy SDKs" },
+  { value: "22", label: "Tokens Supported" },
   { value: "100%", label: "Anonymous" },
   { value: "Live", label: "Mainnet" },
 ];
@@ -305,10 +305,10 @@ export default function LandingPage() {
                 whileHover={{ y: -8, scale: 1.02 }}
                 className="group p-6 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border border-border-primary hover:border-neon-green/40 hover:shadow-glow-sm transition-all duration-300 relative overflow-hidden"
               >
-                {/* Bounty badge */}
-                {feature.bounty && (
-                  <div className="absolute top-4 right-4 px-2 py-1 text-[10px] font-bold bg-neon-green/20 text-neon-green rounded-full">
-                    {feature.bounty} Bounty
+                {/* Feature tag */}
+                {feature.tag && (
+                  <div className="absolute top-4 right-4 px-2 py-1 text-[10px] font-medium bg-neon-green/10 text-neon-green/80 rounded-full border border-neon-green/20">
+                    {feature.tag}
                   </div>
                 )}
 

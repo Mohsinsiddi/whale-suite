@@ -43,10 +43,10 @@ export default function DashboardGate({ children }: { children: React.ReactNode 
 
           {/* Features */}
           <div className="grid grid-cols-2 gap-3 mb-8">
-            <FeatureCard icon="🛡️" label="Privacy Cash" desc="$15K Bounty" />
-            <FeatureCard icon="👻" label="ShadowWire" desc="$15K Bounty" />
+            <FeatureCard icon="🛡️" label="Privacy Cash" desc="Hidden balances" />
+            <FeatureCard icon="👻" label="ShadowWire" desc="Private transfers" />
             <FeatureCard icon="💱" label="Jupiter Swap" desc="Best rates" />
-            <FeatureCard icon="🎲" label="PNP Markets" desc="$2.5K Bounty" />
+            <FeatureCard icon="🎲" label="PNP Markets" desc="Predictions" />
           </div>
 
           {/* Connect Button */}

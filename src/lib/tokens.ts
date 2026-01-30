@@ -24,7 +24,7 @@ export const TOKEN_MINTS = {
   // Stablecoins
   USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
   USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
-  USD1: 'USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB', // World Liberty Financial USD - $2.5K bounty
+  USD1: 'USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB', // World Liberty Financial USD
   // Meme coins
   BONK: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263',
   WIF: 'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm',
@@ -79,7 +79,7 @@ export const TOKENS: Record<string, TokenMetadata> = {
     decimals: 6,
     logoURI: 'https://raw.githubusercontent.com/worldliberty/usd1-metadata/refs/heads/main/logo.png',
     swapEnabled: true,
-    shadowWireEnabled: true, // $2.5K bounty token!
+    shadowWireEnabled: true,
     multiSendEnabled: true,
   },
   BONK: {

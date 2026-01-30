@@ -11,8 +11,6 @@
  * - Custom Oracle markets (manual settlement)
  * - Full trading, redemption, and refund support
  *
- * Bounty: $2,500
- *
  * Note: Uses direct proxy API calls for read operations to avoid
  * IDL compatibility issues with pnp-sdk npm package.
  */

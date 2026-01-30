@@ -3,7 +3,6 @@
  * React hook for PNP Exchange integration
  * Supports pagination, category filtering, and market stats
  * Uses ShadowWire pattern: signTransaction → sendRawTransaction
- * Bounty: $2,500
  */
 
 "use client";

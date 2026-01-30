@@ -80,10 +80,10 @@ export default function WelcomeModal({ onClose, onConnect }: WelcomeModalProps) 
 
           {/* Features */}
           <div className="grid grid-cols-2 gap-3 mb-6">
-            <FeatureItem icon="🛡️" label="Privacy Cash" bounty="$15K" />
-            <FeatureItem icon="👻" label="ShadowWire" bounty="$15K" />
-            <FeatureItem icon="💱" label="Jupiter Swap" />
-            <FeatureItem icon="🎲" label="PNP Markets" bounty="$2.5K" />
+            <FeatureItem icon="🛡️" label="Privacy Cash" desc="Hidden balances" />
+            <FeatureItem icon="👻" label="ShadowWire" desc="Private transfers" />
+            <FeatureItem icon="💱" label="Jupiter Swap" desc="Best rates" />
+            <FeatureItem icon="🎲" label="PNP Markets" desc="Predictions" />
           </div>
 
           {/* Action Buttons */}
@@ -123,13 +123,13 @@ export default function WelcomeModal({ onClose, onConnect }: WelcomeModalProps) 
 }
 
 // Feature Item
-function FeatureItem({ icon, label, bounty }: { icon: string; label: string; bounty?: string }) {
+function FeatureItem({ icon, label, desc }: { icon: string; label: string; desc?: string }) {
   return (
     <div className="p-3 rounded-xl bg-bg-tertiary border border-border-secondary">
       <div className="text-2xl mb-1">{icon}</div>
       <div className="text-xs font-medium text-text-primary">{label}</div>
-      {bounty && (
-        <div className="text-[10px] text-neon-green">{bounty} Bounty</div>
+      {desc && (
+        <div className="text-[10px] text-text-muted">{desc}</div>
       )}
     </div>
   );

@@ -682,6 +682,25 @@ export default function TransferPage() {
         <p className="text-sm text-text-secondary">Send funds privately via ShadowWire</p>
       </div>
 
+      {/* USD1 Featured Token Banner */}
+      <div className="p-3 sm:p-4 rounded-xl bg-gradient-to-r from-neon-green/5 via-neon-cyan/5 to-neon-green/5 border border-neon-green/20">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">💵</span>
+            <div>
+              <div className="text-sm font-semibold text-text-primary">USD1 Stablecoin Support</div>
+              <div className="text-xs text-text-secondary">Transfer World Liberty Financial USD privately</div>
+            </div>
+          </div>
+          <button
+            onClick={() => handlePoolTokenChange('USD1')}
+            className="px-4 py-2 rounded-lg bg-neon-green/10 border border-neon-green/30 text-neon-green text-sm font-medium hover:bg-neon-green/20 transition-all"
+          >
+            Select USD1 →
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Transfer Form */}
         <div className="lg:col-span-2">

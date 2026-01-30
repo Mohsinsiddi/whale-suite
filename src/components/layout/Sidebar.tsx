@@ -85,8 +85,8 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       {
         title: "Privacy Tools",
         items: [
-          { href: "/privacy", icon: <ShieldIcon />, label: "Privacy Cash", badge: "$15K", badgeColor: "green", featureKey: 'privacy-cash' },
-          { href: "/transfer", icon: <GhostIcon />, label: "Ghost Send", badge: "$15K", badgeColor: "green", featureKey: 'shadow-wire' },
+          { href: "/privacy", icon: <ShieldIcon />, label: "Privacy Cash", featureKey: 'privacy-cash' },
+          { href: "/transfer", icon: <GhostIcon />, label: "Ghost Send", featureKey: 'shadow-wire' },
           { href: "/swap", icon: <SwapIcon />, label: "Jupiter Swap", featureKey: 'jupiter-swap' },
           { href: "/dark-pool", icon: <DarkPoolIcon />, label: "Dark Pool", badge: "Beta", badgeColor: "warning", featureKey: 'dark-pool' },
         ],
@@ -94,7 +94,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       {
         title: "Predictions",
         items: [
-          { href: "/markets", icon: <MarketsIcon />, label: "PNP Markets", badge: "$2.5K", badgeColor: "cyan", featureKey: 'pnp-markets' },
+          { href: "/markets", icon: <MarketsIcon />, label: "PNP Markets", featureKey: 'pnp-markets' },
         ],
       },
       {

@@ -7,9 +7,8 @@
  * - External transfers (sender anonymous)
  * - Deposit/withdraw to shielded pool
  *
- * Bounty: $15,000 (Radr Labs)
  * SDK: @radr/shadowwire
- * GitHub: radrdotfun/ShadowWire
+ * Docs: https://github.com/radrdotfun/ShadowWire
  */
 
 import {

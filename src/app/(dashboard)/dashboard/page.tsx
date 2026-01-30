@@ -99,10 +99,10 @@ function DashboardContent() {
 
   // Quick actions - filtered by network availability
   const quickActions = [
-    { icon: "🛡️", label: "Shield", desc: "Privacy Cash", href: "/privacy", badge: "$15K", feature: 'privacy-cash' as const },
-    { icon: "👻", label: "Ghost Send", desc: "ShadowWire", href: "/transfer", badge: "$15K", feature: 'shadow-wire' as const },
+    { icon: "🛡️", label: "Shield", desc: "Privacy Cash", href: "/privacy", feature: 'privacy-cash' as const },
+    { icon: "👻", label: "Ghost Send", desc: "ShadowWire", href: "/transfer", feature: 'shadow-wire' as const },
     { icon: "💱", label: "Swap", desc: "Jupiter", href: "/swap", feature: 'jupiter-swap' as const },
-    { icon: "🎲", label: "Predict", desc: "PNP Markets", href: "/markets", badge: "$2.5K", feature: 'pnp-markets' as const },
+    { icon: "🎲", label: "Predict", desc: "PNP Markets", href: "/markets", feature: 'pnp-markets' as const },
     ...(darkPoolAvailable ? [{ icon: "🌙", label: "Dark Pool", desc: "Beta Testing", href: "/dark-pool", badge: "Beta", feature: 'dark-pool' as const }] : []),
   ];
 
@@ -165,7 +165,7 @@ function DashboardContent() {
           <Card variant="glow" padding="md">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs text-text-muted">ShadowWire</span>
-              <Badge size="xs" variant="success">$15K</Badge>
+              <Badge size="xs" variant="success">ZK Proofs</Badge>
             </div>
             <div className="text-2xl font-bold text-neon-green mb-1">
               {shadowWireLoading ? (
@@ -180,7 +180,7 @@ function DashboardContent() {
           <ComingSoonCard
             title="ShadowWire"
             icon="👻"
-            badge="$15K"
+            badge="ZK"
             description="Bulletproof ZK transfers"
             network="mainnet"
           />
@@ -191,7 +191,7 @@ function DashboardContent() {
           <Card variant="default" padding="md" className="border-neon-cyan/30">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs text-text-muted">Privacy Cash</span>
-              <Badge size="xs" variant="cyan">$15K</Badge>
+              <Badge size="xs" variant="cyan">ZK Proofs</Badge>
             </div>
             {privacyCashInitialized ? (
               <>
@@ -221,7 +221,7 @@ function DashboardContent() {
           <ComingSoonCard
             title="Privacy Cash"
             icon="🛡️"
-            badge="$15K"
+            badge="ZK"
             description="Light Protocol ZK"
             network="mainnet"
           />
@@ -276,7 +276,7 @@ function DashboardContent() {
           <CardHeader>
             <CardTitle>Privacy Tools</CardTitle>
             <Badge size="xs" variant={isMainnet ? "success" : "warning"}>
-              {isMainnet ? "$32.5K Bounties" : "Devnet"}
+              {isMainnet ? "Mainnet" : "Devnet"}
             </Badge>
           </CardHeader>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -355,7 +355,7 @@ function DashboardContent() {
                 <span className="text-2xl">👻</span>
               </div>
               <div className="flex-1">
-                <h3 className="text-sm font-semibold text-text-primary mb-2">ShadowWire - $15K Bounty</h3>
+                <h3 className="text-sm font-semibold text-text-primary mb-2">ShadowWire</h3>
                 <p className="text-xs text-text-secondary mb-3">
                   Private transfers using Bulletproof ZK proofs. Amount hidden from public view.
                 </p>
@@ -369,7 +369,6 @@ function DashboardContent() {
           <ComingSoonFeatureCard
             title="ShadowWire"
             icon="👻"
-            bounty="$15K"
             description="Private transfers using Bulletproof ZK proofs. Amount hidden from public view."
             partners={["Radr Labs", "Solana Foundation"]}
           />
@@ -383,7 +382,7 @@ function DashboardContent() {
                 <span className="text-2xl">🛡️</span>
               </div>
               <div className="flex-1">
-                <h3 className="text-sm font-semibold text-text-primary mb-2">Privacy Cash - $15K Bounty</h3>
+                <h3 className="text-sm font-semibold text-text-primary mb-2">Privacy Cash</h3>
                 <p className="text-xs text-text-secondary mb-3">
                   Shield your SOL balance using Light Protocol ZK compression.
                 </p>
@@ -397,7 +396,6 @@ function DashboardContent() {
           <ComingSoonFeatureCard
             title="Privacy Cash"
             icon="🛡️"
-            bounty="$15K"
             description="Shield your SOL balance using Light Protocol ZK compression."
             partners={["Light Protocol", "Helius"]}
           />
@@ -551,7 +549,7 @@ function DashboardContent() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               Prediction Markets
-              <Badge size="xs" variant="success">$2.5K Bounty</Badge>
+              <Badge size="xs" variant="success">P2P</Badge>
             </CardTitle>
             <Button variant="ghost" size="xs" onClick={() => router.push('/markets')}>
               View All →
@@ -604,7 +602,6 @@ function DashboardContent() {
           icon="🎲"
           description="Anonymous prediction markets powered by PNP Protocol. Bet on outcomes without revealing your identity."
           features={["Anonymous betting", "AMM liquidity pools", "P2P markets"]}
-          bounty="$2.5K"
         />
       )}
     </div>
@@ -647,13 +644,11 @@ function ComingSoonCard({
 function ComingSoonFeatureCard({
   title,
   icon,
-  bounty,
   description,
   partners,
 }: {
   title: string;
   icon: string;
-  bounty: string;
   description: string;
   partners: string[];
 }) {
@@ -678,7 +673,7 @@ function ComingSoonFeatureCard({
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <h3 className="text-sm font-semibold text-text-muted">{title}</h3>
-            <Badge size="xs" variant="warning">{bounty}</Badge>
+            <Badge size="xs" variant="warning">Coming Soon</Badge>
           </div>
           <p className="text-xs text-text-muted mb-2">{description}</p>
           <div className="flex gap-1">
@@ -700,13 +695,11 @@ function ComingSoonSection({
   icon,
   description,
   features,
-  bounty,
 }: {
   title: string;
   icon: string;
   description: string;
   features: string[];
-  bounty?: string;
 }) {
   return (
     <Card variant="default" padding="md" className="border-border-secondary/50">
@@ -720,7 +713,6 @@ function ComingSoonSection({
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <h3 className="text-base font-semibold text-text-primary">{title}</h3>
-            {bounty && <Badge size="xs" variant="warning">{bounty}</Badge>}
             <Badge size="xs" variant="warning">Mainnet Only</Badge>
           </div>
           <p className="text-sm text-text-secondary mb-3">{description}</p>
