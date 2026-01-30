@@ -58,4 +58,13 @@ export { usePoints } from './usePoints';
 export { useUserStats } from './useUserStats';
 
 // Token Prices
-export { useTokenPrices } from './useTokenPrices';
+export { useTokenPrices, TOKEN_MINTS as TOKEN_PRICE_MINTS } from './useTokenPrices';
+
+// Multi-Send
+export { useMultiSend } from './useMultiSend';
+export type {
+  MultiSendRecipient,
+  MultiSendProgress,
+  MultiSendResult,
+  TokenType,
+} from './useMultiSend';

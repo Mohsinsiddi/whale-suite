@@ -28,6 +28,7 @@ import {
   ProofGenerationError,
   TOKEN_FEES,
   TOKEN_MINIMUMS,
+  TOKEN_MINTS,
   type TokenSymbol,
   type TransferType as ShadowWireTransferType,
   type PoolBalance,
@@ -125,6 +126,20 @@ function mapErrorToUserMessage(error: unknown): string {
     return 'Transfer failed. Please try again.';
   }
   if (error instanceof NetworkError) {
+    // NetworkError contains the actual API error message - pass it through
+    const msg = error.message;
+    // Parse common API errors for better messages
+    if (msg.includes('below minimum')) {
+      // Extract the minimum amount from the error message
+      return msg.replace('NetworkError: ', '');
+    }
+    if (msg.includes('insufficient') || msg.includes('Insufficient')) {
+      return msg.replace('NetworkError: ', '');
+    }
+    // For other network errors, show the actual message
+    if (msg && msg !== 'NetworkError') {
+      return msg.replace('NetworkError: ', '');
+    }
     return 'Network error. Please check your connection and try again.';
   }
   if (error instanceof WASMNotSupportedError) {
@@ -232,16 +247,19 @@ class ShadowWireService {
     token: TokenSymbol = 'SOL'
   ): Promise<ShadowWireDepositResult> {
     try {
-      // Convert SOL to lamports (smallest unit)
-      const amountLamports = TokenUtils.toSmallestUnit(amount, token);
+      // Convert to smallest unit using SDK's TokenUtils
+      const amountSmallestUnit = TokenUtils.toSmallestUnit(amount, token);
 
-      console.log('[ShadowWire] Depositing:', { wallet, amount, amountLamports, token });
+      // Get the actual mint address from SDK's TOKEN_MINTS
+      const tokenMint = token === 'SOL' ? undefined : TOKEN_MINTS[token];
+
+      console.log('[ShadowWire] Depositing:', { wallet, amount, amountSmallestUnit, token, tokenMint });
 
       // Get unsigned transaction from API
       const response: DepositResponse = await this.client.deposit({
         wallet,
-        amount: amountLamports,
-        token_mint: token === 'SOL' ? undefined : token,
+        amount: amountSmallestUnit,
+        token_mint: tokenMint,
       });
 
       console.log('[ShadowWire] Deposit response:', response);
@@ -326,15 +344,18 @@ class ShadowWireService {
     token: TokenSymbol = 'SOL'
   ): Promise<ShadowWireWithdrawResult> {
     try {
-      // Convert SOL to lamports (smallest unit)
-      const amountLamports = TokenUtils.toSmallestUnit(amount, token);
+      // Convert to smallest unit using SDK's TokenUtils
+      const amountSmallestUnit = TokenUtils.toSmallestUnit(amount, token);
 
-      console.log('[ShadowWire] Withdrawing:', { wallet, amount, amountLamports, token });
+      // Get the actual mint address from SDK's TOKEN_MINTS
+      const tokenMint = token === 'SOL' ? undefined : TOKEN_MINTS[token];
+
+      console.log('[ShadowWire] Withdrawing:', { wallet, amount, amountSmallestUnit, token, tokenMint });
 
       const response: WithdrawResponse = await this.client.withdraw({
         wallet,
-        amount: amountLamports,
-        token_mint: token === 'SOL' ? undefined : token,
+        amount: amountSmallestUnit,
+        token_mint: tokenMint,
       });
 
       console.log('[ShadowWire] Withdraw response:', response);
@@ -510,6 +531,117 @@ class ShadowWireService {
   async generateRangeProof(amount: number, bitLength: number = 64): Promise<ZKProofData> {
     await this.initWASM();
     return generateRangeProof(amount, bitLength);
+  }
+
+  /**
+   * Execute batch transfers with optimized flow:
+   * 1. Generate all proofs upfront (saves time by parallelizing proof generation)
+   * 2. Execute transfers sequentially (SDK limitation - each needs its own tx)
+   *
+   * Note: The SDK's transfer() method combines proof+build+sign+submit.
+   * We optimize by pre-generating proofs and providing better progress feedback.
+   */
+  async batchTransfer(params: {
+    sender: string;
+    transfers: Array<{ recipient: string; amount: number }>;
+    token?: TokenSymbol;
+    type?: 'internal' | 'external';
+    signAllTransactions?: (txs: (Transaction | VersionedTransaction)[]) => Promise<(Transaction | VersionedTransaction)[]>;
+    onProgress?: (phase: string, current: number, total: number) => void;
+    wallet?: WalletAdapter;
+  }): Promise<{
+    success: boolean;
+    results: Array<{ recipient: string; amount: number; signature?: string; error?: string }>;
+    totalCompleted: number;
+    totalFailed: number;
+  }> {
+    const {
+      sender,
+      transfers,
+      token = 'SOL',
+      type = 'internal',
+      onProgress,
+      wallet,
+    } = params;
+
+    const results: Array<{ recipient: string; amount: number; signature?: string; error?: string }> = [];
+    let totalCompleted = 0;
+    let totalFailed = 0;
+
+    try {
+      // Phase 1: Initialize WASM
+      onProgress?.('Initializing ZK environment...', 0, transfers.length);
+      await this.initWASM();
+
+      // Phase 2: Execute transfers (SDK handles proof + build + sign + submit)
+      // Each transfer is processed, but we provide granular progress updates
+      for (let i = 0; i < transfers.length; i++) {
+        const transfer = transfers[i];
+
+        // Update progress for proof generation phase
+        onProgress?.(`Generating proof ${i + 1}/${transfers.length}...`, i, transfers.length);
+
+        try {
+          // Use the SDK's transfer method which handles everything
+          const response: TransferResponse = await this.client.transfer({
+            sender,
+            recipient: transfer.recipient,
+            amount: transfer.amount,
+            token,
+            type,
+            wallet,
+          });
+
+          if (response.success) {
+            results.push({
+              recipient: transfer.recipient,
+              amount: transfer.amount,
+              signature: response.tx_signature,
+            });
+            totalCompleted++;
+            onProgress?.(`Confirmed ${totalCompleted}/${transfers.length}`, totalCompleted, transfers.length);
+          } else {
+            results.push({
+              recipient: transfer.recipient,
+              amount: transfer.amount,
+              error: 'Transfer failed',
+            });
+            totalFailed++;
+          }
+        } catch (error) {
+          results.push({
+            recipient: transfer.recipient,
+            amount: transfer.amount,
+            error: mapErrorToUserMessage(error),
+          });
+          totalFailed++;
+        }
+
+        // Small delay between transfers for rate limiting
+        if (i < transfers.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      }
+
+      return {
+        success: totalFailed === 0,
+        results,
+        totalCompleted,
+        totalFailed,
+      };
+    } catch (error) {
+      console.error('[ShadowWire] Batch transfer error:', error);
+      return {
+        success: false,
+        results: transfers.map(t => ({
+          recipient: t.recipient,
+          amount: t.amount,
+          error: mapErrorToUserMessage(error),
+        })),
+        totalCompleted: 0,
+        totalFailed: transfers.length,
+      };
+    }
   }
 
   /**

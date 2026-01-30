@@ -123,20 +123,23 @@ export default function WhaleLogo({
               />
 
               {/* Dorsal fin */}
-              <motion.path
-                d="M32 14
-                   C34 14 38 10 40 8
-                   C40 10 38 14 36 16
-                   C34 18 32 18 32 16
-                   L32 14Z"
-                fill={`url(#finGradient-${uniqueId})`}
-                animate={animated ? { d: [
-                  "M32 14 C34 14 38 10 40 8 C40 10 38 14 36 16 C34 18 32 18 32 16 L32 14Z",
-                  "M32 14 C34 14 37 11 39 9 C39 11 37 14 35 16 C34 18 32 18 32 16 L32 14Z",
-                  "M32 14 C34 14 38 10 40 8 C40 10 38 14 36 16 C34 18 32 18 32 16 L32 14Z",
-                ] } : undefined}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-              />
+              {animated ? (
+                <motion.path
+                  d="M32 14 C34 14 38 10 40 8 C40 10 38 14 36 16 C34 18 32 18 32 16 L32 14Z"
+                  fill={`url(#finGradient-${uniqueId})`}
+                  animate={{ d: [
+                    "M32 14 C34 14 38 10 40 8 C40 10 38 14 36 16 C34 18 32 18 32 16 L32 14Z",
+                    "M32 14 C34 14 37 11 39 9 C39 11 37 14 35 16 C34 18 32 18 32 16 L32 14Z",
+                    "M32 14 C34 14 38 10 40 8 C40 10 38 14 36 16 C34 18 32 18 32 16 L32 14Z",
+                  ] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                />
+              ) : (
+                <path
+                  d="M32 14 C34 14 38 10 40 8 C40 10 38 14 36 16 C34 18 32 18 32 16 L32 14Z"
+                  fill={`url(#finGradient-${uniqueId})`}
+                />
+              )}
 
               {/* Tail fluke */}
               <motion.path

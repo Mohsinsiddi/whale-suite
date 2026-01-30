@@ -8,11 +8,15 @@ const TOKEN_MINTS: Record<string, string> = {
   SOL: 'So11111111111111111111111111111111111111112',
   USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
   USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+  USD1: 'USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB', // World Liberty Financial USD
   BONK: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263',
   JTO: 'jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL',
   WIF: 'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm',
   JUP: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN',
 };
+
+// Export token mints for use in other modules
+export { TOKEN_MINTS };
 
 // Cache prices for 30 seconds
 const CACHE_DURATION = 30 * 1000;
@@ -21,14 +25,45 @@ interface TokenPrices {
   [symbol: string]: number;
 }
 
+// Fallback prices when API is unavailable
+const getFallbackPrices = (): TokenPrices => ({
+  SOL: 180, // Update periodically
+  USDC: 1,
+  USDT: 1,
+  USD1: 1,
+  BONK: 0.000025,
+  JTO: 3.5,
+  WIF: 1.5,
+  JUP: 0.8,
+});
+
+// Jupiter API key (optional but recommended)
+const JUPITER_API_KEY = process.env.NEXT_PUBLIC_JUPITER_API_KEY || '';
+
 // Simple fetcher for Jupiter Price API
 const fetchPrices = async (): Promise<TokenPrices> => {
   try {
     const ids = Object.values(TOKEN_MINTS).join(',');
+
+    // Build headers with API key if available
+    const headers: HeadersInit = {};
+    if (JUPITER_API_KEY) {
+      headers['x-api-key'] = JUPITER_API_KEY;
+    }
+
     const response = await fetch(
       `https://api.jup.ag/price/v2?ids=${ids}`,
-      { next: { revalidate: 30 } }
+      {
+        headers,
+        next: { revalidate: 30 }
+      }
     );
+
+    // If 401, return fallback prices silently
+    if (response.status === 401) {
+      console.warn('Jupiter API: No API key or invalid key, using fallback prices');
+      return getFallbackPrices();
+    }
 
     if (!response.ok) throw new Error('Failed to fetch prices');
 
@@ -45,20 +80,12 @@ const fetchPrices = async (): Promise<TokenPrices> => {
     // Stablecoins default to $1
     if (!prices.USDC) prices.USDC = 1;
     if (!prices.USDT) prices.USDT = 1;
+    if (!prices.USD1) prices.USD1 = 1;
 
     return prices;
   } catch (error) {
-    console.error('Price fetch error:', error);
-    // Return fallback prices
-    return {
-      SOL: 150,
-      USDC: 1,
-      USDT: 1,
-      BONK: 0.00002,
-      JTO: 3,
-      WIF: 2,
-      JUP: 1,
-    };
+    console.warn('Price fetch error, using fallback:', error);
+    return getFallbackPrices();
   }
 };
 
@@ -74,8 +101,13 @@ export function useTokenPrices() {
   );
 
   const getPrice = useCallback((symbol: string): number => {
-    if (!prices) return symbol === 'USDC' || symbol === 'USDT' ? 1 : 150;
-    return prices[symbol.toUpperCase()] || 0;
+    const upperSymbol = symbol.toUpperCase();
+    // Stablecoins always return $1
+    if (upperSymbol === 'USDC' || upperSymbol === 'USDT' || upperSymbol === 'USD1') {
+      return prices?.[upperSymbol] || 1;
+    }
+    if (!prices) return upperSymbol === 'SOL' ? 150 : 0;
+    return prices[upperSymbol] || 0;
   }, [prices]);
 
   const formatUSD = useCallback((amount: number, symbol: string): string => {

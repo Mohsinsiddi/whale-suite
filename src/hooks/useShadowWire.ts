@@ -467,6 +467,80 @@ export function useShadowWire() {
   }, []);
 
   /**
+   * Sign multiple transactions at once (batch signing)
+   * This allows user to approve all transactions with a single wallet prompt
+   */
+  const signAllTransactions = useCallback(
+    async (txs: (Transaction | VersionedTransaction)[]): Promise<(Transaction | VersionedTransaction)[]> => {
+      if (!wallet) {
+        throw new Error('Wallet not connected');
+      }
+
+      const signedTxs: (Transaction | VersionedTransaction)[] = [];
+
+      // Sign each transaction (Privy may batch these into one prompt)
+      for (const tx of txs) {
+        const signed = await signTransaction(tx);
+        signedTxs.push(signed);
+      }
+
+      return signedTxs;
+    },
+    [wallet, signTransaction]
+  );
+
+  /**
+   * Execute batch transfers with optimized flow
+   * Uses SDK's transfer method for each recipient with progress tracking
+   */
+  const batchTransfer = useCallback(
+    async (params: {
+      sender: string;
+      transfers: Array<{ recipient: string; amount: number }>;
+      token?: TokenSymbol;
+      type?: 'internal' | 'external';
+      signAllTransactions?: (txs: (Transaction | VersionedTransaction)[]) => Promise<(Transaction | VersionedTransaction)[]>;
+      onProgress?: (phase: string, current: number, total: number) => void;
+    }) => {
+      if (!walletAddress) {
+        throw new Error('Wallet not connected');
+      }
+
+      // Ensure WASM is initialized
+      const isInit = await initialize();
+      if (!isInit) {
+        throw new Error('Failed to initialize privacy features');
+      }
+
+      setState((prev) => ({ ...prev, loading: true, error: null }));
+
+      try {
+        const result = await shadowWireService.batchTransfer({
+          ...params,
+          wallet: walletAdapter, // Pass wallet adapter for signing
+        });
+
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          error: result.success ? null : 'Some transfers failed',
+        }));
+
+        return result;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Batch transfer failed';
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          error: errorMessage,
+        }));
+        throw error;
+      }
+    },
+    [walletAddress, walletAdapter, initialize]
+  );
+
+  /**
    * Reset state
    */
   const reset = useCallback(() => {
@@ -490,6 +564,10 @@ export function useShadowWire() {
     withdraw,
     internalTransfer,
     externalTransfer,
+
+    // Batch Operations (Optimized Multi-Send)
+    batchTransfer,
+    signAllTransactions,
 
     // Utilities
     reset,

@@ -5,3 +5,4 @@ export { default as Transaction, type ITransaction, type TransactionType, type T
 export { default as WhaleFeed, type IWhaleFeed, type WhaleFeedEventType } from './WhaleFeed';
 export { default as CardOrder, type ICardOrder } from './CardOrder';
 export { default as PointsHistory, type IPointsHistory, type PointAction, type BadgeTier, POINT_VALUES, BADGE_MULTIPLIERS, calculatePoints } from './PointsHistory';
+export { default as MultiSendBatch, type IMultiSendBatch, type IMultiSendRecipient, type MultiSendStatus, type TokenType } from './MultiSendBatch';

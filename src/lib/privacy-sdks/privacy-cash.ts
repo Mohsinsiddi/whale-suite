@@ -51,6 +51,7 @@ export const PRIVACY_FEES = {
 export const TOKEN_MINTS = {
   USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
   USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+  USD1: 'USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB', // World Liberty Financial USD - $2.5K bounty
 };
 
 export type PrivacyAction = 'deposit' | 'withdraw';

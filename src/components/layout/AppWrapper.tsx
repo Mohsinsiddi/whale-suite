@@ -40,15 +40,13 @@ export default function AppWrapper({ children }: AppWrapperProps) {
         {isLoading && (
           <LoadingScreen
             key="loading-screen"
-            minDuration={2500}
+            minDuration={1500}
             onLoadComplete={handleLoadComplete}
           />
         )}
       </AnimatePresence>
 
-      <AnimatePresence mode="wait">
-        {!isLoading && children}
-      </AnimatePresence>
+      {!isLoading && children}
     </>
   );
 }

@@ -11,6 +11,7 @@ import { useWalletBalances } from "@/hooks/useHelius";
 import { useAuth } from "@/lib/privy/hooks";
 import { useNetwork } from "@/hooks/useNetwork";
 import { TOKEN_MINTS } from "@/lib/privacy-sdks";
+import { SWAP_TOKENS, type TokenMetadata } from "@/lib/tokens";
 import { useWallet } from "@/store";
 import { PointsEarned } from "@/components/leaderboard";
 
@@ -24,49 +25,15 @@ interface Token {
   logoURI?: string;
 }
 
-// Default tokens with proper logos
-const DEFAULT_TOKENS: Token[] = [
-  {
-    symbol: "SOL",
-    name: "Solana",
-    icon: "◎",
-    mint: TOKEN_MINTS.SOL,
-    decimals: 9,
-    logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png"
-  },
-  {
-    symbol: "USDC",
-    name: "USD Coin",
-    icon: "$",
-    mint: TOKEN_MINTS.USDC,
-    decimals: 6,
-    logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png"
-  },
-  {
-    symbol: "USDT",
-    name: "Tether USD",
-    icon: "₮",
-    mint: TOKEN_MINTS.USDT,
-    decimals: 6,
-    logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.svg"
-  },
-  {
-    symbol: "BONK",
-    name: "Bonk",
-    icon: "🐕",
-    mint: TOKEN_MINTS.BONK,
-    decimals: 5,
-    logoURI: "https://arweave.net/hQiPZOsRZXGXBJd_82PhVdlM_hACsT_q6wqwf5cSY7I"
-  },
-  {
-    symbol: "JUP",
-    name: "Jupiter",
-    icon: "♃",
-    mint: TOKEN_MINTS.JUP,
-    decimals: 6,
-    logoURI: "https://static.jup.ag/jup/icon.png"
-  },
-];
+// Use central token configuration, converting TokenMetadata to Token interface
+const DEFAULT_TOKENS: Token[] = SWAP_TOKENS.map((t: TokenMetadata) => ({
+  symbol: t.symbol,
+  name: t.name,
+  icon: t.icon,
+  mint: t.mint,
+  decimals: t.decimals,
+  logoURI: t.logoURI,
+}));
 
 export default function SwapPage() {
   const { walletAddress, authenticated } = useAuth();

@@ -509,7 +509,7 @@ function DashboardContent() {
             ) : whaleEvents && whaleEvents.length > 0 ? (
               whaleEvents.slice(0, 6).map((event, i) => (
                 <div
-                  key={event.id || i}
+                  key={event.id || `whale-event-${i}`}
                   className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary hover:bg-bg-elevated transition-colors"
                 >
                   <div className="flex items-center gap-3">

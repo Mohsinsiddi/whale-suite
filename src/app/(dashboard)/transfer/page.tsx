@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Card, { CardHeader, CardTitle } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
@@ -8,14 +8,26 @@ import Input, { AmountInput } from "@/components/ui/Input";
 import Tabs, { TabPanel } from "@/components/ui/Tabs";
 import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
 import { useTransfer, useWalletBalance, useShadowWire, usePoints } from "@/hooks";
+import { useWalletBalances } from "@/hooks/useHelius";
+import { useMultiSend, type MultiSendRecipient, type TokenType } from "@/hooks/useMultiSend";
 import { useAuth } from "@/lib/privy/hooks";
 import { useNetwork } from "@/hooks/useNetwork";
 import { TransferType } from "@/lib/privacy-sdks";
 import { PointsEarned } from "@/components/leaderboard";
+import {
+  SHADOWWIRE_POOL_TOKENS,
+  MULTI_SEND_TOKEN_LIST,
+  TOKEN_MINTS,
+  type ShadowWireTokenSymbol,
+} from "@/lib/tokens";
+
+// Generate unique ID
+const generateId = () => Math.random().toString(36).substring(2, 9);
 
 export default function TransferPage() {
   const { walletAddress } = useAuth();
   const { balance, loading: balanceLoading } = useWalletBalance(walletAddress);
+  const { balances: walletBalances, loading: tokenBalancesLoading } = useWalletBalances(walletAddress);
   const {
     executeTransfer,
     estimateTransfer,
@@ -47,9 +59,18 @@ export default function TransferPage() {
   const { awardPoints } = usePoints();
   const { network } = useNetwork();
 
-  // Minimum amounts
-  const MIN_DEPOSIT_AMOUNT = shadowWireMinAmount('SOL'); // 0.1 SOL
-  const MIN_TRANSFER_AMOUNT = shadowWireMinAmount('SOL'); // 0.1 SOL
+  // Multi-send hook
+  const {
+    loading: multiSendLoading,
+    progress: multiSendProgress,
+    result: multiSendResult,
+    error: multiSendError,
+    executeMultiSend,
+    validateRecipients,
+    calculateUsdValue,
+    reset: resetMultiSend,
+    getPrice,
+  } = useMultiSend();
 
   const [activeTab, setActiveTab] = useState("private");
   const [amount, setAmount] = useState("");
@@ -66,6 +87,21 @@ export default function TransferPage() {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [showWithdrawSection, setShowWithdrawSection] = useState(false);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const [poolToken, setPoolToken] = useState<ShadowWireTokenSymbol>('SOL'); // Selected token for deposit/withdraw
+  const [lastFetchedToken, setLastFetchedToken] = useState<ShadowWireTokenSymbol>('SOL'); // Track which token's balance is loaded
+  const [isBalanceLoading, setIsBalanceLoading] = useState(false); // Loading state for balance fetch
+
+  // Minimum transfer amount for the selected token (used in private transfers)
+  const MIN_TRANSFER_AMOUNT = useMemo(() => shadowWireMinAmount(poolToken), [poolToken, shadowWireMinAmount]);
+
+  // Multi-send state
+  const [multiSendRecipients, setMultiSendRecipients] = useState<MultiSendRecipient[]>([
+    { id: generateId(), address: '', amount: '', usdValue: 0, status: 'pending' },
+  ]);
+  const [multiSendToken, setMultiSendToken] = useState<TokenType>('SOL');
+  const [multiSendType, setMultiSendType] = useState<'internal' | 'external'>('internal');
+  const [isMultiSendExecuting, setIsMultiSendExecuting] = useState(false);
+  const [showMultiSendSuccess, setShowMultiSendSuccess] = useState(false);
 
   // Track last operation for success modal
   const [lastOperation, setLastOperation] = useState<{
@@ -79,15 +115,63 @@ export default function TransferPage() {
   const [currentOperation, setCurrentOperation] = useState<'deposit' | 'withdraw' | 'transfer'>('transfer');
   const [pointsEarned, setPointsEarned] = useState<number | null>(null);
 
-  // Fetch shielded balance when wallet changes
-  useEffect(() => {
-    if (walletAddress && activeTab === "private") {
-      fetchShieldedBalance();
+  // Get wallet balance for selected pool token
+  const getTokenWalletBalance = useCallback((tokenSymbol: ShadowWireTokenSymbol): number => {
+    if (tokenSymbol === 'SOL') {
+      return balance;
     }
-  }, [walletAddress, activeTab, fetchShieldedBalance]);
+    // Find token in wallet balances
+    const tokenMint = TOKEN_MINTS[tokenSymbol as keyof typeof TOKEN_MINTS];
+    if (!tokenMint || !walletBalances?.tokens) return 0;
 
-  // Shielded balance in SOL (available balance from pool)
-  const shieldedBalanceSOL = shieldedBalance?.available ? shieldedBalance.available / 1e9 : 0;
+    const token = walletBalances.tokens.find(
+      t => t.mint.toLowerCase() === tokenMint.toLowerCase()
+    );
+    return token?.uiAmount || 0;
+  }, [balance, walletBalances]);
+
+  // Current pool token wallet balance
+  const poolTokenWalletBalance = useMemo(() => {
+    return getTokenWalletBalance(poolToken);
+  }, [poolToken, getTokenWalletBalance]);
+
+  // Fetch shielded balance when wallet/tab/token changes
+  useEffect(() => {
+    if (walletAddress && (activeTab === "private" || activeTab === "multi")) {
+      // Set loading state when token changes
+      if (poolToken !== lastFetchedToken) {
+        setIsBalanceLoading(true);
+      }
+      // Fetch balance for the selected pool token
+      fetchShieldedBalance(poolToken).then(() => {
+        setLastFetchedToken(poolToken);
+        setIsBalanceLoading(false);
+      });
+    }
+  }, [walletAddress, activeTab, poolToken, fetchShieldedBalance, lastFetchedToken]);
+
+  // Get decimals for the selected pool token
+  const getTokenDecimals = useCallback((token: ShadowWireTokenSymbol): number => {
+    const decimalsMap: Record<string, number> = {
+      SOL: 9,
+      USDC: 6,
+      USD1: 6,
+      BONK: 5,
+      RADR: 9,
+      WLFI: 6,
+    };
+    return decimalsMap[token] || 9;
+  }, []);
+
+  // Shielded balance for selected token (convert from smallest units)
+  // Only show balance when it matches the currently selected token to avoid race conditions
+  const shieldedPoolBalance = useMemo(() => {
+    // Don't show stale balance from a different token
+    if (poolToken !== lastFetchedToken || isBalanceLoading) return 0;
+    if (!shieldedBalance?.available) return 0;
+    const decimals = getTokenDecimals(poolToken);
+    return shieldedBalance.available / Math.pow(10, decimals);
+  }, [shieldedBalance, poolToken, lastFetchedToken, isBalanceLoading, getTokenDecimals]);
 
   // Combined loading state
   const isLoading = transferLoading || shadowWireLoading;
@@ -99,9 +183,85 @@ export default function TransferPage() {
   const combinedResult = activeTab === "private" ? shadowWireResult : transferResult;
 
   const tabs = [
-    { id: "private", label: "Private Transfer", icon: <GhostIcon /> },
-    { id: "standard", label: "Standard Transfer", icon: <TransferIcon /> },
+    { id: "private", label: "Single Send", icon: <GhostIcon /> },
+    { id: "multi", label: "Multi-Send", icon: <MultiSendIcon /> },
+    { id: "standard", label: "Standard", icon: <TransferIcon /> },
   ];
+
+  // Multi-send validation
+  const multiSendValidation = useMemo(() => {
+    return validateRecipients(multiSendRecipients, multiSendToken);
+  }, [multiSendRecipients, multiSendToken, validateRecipients]);
+
+  // Token price for multi-send
+  const multiSendTokenPrice = useMemo(() => getPrice(multiSendToken), [multiSendToken, getPrice]);
+
+  // Add multi-send recipient
+  const addMultiSendRecipient = useCallback(() => {
+    if (multiSendRecipients.length >= 10) return;
+    setMultiSendRecipients(prev => [
+      ...prev,
+      { id: generateId(), address: '', amount: '', usdValue: 0, status: 'pending' },
+    ]);
+  }, [multiSendRecipients.length]);
+
+  // Remove multi-send recipient
+  const removeMultiSendRecipient = useCallback((id: string) => {
+    if (multiSendRecipients.length <= 1) return;
+    setMultiSendRecipients(prev => prev.filter(r => r.id !== id));
+  }, [multiSendRecipients.length]);
+
+  // Update multi-send recipient
+  const updateMultiSendRecipient = useCallback((id: string, field: 'address' | 'amount', value: string) => {
+    setMultiSendRecipients(prev =>
+      prev.map(r => {
+        if (r.id !== id) return r;
+        if (field === 'amount') {
+          return {
+            ...r,
+            amount: value,
+            usdValue: calculateUsdValue(value, multiSendToken),
+          };
+        }
+        return { ...r, [field]: value };
+      })
+    );
+  }, [multiSendToken, calculateUsdValue]);
+
+  // Handle multi-send token change
+  const handleMultiSendTokenChange = useCallback((token: TokenType) => {
+    setMultiSendToken(token);
+    setMultiSendRecipients(prev =>
+      prev.map(r => ({
+        ...r,
+        usdValue: calculateUsdValue(r.amount, token),
+      }))
+    );
+  }, [calculateUsdValue]);
+
+  // Execute multi-send
+  const handleMultiSendExecute = async () => {
+    if (!walletAddress || !multiSendValidation.valid) return;
+
+    setIsMultiSendExecuting(true);
+
+    await executeMultiSend(
+      walletAddress,
+      multiSendRecipients,
+      multiSendToken,
+      multiSendType
+    );
+
+    setIsMultiSendExecuting(false);
+    setShowMultiSendSuccess(true);
+  };
+
+  // Reset multi-send
+  const handleMultiSendReset = () => {
+    setMultiSendRecipients([{ id: generateId(), address: '', amount: '', usdValue: 0, status: 'pending' }]);
+    setShowMultiSendSuccess(false);
+    resetMultiSend();
+  };
 
   // Validate recipient on change
   useEffect(() => {
@@ -120,21 +280,22 @@ export default function TransferPage() {
     }
   }, [amount, recipient, activeTab, estimateTransfer, validateAddress]);
 
-  // Validate deposit amount
+  // Validate deposit amount (use SDK minimums)
   useEffect(() => {
     const depositValue = parseFloat(depositAmount);
+    const minDeposit = shadowWireMinAmount(poolToken); // Use SDK's actual minimum
     if (!depositAmount || depositAmount === "") {
       setDepositError(null);
     } else if (isNaN(depositValue) || depositValue <= 0) {
       setDepositError("Please enter a valid amount");
-    } else if (depositValue < MIN_DEPOSIT_AMOUNT) {
-      setDepositError(`Minimum deposit is ${MIN_DEPOSIT_AMOUNT} SOL (anti-spam)`);
-    } else if (depositValue > balance) {
-      setDepositError("Insufficient balance");
+    } else if (depositValue < minDeposit) {
+      setDepositError(`Minimum deposit is ${minDeposit.toLocaleString()} ${poolToken} (anti-spam)`);
+    } else if (depositValue > poolTokenWalletBalance) {
+      setDepositError(`Insufficient ${poolToken} balance`);
     } else {
       setDepositError(null);
     }
-  }, [depositAmount, balance, MIN_DEPOSIT_AMOUNT]);
+  }, [depositAmount, poolToken, poolTokenWalletBalance, shadowWireMinAmount]);
 
   // Validate transfer amount for private transfers
   useEffect(() => {
@@ -144,29 +305,30 @@ export default function TransferPage() {
     } else if (isNaN(amountValue) || amountValue <= 0) {
       setAmountError("Please enter a valid amount");
     } else if (amountValue < MIN_TRANSFER_AMOUNT) {
-      setAmountError(`Minimum transfer is ${MIN_TRANSFER_AMOUNT} SOL`);
-    } else if (amountValue > shieldedBalanceSOL) {
-      setAmountError(`Insufficient shielded balance. You have ${shieldedBalanceSOL.toFixed(4)} SOL in pool.`);
+      setAmountError(`Minimum transfer is ${MIN_TRANSFER_AMOUNT.toLocaleString()} ${poolToken}`);
+    } else if (amountValue > shieldedPoolBalance) {
+      setAmountError(`Insufficient shielded balance. You have ${shieldedPoolBalance.toFixed(4)} ${poolToken} in pool.`);
     } else {
       setAmountError(null);
     }
-  }, [amount, activeTab, shieldedBalanceSOL, MIN_TRANSFER_AMOUNT]);
+  }, [amount, activeTab, shieldedPoolBalance, MIN_TRANSFER_AMOUNT, poolToken]);
 
-  // Validate withdraw amount
+  // Validate withdraw amount (use SDK minimums)
   useEffect(() => {
     const withdrawValue = parseFloat(withdrawAmount);
+    const minWithdraw = shadowWireMinAmount(poolToken); // Use SDK's actual minimum
     if (!withdrawAmount || withdrawAmount === "") {
       setWithdrawError(null);
     } else if (isNaN(withdrawValue) || withdrawValue <= 0) {
       setWithdrawError("Please enter a valid amount");
-    } else if (withdrawValue < MIN_DEPOSIT_AMOUNT) {
-      setWithdrawError(`Minimum withdraw is ${MIN_DEPOSIT_AMOUNT} SOL`);
-    } else if (withdrawValue > shieldedBalanceSOL) {
-      setWithdrawError(`Insufficient shielded balance. You have ${shieldedBalanceSOL.toFixed(4)} SOL`);
+    } else if (withdrawValue < minWithdraw) {
+      setWithdrawError(`Minimum withdraw is ${minWithdraw.toLocaleString()} ${poolToken}`);
+    } else if (withdrawValue > shieldedPoolBalance) {
+      setWithdrawError(`Insufficient shielded balance. You have ${shieldedPoolBalance.toFixed(4)} ${poolToken}`);
     } else {
       setWithdrawError(null);
     }
-  }, [withdrawAmount, shieldedBalanceSOL, MIN_DEPOSIT_AMOUNT]);
+  }, [withdrawAmount, shieldedPoolBalance, poolToken, shadowWireMinAmount]);
 
   const getStepStatus = (stepIndex: number): "pending" | "active" | "completed" => {
     if (currentStep > stepIndex) return "completed";
@@ -237,12 +399,12 @@ export default function TransferPage() {
     // Validate for private transfers
     if (activeTab === "private") {
       if (amountValue < MIN_TRANSFER_AMOUNT) {
-        setAmountError(`Minimum transfer is ${MIN_TRANSFER_AMOUNT} SOL`);
+        setAmountError(`Minimum transfer is ${MIN_TRANSFER_AMOUNT.toLocaleString()} ${poolToken}`);
         return;
       }
 
-      if (amountValue > shieldedBalanceSOL) {
-        setAmountError(`Insufficient shielded balance. Please deposit at least ${amountValue.toFixed(4)} SOL to the pool first.`);
+      if (amountValue > shieldedPoolBalance) {
+        setAmountError(`Insufficient shielded balance. Please deposit at least ${amountValue.toFixed(4)} ${poolToken} to the pool first.`);
         return;
       }
     }
@@ -272,10 +434,10 @@ export default function TransferPage() {
       let result;
       if (privateTransferType === "internal") {
         // Internal transfer: amount hidden via Bulletproofs
-        result = await internalTransfer(recipient, parseFloat(amount));
+        result = await internalTransfer(recipient, parseFloat(amount), poolToken);
       } else {
         // External transfer: sender anonymous
-        result = await externalTransfer(recipient, parseFloat(amount));
+        result = await externalTransfer(recipient, parseFloat(amount), poolToken);
       }
 
       setCurrentStep(2);
@@ -288,7 +450,7 @@ export default function TransferPage() {
           type: 'transfer',
           amount: amount,
           signature: result.signature || '',
-          token: 'SOL',
+          token: poolToken,
         });
 
         // Award points for shadow transfer
@@ -308,7 +470,7 @@ export default function TransferPage() {
 
         setShowSuccessModal(true);
         // Refresh shielded balance after transfer
-        setTimeout(() => fetchShieldedBalance(), 2000);
+        setTimeout(() => fetchShieldedBalance(poolToken), 2000);
       }
     } else {
       // Standard transfer
@@ -360,13 +522,14 @@ export default function TransferPage() {
     resetShadowWire();
     // Refresh shielded balance after successful operation
     if (walletAddress) {
-      fetchShieldedBalance();
+      fetchShieldedBalance(poolToken);
     }
   };
 
   // Handle deposit to shielded pool
   const handleDeposit = async () => {
     const depositValue = parseFloat(depositAmount);
+    const minDeposit = shadowWireMinAmount(poolToken); // Use SDK minimum
 
     // Validate before proceeding
     if (!depositAmount || isNaN(depositValue) || depositValue <= 0) {
@@ -374,13 +537,13 @@ export default function TransferPage() {
       return;
     }
 
-    if (depositValue < MIN_DEPOSIT_AMOUNT) {
-      setDepositError(`Minimum deposit is ${MIN_DEPOSIT_AMOUNT} SOL (anti-spam protection)`);
+    if (depositValue < minDeposit) {
+      setDepositError(`Minimum deposit is ${minDeposit.toLocaleString()} ${poolToken} (anti-spam protection)`);
       return;
     }
 
-    if (depositValue > balance) {
-      setDepositError("Insufficient wallet balance");
+    if (depositValue > poolTokenWalletBalance) {
+      setDepositError(`Insufficient ${poolToken} wallet balance`);
       return;
     }
 
@@ -392,8 +555,8 @@ export default function TransferPage() {
     await new Promise((r) => setTimeout(r, 300));
     setCurrentStep(1);
 
-    // Step 2: Execute deposit
-    const result = await shadowWireDeposit(parseFloat(depositAmount));
+    // Step 2: Execute deposit with selected token
+    const result = await shadowWireDeposit(parseFloat(depositAmount), poolToken);
 
     setCurrentStep(2);
     await new Promise((r) => setTimeout(r, 300));
@@ -406,7 +569,7 @@ export default function TransferPage() {
         type: 'deposit',
         amount: depositAmount,
         signature: result.signature || '',
-        token: 'SOL',
+        token: poolToken,
       });
 
       // Award points for privacy deposit (Note: Using shadow_transfer action since it's privacy-related)
@@ -427,13 +590,14 @@ export default function TransferPage() {
       setDepositAmount("");
       setShowDepositSection(false);
       // Refresh shielded balance after a short delay for API indexing
-      setTimeout(() => fetchShieldedBalance(), 2000);
+      setTimeout(() => fetchShieldedBalance(poolToken), 2000);
     }
   };
 
   // Handle withdraw from shielded pool
   const handleWithdraw = async () => {
     const withdrawValue = parseFloat(withdrawAmount);
+    const minWithdraw = shadowWireMinAmount(poolToken); // Use SDK minimum
 
     // Validate before proceeding
     if (!withdrawAmount || isNaN(withdrawValue) || withdrawValue <= 0) {
@@ -441,13 +605,13 @@ export default function TransferPage() {
       return;
     }
 
-    if (withdrawValue < MIN_DEPOSIT_AMOUNT) {
-      setWithdrawError(`Minimum withdraw is ${MIN_DEPOSIT_AMOUNT} SOL`);
+    if (withdrawValue < minWithdraw) {
+      setWithdrawError(`Minimum withdraw is ${minWithdraw.toLocaleString()} ${poolToken}`);
       return;
     }
 
-    if (withdrawValue > shieldedBalanceSOL) {
-      setWithdrawError("Insufficient shielded balance");
+    if (withdrawValue > shieldedPoolBalance) {
+      setWithdrawError(`Insufficient shielded balance. You have ${shieldedPoolBalance.toFixed(4)} ${poolToken}`);
       return;
     }
 
@@ -459,8 +623,8 @@ export default function TransferPage() {
     await new Promise((r) => setTimeout(r, 300));
     setCurrentStep(1);
 
-    // Step 2: Execute withdraw
-    const result = await shadowWireWithdraw(withdrawValue);
+    // Step 2: Execute withdraw with selected token
+    const result = await shadowWireWithdraw(withdrawValue, poolToken);
 
     setCurrentStep(2);
     await new Promise((r) => setTimeout(r, 300));
@@ -473,7 +637,7 @@ export default function TransferPage() {
         type: 'withdraw',
         amount: withdrawAmount,
         signature: result.signature || '',
-        token: 'SOL',
+        token: poolToken,
       });
 
       // Award points for privacy withdrawal
@@ -494,7 +658,7 @@ export default function TransferPage() {
       setWithdrawAmount("");
       setShowWithdrawSection(false);
       // Refresh shielded balance after a short delay for API indexing
-      setTimeout(() => fetchShieldedBalance(), 2000);
+      setTimeout(() => fetchShieldedBalance(poolToken), 2000);
     }
   };
 
@@ -510,42 +674,70 @@ export default function TransferPage() {
         {/* Transfer Form */}
         <div className="lg:col-span-2">
           <Card variant="default" padding="lg">
-            <Tabs
-              tabs={tabs}
-              activeTab={activeTab}
-              onChange={setActiveTab}
-              variant="pills"
-              size="sm"
-            />
-
-            <TabPanel value="private" activeValue={activeTab} className="mt-6">
-              <div className="space-y-5">
+            {/* Shared Pool Management - Shows for Private & Multi-Send tabs */}
+            {(activeTab === "private" || activeTab === "multi") && (
+              <div className="mb-6 pb-6 border-b border-border-secondary">
                 {/* WASM Support Warning */}
                 {!wasmSupported && (
-                  <div className="p-3 rounded-xl bg-warning/10 border border-warning/20">
+                  <div className="p-3 rounded-xl bg-warning/10 border border-warning/20 mb-4">
                     <p className="text-xs text-warning">
                       Your browser does not support WebAssembly. Private transfers require a modern browser.
                     </p>
                   </div>
                 )}
 
-                {/* Shielded Balance - Required for Private Transfers */}
-                <div className="p-3 rounded-xl bg-gradient-to-r from-neon-green/10 to-neon-cyan/10 border border-neon-green/30">
-                  <div className="flex items-center justify-between mb-2">
+                {/* Shielded Balance Card */}
+                <div className="p-4 rounded-xl bg-gradient-to-r from-neon-green/10 to-neon-cyan/10 border border-neon-green/30">
+                  <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <ShieldIcon className="w-4 h-4 text-neon-green" />
-                      <span className="text-xs font-medium text-neon-green">ShadowWire Pool Balance</span>
+                      <ShieldIcon className="w-5 h-5 text-neon-green" />
+                      <span className="text-sm font-medium text-neon-green">ShadowWire Shielded Pool</span>
                     </div>
                     <button
-                      onClick={() => fetchShieldedBalance()}
-                      className="text-xs text-text-muted hover:text-neon-green transition-colors"
+                      onClick={() => fetchShieldedBalance(poolToken)}
+                      className="p-1.5 rounded-lg hover:bg-neon-green/10 text-text-muted hover:text-neon-green transition-colors"
+                      title="Refresh balance"
                     >
-                      Refresh
+                      <RefreshIcon className="w-4 h-4" />
                     </button>
                   </div>
+
+                  {/* Token Selector - Always visible */}
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {SHADOWWIRE_POOL_TOKENS.slice(0, 6).map(token => (
+                      <button
+                        key={token.symbol}
+                        onClick={() => setPoolToken(token.symbol as ShadowWireTokenSymbol)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                          poolToken === token.symbol
+                            ? 'bg-neon-green/20 border-neon-green text-neon-green'
+                            : 'bg-bg-elevated/50 border-border-secondary text-text-secondary hover:border-neon-green/50 hover:text-text-primary'
+                        }`}
+                      >
+                        {token.logoURI ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={token.logoURI} alt={token.symbol} className="w-4 h-4 rounded-full" />
+                        ) : (
+                          <span>{token.icon}</span>
+                        )}
+                        {token.symbol}
+                      </button>
+                    ))}
+                  </div>
+
                   <div className="flex items-center justify-between">
-                    <div className="text-lg font-bold text-text-primary">
-                      {shieldedBalanceSOL.toFixed(4)} SOL
+                    <div>
+                      <div className="text-2xl font-bold text-text-primary">
+                        {isBalanceLoading || poolToken !== lastFetchedToken ? (
+                          <span className="inline-flex items-center gap-2">
+                            <span className="w-4 h-4 border-2 border-neon-green/30 border-t-neon-green rounded-full animate-spin" />
+                            <span className="text-text-muted">Loading...</span>
+                          </span>
+                        ) : (
+                          <>{shieldedPoolBalance.toFixed(4)} <span className="text-base text-text-secondary">{poolToken}</span></>
+                        )}
+                      </div>
+                      <div className="text-xs text-text-muted mt-1">Available for private transfers</div>
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -553,9 +745,9 @@ export default function TransferPage() {
                           setShowDepositSection(!showDepositSection);
                           if (showWithdrawSection) setShowWithdrawSection(false);
                         }}
-                        className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                           showDepositSection
-                            ? 'bg-neon-green text-bg-primary'
+                            ? 'bg-neon-green text-bg-primary shadow-lg shadow-neon-green/20'
                             : 'bg-neon-green/20 text-neon-green hover:bg-neon-green/30'
                         }`}
                       >
@@ -566,10 +758,10 @@ export default function TransferPage() {
                           setShowWithdrawSection(!showWithdrawSection);
                           if (showDepositSection) setShowDepositSection(false);
                         }}
-                        disabled={shieldedBalanceSOL === 0}
-                        className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                        disabled={shieldedPoolBalance === 0}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                           showWithdrawSection
-                            ? 'bg-neon-cyan text-bg-primary'
+                            ? 'bg-neon-cyan text-bg-primary shadow-lg shadow-neon-cyan/20'
                             : 'bg-neon-cyan/20 text-neon-cyan hover:bg-neon-cyan/30 disabled:opacity-50 disabled:cursor-not-allowed'
                         }`}
                       >
@@ -577,57 +769,62 @@ export default function TransferPage() {
                       </button>
                     </div>
                   </div>
-                  {shieldedBalanceSOL === 0 && !showDepositSection && (
-                    <p className="text-xs text-warning mt-2">
-                      You need to deposit SOL into the shielded pool before making private transfers.
+
+                  {shieldedPoolBalance === 0 && !showDepositSection && (
+                    <p className="text-xs text-warning mt-3 p-2 rounded-lg bg-warning/10">
+                      Deposit {poolToken} to start making private transfers
                     </p>
                   )}
                 </div>
 
                 {/* Deposit Section */}
                 {showDepositSection && (
-                  <div className={`p-3 rounded-xl bg-bg-tertiary border space-y-3 ${
-                    depositError ? 'border-error/50' : 'border-border-secondary'
+                  <div className={`mt-4 p-4 rounded-xl bg-bg-tertiary border space-y-3 ${
+                    depositError ? 'border-error/50' : 'border-neon-green/30'
                   }`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-text-secondary">Deposit to Shielded Pool</span>
+                      <span className="text-sm font-medium text-text-primary">Deposit {poolToken} to Pool</span>
                       <span className="text-xs text-text-muted">
-                        Public Balance: {balance.toFixed(4)} SOL
+                        Wallet: {tokenBalancesLoading ? '...' : poolTokenWalletBalance.toFixed(4)} {poolToken}
                       </span>
                     </div>
+
                     <div className="flex gap-2">
                       <div className="flex-1 relative">
                         <input
                           type="number"
                           value={depositAmount}
                           onChange={(e) => setDepositAmount(e.target.value)}
-                          placeholder={`Min ${MIN_DEPOSIT_AMOUNT} SOL`}
-                          min={MIN_DEPOSIT_AMOUNT}
+                          placeholder={`Min ${shadowWireMinAmount(poolToken)} ${poolToken}`}
+                          min={shadowWireMinAmount(poolToken)}
                           step="0.1"
-                          className={`w-full px-3 py-2 pr-16 rounded-lg bg-bg-elevated border text-sm text-text-primary placeholder:text-text-muted focus:outline-none ${
+                          className={`w-full px-4 py-2.5 pr-20 rounded-lg bg-bg-elevated border text-sm text-text-primary placeholder:text-text-muted focus:outline-none ${
                             depositError
                               ? 'border-error/50 focus:border-error'
                               : 'border-border-secondary focus:border-neon-green'
                           }`}
                         />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            // Leave some for gas fees (0.005 SOL)
-                            const maxDeposit = Math.max(0, balance - 0.005);
-                            if (maxDeposit >= MIN_DEPOSIT_AMOUNT) {
-                              setDepositAmount(maxDeposit.toFixed(4));
-                            } else {
-                              setDepositAmount(balance.toFixed(4));
-                            }
-                          }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 text-[10px] font-medium text-neon-green hover:bg-neon-green/10 rounded transition-colors"
-                        >
-                          MAX
-                        </button>
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // For SOL, leave some for fees
+                              const feeBuffer = poolToken === 'SOL' ? 0.005 : 0;
+                              const maxDeposit = Math.max(0, poolTokenWalletBalance - feeBuffer);
+                              if (maxDeposit >= shadowWireMinAmount(poolToken)) {
+                                setDepositAmount(maxDeposit.toFixed(4));
+                              } else {
+                                setDepositAmount(poolTokenWalletBalance.toFixed(4));
+                              }
+                            }}
+                            className="px-2 py-0.5 text-xs font-medium text-neon-green hover:bg-neon-green/10 rounded transition-colors"
+                          >
+                            MAX
+                          </button>
+                          <span className="text-xs text-text-muted">{poolToken}</span>
+                        </div>
                       </div>
                       <Button
-                        size="sm"
                         onClick={handleDeposit}
                         disabled={!!depositError || !depositAmount || shadowWireLoading}
                         loading={shadowWireLoading}
@@ -636,57 +833,55 @@ export default function TransferPage() {
                       </Button>
                     </div>
                     {depositError ? (
-                      <p className="text-[10px] text-error">{depositError}</p>
+                      <p className="text-xs text-error">{depositError}</p>
                     ) : (
-                      <div className="space-y-1">
-                        <p className="text-[10px] text-text-muted">
-                          Minimum deposit: {MIN_DEPOSIT_AMOUNT} SOL. Funds will be available for private transfers.
-                        </p>
-                        <p className="text-[10px] text-warning">
-                          Note: Balance may take 30-60 seconds to reflect after deposit.
-                        </p>
-                      </div>
+                      <p className="text-xs text-text-muted">
+                        Min: {shadowWireMinAmount(poolToken)} {poolToken} • Balance reflects in ~30-60s
+                      </p>
                     )}
                   </div>
                 )}
 
                 {/* Withdraw Section */}
                 {showWithdrawSection && (
-                  <div className={`p-3 rounded-xl bg-bg-tertiary border space-y-3 ${
-                    withdrawError ? 'border-error/50' : 'border-border-secondary'
+                  <div className={`mt-4 p-4 rounded-xl bg-bg-tertiary border space-y-3 ${
+                    withdrawError ? 'border-error/50' : 'border-neon-cyan/30'
                   }`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-text-secondary">Withdraw from Shielded Pool</span>
+                      <span className="text-sm font-medium text-text-primary">Withdraw {poolToken} from Pool</span>
                       <span className="text-xs text-text-muted">
-                        Pool Balance: {shieldedBalanceSOL.toFixed(4)} SOL
+                        Available: {shieldedPoolBalance.toFixed(4)} {poolToken}
                       </span>
                     </div>
+
                     <div className="flex gap-2">
                       <div className="flex-1 relative">
                         <input
                           type="number"
                           value={withdrawAmount}
                           onChange={(e) => setWithdrawAmount(e.target.value)}
-                          placeholder={`Min ${MIN_DEPOSIT_AMOUNT} SOL`}
-                          min={MIN_DEPOSIT_AMOUNT}
-                          max={shieldedBalanceSOL}
+                          placeholder={`Min ${shadowWireMinAmount(poolToken)} ${poolToken}`}
+                          min={shadowWireMinAmount(poolToken)}
+                          max={shieldedPoolBalance}
                           step="0.1"
-                          className={`w-full px-3 py-2 pr-16 rounded-lg bg-bg-elevated border text-sm text-text-primary placeholder:text-text-muted focus:outline-none ${
+                          className={`w-full px-4 py-2.5 pr-20 rounded-lg bg-bg-elevated border text-sm text-text-primary placeholder:text-text-muted focus:outline-none ${
                             withdrawError
                               ? 'border-error/50 focus:border-error'
                               : 'border-border-secondary focus:border-neon-cyan'
                           }`}
                         />
-                        <button
-                          type="button"
-                          onClick={() => setWithdrawAmount(shieldedBalanceSOL.toFixed(4))}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 text-[10px] font-medium text-neon-cyan hover:bg-neon-cyan/10 rounded transition-colors"
-                        >
-                          MAX
-                        </button>
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setWithdrawAmount(shieldedPoolBalance.toFixed(4))}
+                            className="px-2 py-0.5 text-xs font-medium text-neon-cyan hover:bg-neon-cyan/10 rounded transition-colors"
+                          >
+                            MAX
+                          </button>
+                          <span className="text-xs text-text-muted">{poolToken}</span>
+                        </div>
                       </div>
                       <Button
-                        size="sm"
                         variant="secondary"
                         onClick={handleWithdraw}
                         disabled={!!withdrawError || !withdrawAmount || shadowWireLoading}
@@ -696,20 +891,27 @@ export default function TransferPage() {
                       </Button>
                     </div>
                     {withdrawError ? (
-                      <p className="text-[10px] text-error">{withdrawError}</p>
+                      <p className="text-xs text-error">{withdrawError}</p>
                     ) : (
-                      <div className="space-y-1">
-                        <p className="text-[10px] text-text-muted">
-                          Withdraw funds from shielded pool back to your public wallet.
-                        </p>
-                        <p className="text-[10px] text-warning">
-                          Note: Balance may take 30-60 seconds to reflect after withdrawal.
-                        </p>
-                      </div>
+                      <p className="text-xs text-text-muted">
+                        Withdraw to your public wallet • Balance reflects in ~30-60s
+                      </p>
                     )}
                   </div>
                 )}
+              </div>
+            )}
 
+            <Tabs
+              tabs={tabs}
+              activeTab={activeTab}
+              onChange={setActiveTab}
+              variant="pills"
+              size="sm"
+            />
+
+            <TabPanel value="private" activeValue={activeTab} className="mt-6">
+              <div className="space-y-5">
                 {/* From Wallet */}
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">
@@ -783,13 +985,13 @@ export default function TransferPage() {
                   <AmountInput
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    balance={`Pool: ${shieldedBalanceSOL.toFixed(4)} SOL`}
-                    onMaxClick={() => setAmount(shieldedBalanceSOL.toFixed(4))}
+                    balance={`Pool: ${shieldedPoolBalance.toFixed(4)} ${poolToken}`}
+                    onMaxClick={() => setAmount(shieldedPoolBalance.toFixed(4))}
                     error={amountError || undefined}
                   />
                   {!amountError && parseFloat(amount) > 0 && (
                     <p className="text-[10px] text-text-muted mt-1">
-                      Transfers use your shielded pool balance, not public wallet.
+                      Transfers use your shielded {poolToken} pool balance, not public wallet.
                     </p>
                   )}
                 </div>
@@ -823,9 +1025,9 @@ export default function TransferPage() {
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-text-muted">Estimated Fee</span>
                   <span className="text-text-secondary">
-                    ~{amount ? shadowWireCalculateFee(parseFloat(amount) || 0).fee.toFixed(6) : '0.00'} SOL
+                    ~{amount ? shadowWireCalculateFee(parseFloat(amount) || 0, poolToken).fee.toFixed(6) : '0.00'} {poolToken}
                     <span className="text-text-muted ml-1">
-                      ({shadowWireCalculateFee(1).feePercentage.toFixed(2)}%)
+                      ({shadowWireCalculateFee(1, poolToken).feePercentage.toFixed(2)}%)
                     </span>
                   </span>
                 </div>
@@ -847,14 +1049,217 @@ export default function TransferPage() {
                     !!amountError ||
                     isLoading ||
                     parseFloat(amount) < MIN_TRANSFER_AMOUNT ||
-                    parseFloat(amount) > shieldedBalanceSOL ||
-                    !wasmSupported
+                    parseFloat(amount) > shieldedPoolBalance ||
+                    !wasmSupported ||
+                    isBalanceLoading
                   }
                   loading={shadowWireLoading}
                 >
                   {shadowWireLoading ? 'Generating ZK Proof...' : `Send ${privateTransferType === "internal" ? "with Hidden Amount" : "Anonymously"}`}
                 </Button>
               </div>
+            </TabPanel>
+
+            {/* Multi-Send Tab */}
+            <TabPanel value="multi" activeValue={activeTab} className="mt-6">
+              {/* Multi-Send Progress View */}
+              {(isMultiSendExecuting || multiSendProgress) && !showMultiSendSuccess ? (
+                <MultiSendProgressView
+                  progress={multiSendProgress}
+                  recipients={multiSendRecipients}
+                  token={multiSendToken}
+                />
+              ) : showMultiSendSuccess && multiSendResult ? (
+                <MultiSendSuccessView
+                  result={multiSendResult}
+                  token={multiSendToken}
+                  onClose={handleMultiSendReset}
+                />
+              ) : (
+                <div className="space-y-5">
+                  {/* Token Selector */}
+                  <div>
+                    <label className="block text-xs font-medium text-text-secondary mb-2">
+                      Select Token
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {MULTI_SEND_TOKEN_LIST.map(token => (
+                        <button
+                          key={token.symbol}
+                          onClick={() => handleMultiSendTokenChange(token.symbol as TokenType)}
+                          className={`p-2.5 rounded-lg border text-center transition-all ${
+                            multiSendToken === token.symbol
+                              ? 'bg-neon-green/10 border-neon-green text-neon-green'
+                              : 'bg-bg-tertiary border-border-secondary text-text-secondary hover:border-border-primary'
+                          }`}
+                        >
+                          <div className="flex justify-center mb-1">
+                            {token.logoURI ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={token.logoURI}
+                                alt={token.symbol}
+                                className="w-6 h-6 rounded-full"
+                              />
+                            ) : (
+                              <span className="text-lg">{token.icon}</span>
+                            )}
+                          </div>
+                          <div className="text-xs font-medium">{token.symbol}</div>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-text-muted mt-2">
+                      Price: ${multiSendTokenPrice.toFixed(2)} per {multiSendToken}
+                    </p>
+                  </div>
+
+                  {/* Privacy Type */}
+                  <div>
+                    <label className="block text-xs font-medium text-text-secondary mb-2">
+                      Privacy Type
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => setMultiSendType('internal')}
+                        className={`p-3 rounded-lg border transition-all ${
+                          multiSendType === 'internal'
+                            ? 'bg-neon-green/10 border-neon-green text-neon-green'
+                            : 'bg-bg-tertiary border-border-secondary text-text-secondary hover:border-border-primary'
+                        }`}
+                      >
+                        <div className="text-xs font-medium">Hidden Amount</div>
+                        <div className="text-[10px] opacity-70 mt-0.5">Amount hidden via ZK</div>
+                      </button>
+                      <button
+                        onClick={() => setMultiSendType('external')}
+                        className={`p-3 rounded-lg border transition-all ${
+                          multiSendType === 'external'
+                            ? 'bg-neon-cyan/10 border-neon-cyan text-neon-cyan'
+                            : 'bg-bg-tertiary border-border-secondary text-text-secondary hover:border-border-primary'
+                        }`}
+                      >
+                        <div className="text-xs font-medium">Anonymous Sender</div>
+                        <div className="text-[10px] opacity-70 mt-0.5">Your identity hidden</div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Recipients List */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-medium text-text-secondary">
+                        Recipients ({multiSendRecipients.length}/10)
+                      </label>
+                      <button
+                        onClick={addMultiSendRecipient}
+                        disabled={multiSendRecipients.length >= 10}
+                        className="text-xs text-neon-green hover:text-neon-cyan disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        + Add Recipient
+                      </button>
+                    </div>
+
+                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                      {multiSendRecipients.map((r, index) => (
+                        <div
+                          key={r.id}
+                          className="p-3 rounded-lg bg-bg-tertiary border border-border-secondary"
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className="w-6 h-6 rounded-full bg-bg-elevated flex items-center justify-center text-xs font-medium text-text-muted flex-shrink-0 mt-1.5">
+                              {index + 1}
+                            </div>
+                            <div className="flex-1 space-y-2">
+                              <input
+                                type="text"
+                                placeholder="Wallet address"
+                                value={r.address}
+                                onChange={(e) => updateMultiSendRecipient(r.id, 'address', e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border-secondary text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-neon-green font-mono"
+                              />
+                              <div className="flex gap-2">
+                                <div className="flex-1 relative">
+                                  <input
+                                    type="number"
+                                    placeholder="Amount"
+                                    value={r.amount}
+                                    onChange={(e) => updateMultiSendRecipient(r.id, 'amount', e.target.value)}
+                                    min="0.1"
+                                    step="0.1"
+                                    className="w-full px-3 py-2 pr-16 rounded-lg bg-bg-elevated border border-border-secondary text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-neon-green"
+                                  />
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">
+                                    {multiSendToken}
+                                  </span>
+                                </div>
+                                <div className="px-3 py-2 rounded-lg bg-bg-elevated border border-border-secondary text-sm text-text-secondary min-w-[80px] text-center">
+                                  ${r.usdValue.toFixed(2)}
+                                </div>
+                              </div>
+                            </div>
+                            {multiSendRecipients.length > 1 && (
+                              <button
+                                onClick={() => removeMultiSendRecipient(r.id)}
+                                className="p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-colors flex-shrink-0"
+                              >
+                                <XIcon className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Totals */}
+                  <div className="p-3 rounded-xl bg-bg-tertiary border border-border-secondary">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-text-muted">Total Amount</span>
+                      <span className="text-sm font-bold text-text-primary">
+                        {multiSendValidation.totalAmount.toFixed(4)} {multiSendToken}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-muted">Total USD Value</span>
+                      <span className="text-sm font-bold text-neon-green">
+                        ${multiSendValidation.totalUsd.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Error */}
+                  {(multiSendValidation.error || multiSendError) && (
+                    <div className="p-3 rounded-xl bg-error/10 border border-error/20">
+                      <p className="text-xs text-error">{multiSendValidation.error || multiSendError}</p>
+                    </div>
+                  )}
+
+                  {/* ZK Info */}
+                  <div className="p-3 rounded-xl bg-neon-green/5 border border-neon-green/20">
+                    <div className="flex items-start gap-2">
+                      <InfoIcon className="w-4 h-4 text-neon-green mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-neon-green font-medium">Sequential ZK Transfers</p>
+                        <p className="text-xs text-text-secondary mt-1">
+                          Each transfer generates a unique Bulletproof ZK proof (~30-45 seconds per transfer).
+                          Total time: ~{Math.ceil(multiSendRecipients.length * 40 / 60)} minute{multiSendRecipients.length > 1 ? 's' : ''}.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <Button
+                    fullWidth
+                    onClick={handleMultiSendExecute}
+                    disabled={!multiSendValidation.valid || multiSendLoading}
+                    loading={multiSendLoading}
+                  >
+                    Send to {multiSendRecipients.length} Recipient{multiSendRecipients.length > 1 ? 's' : ''}
+                  </Button>
+                </div>
+              )}
             </TabPanel>
 
             <TabPanel value="standard" activeValue={activeTab} className="mt-6">
@@ -1028,6 +1433,255 @@ export default function TransferPage() {
         txSignature={lastOperation?.signature || combinedResult?.signature || ''}
         actions={pointsEarned ? <PointsEarned points={pointsEarned} action="Transfer" /> : undefined}
       />
+
+    </div>
+  );
+}
+
+// Multi-Send Progress View Component
+function MultiSendProgressView({
+  progress,
+  recipients,
+  token,
+}: {
+  progress: ReturnType<typeof useMultiSend>['progress'];
+  recipients: MultiSendRecipient[];
+  token: TokenType;
+}) {
+  const currentPhase = progress?.phase || 'initializing';
+
+  const phaseLabels: Record<string, { icon: string; color: string }> = {
+    idle: { icon: '⏸', color: 'text-text-muted' },
+    initializing: { icon: '⚡', color: 'text-neon-cyan' },
+    generating_proofs: { icon: '🔐', color: 'text-neon-green' },
+    building_transactions: { icon: '🔨', color: 'text-neon-cyan' },
+    signing: { icon: '✍️', color: 'text-warning' },
+    submitting: { icon: '📡', color: 'text-neon-green' },
+    complete: { icon: '✅', color: 'text-success' },
+  };
+
+  const phaseInfo = phaseLabels[currentPhase] || phaseLabels.initializing;
+
+  return (
+    <div className="space-y-6 py-4">
+      {/* Phase indicator */}
+      <div className="text-center">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-neon-green/20 to-neon-cyan/20 flex items-center justify-center">
+          {currentPhase === 'complete' ? (
+            <span className="text-3xl">✅</span>
+          ) : (
+            <div className="w-12 h-12 rounded-full border-4 border-neon-green/30 border-t-neon-green animate-spin" />
+          )}
+        </div>
+        <h3 className={`text-lg font-semibold ${phaseInfo.color}`}>
+          {progress?.phaseLabel || 'Initializing...'}
+        </h3>
+        <p className="text-sm text-text-secondary mt-1">
+          {currentPhase === 'generating_proofs' && (
+            <>Generating ZK proofs for all {recipients.length} recipients</>
+          )}
+          {currentPhase === 'signing' && (
+            <>Please approve in your wallet</>
+          )}
+          {currentPhase === 'submitting' && (
+            <>Broadcasting transactions to network...</>
+          )}
+          {currentPhase === 'complete' && (
+            <>All transactions processed!</>
+          )}
+        </p>
+      </div>
+
+      {/* Phase steps */}
+      <div className="flex justify-center gap-2">
+        {['initializing', 'generating_proofs', 'building_transactions', 'signing', 'submitting'].map((phase, i) => {
+          const phases = ['initializing', 'generating_proofs', 'building_transactions', 'signing', 'submitting'];
+          const currentIndex = phases.indexOf(currentPhase);
+          const isComplete = i < currentIndex || currentPhase === 'complete';
+          const isCurrent = phase === currentPhase;
+
+          return (
+            <div key={phase} className="flex items-center gap-2">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
+                  isComplete
+                    ? 'bg-success text-bg-primary'
+                    : isCurrent
+                    ? 'bg-neon-green/20 text-neon-green border-2 border-neon-green'
+                    : 'bg-bg-tertiary text-text-muted'
+                }`}
+              >
+                {isComplete ? '✓' : i + 1}
+              </div>
+              {i < 4 && (
+                <div className={`w-4 h-0.5 ${isComplete ? 'bg-success' : 'bg-bg-tertiary'}`} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Progress bar */}
+      <div className="relative h-2 bg-bg-tertiary rounded-full overflow-hidden">
+        <div
+          className="absolute inset-y-0 left-0 bg-gradient-to-r from-neon-green to-neon-cyan transition-all duration-300"
+          style={{
+            width: `${((progress?.current || 0) / Math.max(progress?.total || 1, 1)) * 100}%`,
+          }}
+        />
+      </div>
+
+      {/* Recipients list with status */}
+      <div className="max-h-48 overflow-y-auto space-y-2">
+        {recipients.map((r, index) => (
+          <div
+            key={r.id}
+            className={`p-3 rounded-lg border ${
+              r.status === 'success'
+                ? 'bg-success/10 border-success/30'
+                : r.status === 'failed'
+                ? 'bg-error/10 border-error/30'
+                : 'bg-bg-tertiary border-border-secondary'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium bg-bg-elevated">
+                  {index + 1}
+                </div>
+                <div>
+                  <span className="text-sm font-mono text-text-primary">
+                    {r.address.slice(0, 8)}...{r.address.slice(-4)}
+                  </span>
+                  <div className="text-xs text-text-muted">
+                    {r.amount} {token} (${r.usdValue.toFixed(2)})
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {r.status === 'success' && (
+                  <Badge size="xs" variant="success">Done</Badge>
+                )}
+                {r.status === 'failed' && (
+                  <Badge size="xs" variant="error">Failed</Badge>
+                )}
+                {r.status === 'pending' && (
+                  <Badge size="xs" variant="default">Pending</Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Status summary */}
+      <div className="flex items-center justify-center gap-4 text-sm">
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-success" />
+          <span className="text-text-secondary">{progress?.completed || 0} Completed</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-error" />
+          <span className="text-text-secondary">{progress?.failed || 0} Failed</span>
+        </div>
+      </div>
+
+      {/* Time estimate */}
+      {currentPhase === 'generating_proofs' && (
+        <div className="text-center text-xs text-text-muted">
+          Estimated time: ~{Math.ceil(recipients.length * 40 / 60)} minutes
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Multi-Send Success View Component
+function MultiSendSuccessView({
+  result,
+  token,
+  onClose,
+}: {
+  result: ReturnType<typeof useMultiSend>['result'];
+  token: TokenType;
+  onClose: () => void;
+}) {
+  if (!result) return null;
+
+  return (
+    <div className="space-y-6 py-4">
+      <div className="text-center">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-success/20 to-neon-green/20 flex items-center justify-center">
+          <span className="text-4xl">🎉</span>
+        </div>
+        <h3 className="text-xl font-bold text-text-primary mb-2">
+          Multi-Send Complete!
+        </h3>
+        <p className="text-sm text-text-secondary">
+          {result.failedCount === 0
+            ? `Successfully sent ${token} to ${result.completedCount} recipients`
+            : `Sent to ${result.completedCount} recipients, ${result.failedCount} failed`}
+        </p>
+      </div>
+
+      {/* Results summary */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="p-3 rounded-lg bg-success/10 border border-success/30 text-center">
+          <div className="text-2xl font-bold text-success">{result.completedCount}</div>
+          <div className="text-xs text-text-secondary">Successful</div>
+        </div>
+        <div className="p-3 rounded-lg bg-error/10 border border-error/30 text-center">
+          <div className="text-2xl font-bold text-error">{result.failedCount}</div>
+          <div className="text-xs text-text-secondary">Failed</div>
+        </div>
+      </div>
+
+      {/* Recipients with results */}
+      <div className="max-h-48 overflow-y-auto space-y-2">
+        {result.recipients.map((r, index) => (
+          <div
+            key={r.id}
+            className={`p-3 rounded-lg border ${
+              r.status === 'success'
+                ? 'bg-success/10 border-success/30'
+                : 'bg-error/10 border-error/30'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium bg-bg-elevated">
+                  {index + 1}
+                </div>
+                <div>
+                  <span className="text-sm font-mono text-text-primary">
+                    {r.address.slice(0, 8)}...{r.address.slice(-4)}
+                  </span>
+                  <div className="text-xs text-text-muted">
+                    {r.amount} {token}
+                  </div>
+                </div>
+              </div>
+              {r.status === 'success' && r.signature && (
+                <a
+                  href={`https://solscan.io/tx/${r.signature}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-neon-cyan hover:underline"
+                >
+                  View →
+                </a>
+              )}
+              {r.status === 'failed' && (
+                <span className="text-xs text-error">{r.error || 'Failed'}</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Button fullWidth onClick={onClose}>
+        Done
+      </Button>
     </div>
   );
 }
@@ -1048,5 +1702,29 @@ const TransferIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
 const ShieldIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+  </svg>
+);
+
+const MultiSendIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+  </svg>
+);
+
+const XIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
+
+const InfoIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+  </svg>
+);
+
+const RefreshIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
   </svg>
 );
