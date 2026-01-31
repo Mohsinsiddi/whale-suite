@@ -216,32 +216,34 @@ export default function PublicProfilePage() {
 
       {/* Header */}
       <header className="relative z-10 border-b border-border-primary/50 backdrop-blur-xl bg-bg-secondary/80">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between">
           <Link href="/">
-            <WhaleLogo size="md" showText={true} animated={false} />
+            <WhaleLogo size="sm" showText={false} animated={false} className="sm:hidden" />
+            <WhaleLogo size="md" showText={true} animated={false} className="hidden sm:flex" />
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={copyProfileUrl}
-              className="p-2.5 rounded-xl bg-bg-tertiary hover:bg-bg-elevated border border-border-primary hover:border-neon-green/50 transition-all"
+              className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-bg-tertiary hover:bg-bg-elevated border border-border-primary hover:border-neon-green/50 transition-all"
               title="Copy profile URL"
             >
               {copied ? (
-                <CheckIcon className="w-5 h-5 text-neon-green" />
+                <CheckIcon className="w-4 h-4 sm:w-5 sm:h-5 text-neon-green" />
               ) : (
-                <LinkIcon className="w-5 h-5 text-text-muted" />
+                <LinkIcon className="w-4 h-4 sm:w-5 sm:h-5 text-text-muted" />
               )}
             </button>
             <button
               onClick={shareToTwitter}
-              className="p-2.5 rounded-xl bg-bg-tertiary hover:bg-bg-elevated border border-border-primary hover:border-neon-cyan/50 transition-all"
+              className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-bg-tertiary hover:bg-bg-elevated border border-border-primary hover:border-neon-cyan/50 transition-all"
               title="Share on Twitter"
             >
-              <TwitterIcon className="w-5 h-5 text-text-muted" />
+              <TwitterIcon className="w-4 h-4 sm:w-5 sm:h-5 text-text-muted" />
             </button>
             <Link href="/dashboard">
-              <Button variant="primary" size="sm">
-                Open App
+              <Button variant="primary" size="sm" className="text-xs sm:text-sm px-3 sm:px-4">
+                <span className="hidden sm:inline">Open App</span>
+                <span className="sm:hidden">App</span>
               </Button>
             </Link>
           </div>
@@ -306,9 +308,12 @@ export default function PublicProfilePage() {
                         {displayName}
                       </h1>
                       {visible.badges && profile.badgeTier !== "none" && (
-                        <Badge variant="default" size="md" style={{ backgroundColor: badgeInfo.color + '20', color: badgeInfo.color }}>
-                          {badgeInfo.name}
-                        </Badge>
+                        <span
+                          className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 font-medium border rounded-full"
+                          style={{ backgroundColor: badgeInfo.color + '20', color: badgeInfo.color, borderColor: badgeInfo.color + '30' }}
+                        >
+                          {badgeInfo.icon} {badgeInfo.name}
+                        </span>
                       )}
                     </div>
                     <p className="text-text-muted font-mono text-sm mb-6 flex items-center justify-center lg:justify-start gap-2">
@@ -328,34 +333,34 @@ export default function PublicProfilePage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4 }}
-                    className="flex flex-wrap justify-center lg:justify-start gap-3"
+                    className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-wrap gap-2 sm:gap-3"
                   >
                     {visible.points && (
-                      <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-gradient-to-br from-yellow-500/10 to-orange-500/10 border border-yellow-500/30">
-                        <span className="text-3xl">⭐</span>
+                      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 rounded-xl sm:rounded-2xl bg-gradient-to-br from-yellow-500/10 to-orange-500/10 border border-yellow-500/30">
+                        <span className="text-2xl sm:text-3xl">⭐</span>
                         <div>
-                          <p className="text-2xl font-bold text-yellow-400">{formatNumber(profile.points)}</p>
-                          <p className="text-xs text-yellow-400/70 font-medium">POINTS</p>
+                          <p className="text-lg sm:text-2xl font-bold text-yellow-400">{formatNumber(profile.points)}</p>
+                          <p className="text-[10px] sm:text-xs text-yellow-400/70 font-medium">POINTS</p>
                         </div>
                       </div>
                     )}
                     {visible.rank && profile.rank && (
-                      <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30">
-                        <span className="text-3xl">{profile.rank <= 3 ? "👑" : profile.rank <= 10 ? "🏆" : "🎖️"}</span>
+                      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 rounded-xl sm:rounded-2xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30">
+                        <span className="text-2xl sm:text-3xl">{profile.rank <= 3 ? "👑" : profile.rank <= 10 ? "🏆" : "🎖️"}</span>
                         <div>
-                          <p className="text-2xl font-bold text-purple-400">#{profile.rank}</p>
-                          <p className="text-xs text-purple-400/70 font-medium">
+                          <p className="text-lg sm:text-2xl font-bold text-purple-400">#{profile.rank}</p>
+                          <p className="text-[10px] sm:text-xs text-purple-400/70 font-medium">
                             TOP {profile.percentile ? (100 - profile.percentile) : Math.round((profile.rank / (profile.totalUsers || 100)) * 100)}%
                           </p>
                         </div>
                       </div>
                     )}
                     {visible.streak && profile.streak > 0 && (
-                      <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-gradient-to-br from-orange-500/10 to-red-500/10 border border-orange-500/30">
-                        <span className="text-3xl">🔥</span>
+                      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 rounded-xl sm:rounded-2xl bg-gradient-to-br from-orange-500/10 to-red-500/10 border border-orange-500/30 col-span-2 sm:col-span-1 justify-center sm:justify-start">
+                        <span className="text-2xl sm:text-3xl">🔥</span>
                         <div>
-                          <p className="text-2xl font-bold text-orange-400">{profile.streak}</p>
-                          <p className="text-xs text-orange-400/70 font-medium">DAY STREAK</p>
+                          <p className="text-lg sm:text-2xl font-bold text-orange-400">{profile.streak}</p>
+                          <p className="text-[10px] sm:text-xs text-orange-400/70 font-medium">DAY STREAK</p>
                         </div>
                       </div>
                     )}
@@ -380,21 +385,21 @@ export default function PublicProfilePage() {
               <div className="absolute inset-0 bg-gradient-to-br from-neon-green/5 via-bg-secondary to-neon-cyan/5" />
               <div className="absolute top-0 right-0 w-40 h-40 bg-neon-green/20 rounded-full blur-3xl" />
 
-              <div className="relative p-6">
-                <div className="flex items-center justify-between mb-6">
+              <div className="relative p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-4 sm:mb-6">
                   <div>
-                    <p className="text-sm text-text-muted mb-1 flex items-center gap-2">
-                      <ShieldIcon className="w-4 h-4" /> Stealth Rating
+                    <p className="text-xs sm:text-sm text-text-muted mb-1 flex items-center gap-2">
+                      <ShieldIcon className="w-3 h-3 sm:w-4 sm:h-4" /> Stealth Rating
                     </p>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-5xl font-bold text-neon-green">{profile.privacyScore}</span>
-                      <span className="text-xl text-text-muted">/1000</span>
+                    <div className="flex items-baseline gap-1 sm:gap-2">
+                      <span className="text-3xl sm:text-5xl font-bold text-neon-green">{profile.privacyScore}</span>
+                      <span className="text-base sm:text-xl text-text-muted">/1000</span>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="px-4 py-2 rounded-xl bg-neon-green/10 border border-neon-green/30">
-                      <p className="text-xl font-bold text-neon-green">{stealthLevel}</p>
-                      <p className="text-xs text-neon-green/70">LEVEL</p>
+                    <div className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-neon-green/10 border border-neon-green/30">
+                      <p className="text-base sm:text-xl font-bold text-neon-green">{stealthLevel}</p>
+                      <p className="text-[10px] sm:text-xs text-neon-green/70">LEVEL</p>
                     </div>
                   </div>
                 </div>
@@ -430,71 +435,71 @@ export default function PublicProfilePage() {
           >
             <div className="absolute inset-0 bg-gradient-to-br from-bg-secondary to-bg-tertiary" />
 
-            <div className="relative p-6">
-              <p className="text-sm text-text-muted mb-4 flex items-center gap-2">
-                <ChartIcon className="w-4 h-4" /> Statistics
+            <div className="relative p-4 sm:p-6">
+              <p className="text-xs sm:text-sm text-text-muted mb-3 sm:mb-4 flex items-center gap-2">
+                <ChartIcon className="w-3 h-3 sm:w-4 sm:h-4" /> Statistics
               </p>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-2 sm:gap-4">
                 {visible.transactions && (
-                  <div className="p-4 rounded-xl bg-bg-primary/50 border border-border-primary">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-lg">🔐</span>
-                      <span className="text-2xl font-bold text-neon-cyan">{profile.stats.privateTransfers}</span>
+                  <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-bg-primary/50 border border-border-primary">
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+                      <span className="text-base sm:text-lg">🔐</span>
+                      <span className="text-xl sm:text-2xl font-bold text-neon-cyan">{profile.stats.privateTransfers}</span>
                     </div>
-                    <p className="text-xs text-text-muted">Private Transfers</p>
+                    <p className="text-[10px] sm:text-xs text-text-muted">Private Transfers</p>
                   </div>
                 )}
 
                 {visible.hiddenVolume && (
-                  <div className="p-4 rounded-xl bg-bg-primary/50 border border-border-primary">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-lg">💰</span>
-                      <span className="text-2xl font-bold text-neon-green">${formatNumber(profile.stats.hiddenBalance * 230)}</span>
+                  <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-bg-primary/50 border border-border-primary">
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+                      <span className="text-base sm:text-lg">💰</span>
+                      <span className="text-lg sm:text-2xl font-bold text-neon-green">${formatNumber(profile.stats.hiddenBalance * 230)}</span>
                     </div>
-                    <p className="text-xs text-text-muted">Hidden Volume</p>
+                    <p className="text-[10px] sm:text-xs text-text-muted">Hidden Volume</p>
                   </div>
                 )}
 
                 {visible.transactions && profile.stats.swapVolume > 0 && (
-                  <div className="p-4 rounded-xl bg-bg-primary/50 border border-border-primary">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-lg">💱</span>
-                      <span className="text-2xl font-bold text-purple-400">{profile.stats.swapVolume.toFixed(2)}</span>
+                  <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-bg-primary/50 border border-border-primary">
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+                      <span className="text-base sm:text-lg">💱</span>
+                      <span className="text-xl sm:text-2xl font-bold text-purple-400">{profile.stats.swapVolume.toFixed(2)}</span>
                     </div>
-                    <p className="text-xs text-text-muted">Swap Volume (SOL)</p>
+                    <p className="text-[10px] sm:text-xs text-text-muted">Swap Volume</p>
                   </div>
                 )}
 
                 {visible.transactions && profile.stats.anonymousBets > 0 && (
-                  <div className="p-4 rounded-xl bg-bg-primary/50 border border-border-primary">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-lg">🎲</span>
-                      <span className="text-2xl font-bold text-yellow-400">{profile.stats.anonymousBets}</span>
+                  <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-bg-primary/50 border border-border-primary">
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+                      <span className="text-base sm:text-lg">🎲</span>
+                      <span className="text-xl sm:text-2xl font-bold text-yellow-400">{profile.stats.anonymousBets}</span>
                     </div>
-                    <p className="text-xs text-text-muted">Predictions Made</p>
+                    <p className="text-[10px] sm:text-xs text-text-muted">Predictions</p>
                   </div>
                 )}
 
                 {visible.memberSince && (
-                  <div className="p-4 rounded-xl bg-bg-primary/50 border border-border-primary">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-lg">📅</span>
-                      <span className="text-lg font-bold text-text-primary">
-                        {new Date(profile.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-bg-primary/50 border border-border-primary">
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+                      <span className="text-base sm:text-lg">📅</span>
+                      <span className="text-sm sm:text-lg font-bold text-text-primary">
+                        {new Date(profile.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
                       </span>
                     </div>
-                    <p className="text-xs text-text-muted">Member Since</p>
+                    <p className="text-[10px] sm:text-xs text-text-muted">Member Since</p>
                   </div>
                 )}
 
                 {visible.badges && (
-                  <div className="p-4 rounded-xl bg-bg-primary/50 border border-border-primary">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-lg">🏆</span>
-                      <span className="text-2xl font-bold text-orange-400">{unlockedCount}/{achievements.length}</span>
+                  <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-bg-primary/50 border border-border-primary">
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+                      <span className="text-base sm:text-lg">🏆</span>
+                      <span className="text-xl sm:text-2xl font-bold text-orange-400">{unlockedCount}/{achievements.length}</span>
                     </div>
-                    <p className="text-xs text-text-muted">Achievements</p>
+                    <p className="text-[10px] sm:text-xs text-text-muted">Achievements</p>
                   </div>
                 )}
               </div>
@@ -508,26 +513,26 @@ export default function PublicProfilePage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="mb-8"
+            className="mb-6 sm:mb-8"
           >
-            <h2 className="text-xl font-bold text-text-primary mb-4 flex items-center gap-2">
+            <h2 className="text-base sm:text-xl font-bold text-text-primary mb-3 sm:mb-4 flex items-center gap-2">
               <span>🏆</span> Achievements
-              <span className="text-sm font-normal text-text-muted ml-2">({unlockedCount}/{achievements.length} unlocked)</span>
+              <span className="text-xs sm:text-sm font-normal text-text-muted ml-1 sm:ml-2">({unlockedCount}/{achievements.length})</span>
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+            <div className="grid grid-cols-4 sm:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-3">
               {achievements.map((achievement, i) => (
                 <div
                   key={i}
-                  className={`p-4 rounded-xl text-center transition-transform hover:scale-105 ${
+                  className={`p-2 sm:p-4 rounded-lg sm:rounded-xl text-center transition-transform hover:scale-105 ${
                     achievement.unlocked
                       ? 'bg-gradient-to-br from-neon-green/20 to-neon-cyan/10 border border-neon-green/40 shadow-lg shadow-neon-green/20'
                       : 'bg-bg-tertiary/30 border border-border-primary opacity-50'
                   }`}
                 >
-                  <div className={`text-3xl mb-2 ${achievement.unlocked ? '' : 'grayscale opacity-50'}`}>
+                  <div className={`text-xl sm:text-3xl mb-1 sm:mb-2 ${achievement.unlocked ? '' : 'grayscale opacity-50'}`}>
                     {achievement.icon}
                   </div>
-                  <div className={`text-[10px] font-medium leading-tight ${achievement.unlocked ? 'text-text-primary' : 'text-text-muted'}`}>
+                  <div className={`text-[8px] sm:text-[10px] font-medium leading-tight ${achievement.unlocked ? 'text-text-primary' : 'text-text-muted'}`}>
                     {achievement.name}
                   </div>
                 </div>
@@ -605,9 +610,12 @@ export default function PublicProfilePage() {
                   </h3>
                   <p className="text-text-secondary mb-3">{badgeInfo.description}</p>
                   <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-                    <Badge variant="default" size="md" style={{ backgroundColor: badgeInfo.color + '20', color: badgeInfo.color }}>
+                    <span
+                      className="inline-flex items-center text-xs px-2.5 py-1 font-medium border rounded-full"
+                      style={{ backgroundColor: badgeInfo.color + '20', color: badgeInfo.color, borderColor: badgeInfo.color + '30' }}
+                    >
                       {badgeInfo.multiplier}x Points
-                    </Badge>
+                    </span>
                     <Badge variant="default" size="md" className="bg-bg-tertiary text-text-secondary">
                       Premium Access
                     </Badge>

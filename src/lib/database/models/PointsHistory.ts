@@ -98,6 +98,8 @@ const PointsHistorySchema = new Schema<IPointsHistory>({
 PointsHistorySchema.index({ wallet: 1, createdAt: -1 }); // User points history
 PointsHistorySchema.index({ createdAt: -1 }); // Global recent activity
 PointsHistorySchema.index({ wallet: 1, action: 1, createdAt: -1 }); // Action-specific queries
+PointsHistorySchema.index({ totalPoints: -1, createdAt: -1 }); // Top earners
+PointsHistorySchema.index({ action: 1, createdAt: -1 }); // Activity type feed
 
 const PointsHistory: Model<IPointsHistory> =
   mongoose.models.PointsHistory || mongoose.model<IPointsHistory>('PointsHistory', PointsHistorySchema);

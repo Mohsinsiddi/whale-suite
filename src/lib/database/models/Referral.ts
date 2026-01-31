@@ -99,6 +99,12 @@ const ReferralSchema = new Schema<IReferral>({
   timestamps: true,
 });
 
+// Compound indexes for efficient queries
+ReferralSchema.index({ referrerWallet: 1, status: 1, createdAt: -1 }); // Referrer's active referrals
+ReferralSchema.index({ referrerWallet: 1, totalEarned: -1 }); // Earnings leaderboard
+ReferralSchema.index({ status: 1, pendingPayout: -1 }); // Pending payouts query
+ReferralSchema.index({ referredAt: -1 }); // Recent referrals
+
 const Referral: Model<IReferral> = mongoose.models.Referral || mongoose.model<IReferral>('Referral', ReferralSchema);
 
 export default Referral;

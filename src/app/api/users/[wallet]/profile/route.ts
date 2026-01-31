@@ -147,15 +147,11 @@ export async function PATCH(
       );
     }
 
-    console.log('Profile PATCH - updateFields:', JSON.stringify(updateFields));
-
     const user = await User.findOneAndUpdate(
       { wallet },
       { $set: updateFields },
       { new: true }
     ).select('profile').lean();
-
-    console.log('Profile PATCH - updated user.profile:', JSON.stringify(user?.profile));
 
     if (!user) {
       return NextResponse.json(

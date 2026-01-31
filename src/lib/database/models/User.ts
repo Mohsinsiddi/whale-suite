@@ -157,6 +157,10 @@ UserSchema.index({ points: -1, createdAt: -1 }); // Leaderboard with time tiebre
 UserSchema.index({ badgeTier: 1, points: -1 }); // Badge filtering + leaderboard
 UserSchema.index({ privyId: 1 }, { sparse: true }); // Privy lookup (sparse for null values)
 UserSchema.index({ lastActiveDate: 1, points: -1 }); // Period-based leaderboard queries
+UserSchema.index({ 'profile.isPublic': 1, points: -1 }); // Public profiles leaderboard
+// Note: referralCode already has index via unique: true in schema
+UserSchema.index({ privacyScore: -1 }); // Privacy score ranking
+UserSchema.index({ streak: -1, points: -1 }); // Streak leaderboard
 
 // Avoid model recompilation in dev mode
 const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);

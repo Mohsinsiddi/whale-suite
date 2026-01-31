@@ -50,45 +50,51 @@ export async function GET(
     // Format activities for display (hide sensitive amounts)
     const activities = transactions.map(tx => {
       let description = '';
-      let type = tx.type;
+      let displayType: string = tx.type;
 
       switch (tx.type) {
         case 'shadow_transfer':
           description = 'Private transfer completed';
-          type = 'transfer';
+          displayType = 'transfer';
           break;
-        case 'shadow_shield':
         case 'privacy_deposit':
           description = 'Shielded balance';
-          type = 'deposit';
+          displayType = 'deposit';
           break;
-        case 'shadow_unshield':
         case 'privacy_withdraw':
           description = 'Unshielded balance';
-          type = 'deposit';
+          displayType = 'withdraw';
           break;
         case 'jupiter_swap':
           description = 'Swapped tokens';
-          type = 'swap';
-          break;
-        case 'darklake_swap':
-          description = 'Private swap completed';
-          type = 'swap';
+          displayType = 'swap';
           break;
         case 'pnp_bet':
           description = 'Placed prediction';
-          type = 'bet';
+          displayType = 'bet';
           break;
-        case 'pnp_claim':
-          description = 'Claimed winnings';
-          type = 'bet';
+        case 'badge_purchase':
+          description = 'Purchased badge';
+          displayType = 'badge';
+          break;
+        case 'subscription_payment':
+          description = 'Premium subscription';
+          displayType = 'subscription';
+          break;
+        case 'referral_payout':
+          description = 'Referral reward';
+          displayType = 'referral';
+          break;
+        case 'card_order':
+          description = 'Ordered card';
+          displayType = 'card';
           break;
         default:
           description = 'Transaction completed';
       }
 
       return {
-        type,
+        type: displayType,
         description,
         timestamp: tx.createdAt,
         // Only show points if available in metadata

@@ -602,6 +602,7 @@ export default function DocsPage() {
                     "Coming soon!"
                   ]}
                   useCases={["Anonymous spending", "Online payments", "Crypto to fiat"]}
+                  points="Coming Soon"
                   badge="$3.5K Bounty"
                 />
                 <FeatureCard
