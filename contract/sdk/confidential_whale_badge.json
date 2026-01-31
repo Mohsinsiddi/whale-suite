@@ -1,0 +1,1437 @@
+{
+  "address": "XPbon4Sw7hDArH49W8JNf5LK9nNTvowpRqWDHM2hMLD",
+  "metadata": {
+    "name": "confidential_whale_badge",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Confidential Whale Badge using Inco Lightning for encrypted tier verification"
+  },
+  "instructions": [
+    {
+      "name": "cancel_payment",
+      "docs": [
+        "Cancel a private payment - sender must PROVE ownership",
+        "",
+        "**PRIVACY PRESERVED:**",
+        "- Sender proves identity by providing their encrypted hash",
+        "- INCO compares: stored_encrypted_sender == provided_sender",
+        "- Only TRUE match allows cancellation",
+        "",
+        "**NO PUBKEY VERIFICATION** - all done via encrypted comparison"
+      ],
+      "discriminator": [
+        217,
+        129,
+        71,
+        37,
+        216,
+        193,
+        38,
+        33
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "docs": [
+            "Caller (must prove they are original sender)"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "payment",
+          "docs": [
+            "Payment account"
+          ],
+          "writable": true
+        },
+        {
+          "name": "escrow",
+          "docs": [
+            "Escrow account holding the funds"
+          ],
+          "writable": true
+        },
+        {
+          "name": "inco_lightning_program",
+          "docs": [
+            "INCO Lightning program"
+          ],
+          "address": "5sjEbPiqgZrYwR31ahR6Uk9wf5awoX61YGg7jExQSwaj"
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "System program"
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "encrypted_sender_ciphertext",
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "name": "claim_badge",
+      "docs": [
+        "Claim a confidential badge - encrypts tier and pre-computes all proofs",
+        "",
+        "All encrypted values must be created client-side using INCO JS SDK:",
+        "- requested_tier: The tier (1-5) the user wants to purchase",
+        "- encrypted_tier_ciphertext: The user's tier (1-5) encrypted",
+        "- encrypted_threshold_1-5: Constant values 1,2,3,4,5 encrypted",
+        "",
+        "**Tier Prices (admin configurable):**",
+        "- Bronze (1): 0.1 SOL",
+        "- Silver (2): 0.2 SOL",
+        "- Gold (3): 0.3 SOL",
+        "- Diamond (4): 0.4 SOL",
+        "- Legendary (5): 0.5 SOL"
+      ],
+      "discriminator": [
+        111,
+        30,
+        18,
+        17,
+        228,
+        252,
+        239,
+        102
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "docs": [
+            "User claiming the badge"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "treasury",
+          "docs": [
+            "Treasury account to receive payment"
+          ],
+          "writable": true
+        },
+        {
+          "name": "config",
+          "docs": [
+            "Global config account"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "badge",
+          "docs": [
+            "Badge account (PDA per user)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  100,
+                  103,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "inco_lightning_program",
+          "docs": [
+            "INCO Lightning program for encrypted operations"
+          ],
+          "address": "5sjEbPiqgZrYwR31ahR6Uk9wf5awoX61YGg7jExQSwaj"
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "System program"
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "requested_tier",
+          "type": "u8"
+        },
+        {
+          "name": "encrypted_tier_ciphertext",
+          "type": "bytes"
+        },
+        {
+          "name": "encrypted_threshold_1",
+          "type": "bytes"
+        },
+        {
+          "name": "encrypted_threshold_2",
+          "type": "bytes"
+        },
+        {
+          "name": "encrypted_threshold_3",
+          "type": "bytes"
+        },
+        {
+          "name": "encrypted_threshold_4",
+          "type": "bytes"
+        },
+        {
+          "name": "encrypted_threshold_5",
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "name": "claim_payment",
+      "docs": [
+        "Initiate a claim on a FULLY PRIVATE payment",
+        "",
+        "**PRIVACY PRESERVED:**",
+        "- Claimer's identity is ENCRYPTED (not stored as pubkey)",
+        "- Comparison happens in encrypted space",
+        "- Only TRUE recipient will get TRUE when decrypting proof",
+        "",
+        "**Workflow:**",
+        "1. Claimer provides their encrypted address hash",
+        "2. Contract compares: e_eq(stored_recipient, claimer_hash)",
+        "3. Result is stored as claim_proof (Ebool handle)",
+        "4. Claimer decrypts off-chain - if TRUE, call finalize_claim",
+        "",
+        "**Remaining Accounts (optional):**",
+        "- [0] Allowance PDA for claim_proof",
+        "- [1] Claimer pubkey"
+      ],
+      "discriminator": [
+        69,
+        112,
+        250,
+        167,
+        37,
+        156,
+        200,
+        30
+      ],
+      "accounts": [
+        {
+          "name": "claimer",
+          "docs": [
+            "Person attempting to claim (identity hidden via encrypted_claimer)"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "payment",
+          "docs": [
+            "Payment account"
+          ],
+          "writable": true
+        },
+        {
+          "name": "inco_lightning_program",
+          "docs": [
+            "INCO Lightning program for encrypted operations"
+          ],
+          "address": "5sjEbPiqgZrYwR31ahR6Uk9wf5awoX61YGg7jExQSwaj"
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "System program"
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "encrypted_claimer_ciphertext",
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "name": "create_private_payment",
+      "docs": [
+        "Create a FULLY PRIVATE payment",
+        "",
+        "**ALL DATA IS ENCRYPTED:**",
+        "- Sender address: encrypt(hash(sender_pubkey)[0:16])",
+        "- Recipient address: encrypt(hash(recipient_pubkey)[0:16])",
+        "- Amount: encrypt(amount_in_lamports)",
+        "",
+        "**WHAT'S VISIBLE ON-CHAIN:**",
+        "- Payment ID (random)",
+        "- Status (Active/Claimed)",
+        "- Timestamps",
+        "- Escrow balance (needed for actual transfer)",
+        "",
+        "**WHAT'S HIDDEN:**",
+        "- WHO sent it",
+        "- WHO receives it",
+        "- HOW MUCH was sent (encrypted version)",
+        "",
+        "**Parameters:**",
+        "- payment_id: Unique 32-byte identifier",
+        "- actual_amount: Amount in lamports (needed for escrow transfer)",
+        "- encrypted_sender_ciphertext: Encrypted hash of sender address",
+        "- encrypted_recipient_ciphertext: Encrypted hash of recipient address",
+        "- encrypted_amount_ciphertext: Encrypted amount",
+        "- expiry_seconds: Optional expiry time (default 7 days)"
+      ],
+      "discriminator": [
+        191,
+        66,
+        187,
+        101,
+        85,
+        215,
+        55,
+        104
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": [
+            "Payer who funds the escrow (identity hidden via encrypted_sender)"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "payment",
+          "docs": [
+            "Payment account (PDA per payment_id)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  97,
+                  121,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "payment_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow",
+          "docs": [
+            "Escrow account to hold funds (PDA)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "payment_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "inco_lightning_program",
+          "docs": [
+            "INCO Lightning program for encrypted operations"
+          ],
+          "address": "5sjEbPiqgZrYwR31ahR6Uk9wf5awoX61YGg7jExQSwaj"
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "System program"
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "payment_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "actual_amount",
+          "type": "u64"
+        },
+        {
+          "name": "encrypted_sender_ciphertext",
+          "type": "bytes"
+        },
+        {
+          "name": "encrypted_recipient_ciphertext",
+          "type": "bytes"
+        },
+        {
+          "name": "encrypted_amount_ciphertext",
+          "type": "bytes"
+        },
+        {
+          "name": "expiry_seconds",
+          "type": {
+            "option": "i64"
+          }
+        }
+      ]
+    },
+    {
+      "name": "finalize_claim",
+      "docs": [
+        "Finalize a claim and release funds - FULLY PRIVATE",
+        "",
+        "**PRIVACY VERIFICATION:**",
+        "- Claimer proves identity by providing same encrypted hash",
+        "- INCO compares: stored_encrypted_claimer == provided_encrypted_claimer",
+        "- Only TRUE match releases funds",
+        "",
+        "**NO PUBKEY VERIFICATION** - all done via encrypted comparison"
+      ],
+      "discriminator": [
+        86,
+        162,
+        202,
+        241,
+        136,
+        125,
+        52,
+        149
+      ],
+      "accounts": [
+        {
+          "name": "claimer",
+          "docs": [
+            "Claimer (identity verified via encrypted comparison)"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "payment",
+          "docs": [
+            "Payment account"
+          ],
+          "writable": true
+        },
+        {
+          "name": "escrow",
+          "docs": [
+            "Escrow account holding the funds"
+          ],
+          "writable": true
+        },
+        {
+          "name": "inco_lightning_program",
+          "docs": [
+            "INCO Lightning program"
+          ],
+          "address": "5sjEbPiqgZrYwR31ahR6Uk9wf5awoX61YGg7jExQSwaj"
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "System program"
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "encrypted_claimer_ciphertext",
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "name": "grant_access",
+      "docs": [
+        "Grant decrypt access to badge handles",
+        "",
+        "Call this after claim_badge to grant decrypt permission for the stored handles.",
+        "Requires 12 remaining_accounts: 6 allowance PDAs + 6 user pubkeys (interleaved)",
+        "",
+        "Allowance PDA derivation: PDA([handle_bytes_le_16, user_pubkey], INCO_PROGRAM_ID)"
+      ],
+      "discriminator": [
+        66,
+        88,
+        87,
+        113,
+        39,
+        22,
+        27,
+        165
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "docs": [
+            "User requesting access (must be badge owner)"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "badge",
+          "docs": [
+            "Badge account containing the handles"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  100,
+                  103,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "inco_lightning_program",
+          "docs": [
+            "INCO Lightning program for allow operations"
+          ],
+          "address": "5sjEbPiqgZrYwR31ahR6Uk9wf5awoX61YGg7jExQSwaj"
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "System program (required for allowance PDA creation)"
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize",
+      "docs": [
+        "Initialize the global config (admin only, one-time)"
+      ],
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "docs": [
+            "Admin who initializes the config"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "docs": [
+            "Global config account (PDA)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "System program for account creation"
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "revoke_badge",
+      "docs": [
+        "Revoke/deactivate a badge (admin or owner)"
+      ],
+      "discriminator": [
+        108,
+        171,
+        101,
+        185,
+        99,
+        36,
+        98,
+        112
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Authority revoking the badge (admin or owner)"
+          ],
+          "signer": true
+        },
+        {
+          "name": "config",
+          "docs": [
+            "Global config (to check if authority is admin)"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "badge",
+          "docs": [
+            "Badge account to revoke"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  100,
+                  103,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "badge.owner",
+                "account": "ConfidentialBadge"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "transfer_badge",
+      "docs": [
+        "Transfer badge ownership to another wallet"
+      ],
+      "discriminator": [
+        151,
+        130,
+        63,
+        40,
+        9,
+        1,
+        250,
+        77
+      ],
+      "accounts": [
+        {
+          "name": "current_owner",
+          "docs": [
+            "Current owner of the badge"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "badge",
+          "docs": [
+            "Badge account to transfer"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  100,
+                  103,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "current_owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "inco_lightning_program",
+          "docs": [
+            "INCO Lightning program"
+          ],
+          "address": "5sjEbPiqgZrYwR31ahR6Uk9wf5awoX61YGg7jExQSwaj"
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "System program"
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "new_owner",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "update_prices",
+      "docs": [
+        "Update tier prices (admin only)",
+        "",
+        "Allows admin to configure badge prices for each tier.",
+        "Prices are in lamports (1 SOL = 1_000_000_000 lamports)"
+      ],
+      "discriminator": [
+        62,
+        161,
+        234,
+        136,
+        106,
+        26,
+        18,
+        160
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "docs": [
+            "Admin who can update prices"
+          ],
+          "signer": true
+        },
+        {
+          "name": "config",
+          "docs": [
+            "Global config account"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "price_bronze",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "price_silver",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "price_gold",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "price_diamond",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "price_legendary",
+          "type": {
+            "option": "u64"
+          }
+        }
+      ]
+    },
+    {
+      "name": "upgrade_tier",
+      "docs": [
+        "Upgrade tier when user buys a higher badge on mainnet"
+      ],
+      "discriminator": [
+        122,
+        56,
+        170,
+        60,
+        252,
+        234,
+        190,
+        51
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "docs": [
+            "User upgrading the badge (must be owner)"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "badge",
+          "docs": [
+            "Badge account to upgrade"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  100,
+                  103,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "inco_lightning_program",
+          "docs": [
+            "INCO Lightning program"
+          ],
+          "address": "5sjEbPiqgZrYwR31ahR6Uk9wf5awoX61YGg7jExQSwaj"
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "System program"
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "encrypted_tier_ciphertext",
+          "type": "bytes"
+        },
+        {
+          "name": "encrypted_threshold_1",
+          "type": "bytes"
+        },
+        {
+          "name": "encrypted_threshold_2",
+          "type": "bytes"
+        },
+        {
+          "name": "encrypted_threshold_3",
+          "type": "bytes"
+        },
+        {
+          "name": "encrypted_threshold_4",
+          "type": "bytes"
+        },
+        {
+          "name": "encrypted_threshold_5",
+          "type": "bytes"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ConfidentialBadge",
+      "discriminator": [
+        127,
+        83,
+        224,
+        126,
+        199,
+        220,
+        233,
+        178
+      ]
+    },
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "PrivatePayment",
+      "discriminator": [
+        240,
+        103,
+        33,
+        64,
+        100,
+        208,
+        224,
+        134
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidTier",
+      "msg": "Invalid tier value. Must be between 1 (Bronze) and 5 (Legendary)"
+    },
+    {
+      "code": 6001,
+      "name": "AlreadyClaimed",
+      "msg": "Badge already claimed for this wallet"
+    },
+    {
+      "code": 6002,
+      "name": "BadgeNotFound",
+      "msg": "Badge not found or not active"
+    },
+    {
+      "code": 6003,
+      "name": "Unauthorized",
+      "msg": "Not authorized to perform this action"
+    },
+    {
+      "code": 6004,
+      "name": "CannotDowngrade",
+      "msg": "Cannot downgrade tier. New tier must be higher than current"
+    },
+    {
+      "code": 6005,
+      "name": "SelfTransfer",
+      "msg": "Cannot transfer to yourself"
+    },
+    {
+      "code": 6006,
+      "name": "BadgeInactive",
+      "msg": "Badge is not active"
+    },
+    {
+      "code": 6007,
+      "name": "AlreadyInitialized",
+      "msg": "Config already initialized"
+    },
+    {
+      "code": 6008,
+      "name": "InvalidIncoProgram",
+      "msg": "Invalid INCO program"
+    },
+    {
+      "code": 6009,
+      "name": "IncoOperationFailed",
+      "msg": "INCO operation failed"
+    },
+    {
+      "code": 6010,
+      "name": "MissingAllowAccounts",
+      "msg": "Missing required remaining accounts for INCO allow"
+    },
+    {
+      "code": 6011,
+      "name": "InsufficientAccounts",
+      "msg": "Insufficient remaining accounts provided"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidPaymentAmount",
+      "msg": "Payment amount must be greater than zero"
+    },
+    {
+      "code": 6013,
+      "name": "PaymentAlreadyClaimed",
+      "msg": "Payment has already been claimed"
+    },
+    {
+      "code": 6014,
+      "name": "PaymentNotActive",
+      "msg": "Payment is not active"
+    },
+    {
+      "code": 6015,
+      "name": "PaymentExpired",
+      "msg": "Payment has expired"
+    },
+    {
+      "code": 6016,
+      "name": "PaymentNotExpired",
+      "msg": "Payment has not expired yet, cannot cancel"
+    },
+    {
+      "code": 6017,
+      "name": "ClaimNotInitiated",
+      "msg": "Claim has not been initiated"
+    },
+    {
+      "code": 6018,
+      "name": "ClaimAlreadyInitiated",
+      "msg": "Claim has already been initiated"
+    },
+    {
+      "code": 6019,
+      "name": "InvalidClaimer",
+      "msg": "Invalid claimer - not the address that initiated claim"
+    },
+    {
+      "code": 6020,
+      "name": "PaymentPending",
+      "msg": "Payment is in pending status, waiting for finalization"
+    },
+    {
+      "code": 6021,
+      "name": "OnlySenderCanCancel",
+      "msg": "Only sender can cancel the payment"
+    },
+    {
+      "code": 6022,
+      "name": "InsufficientEscrowFunds",
+      "msg": "Insufficient funds in escrow"
+    }
+  ],
+  "types": [
+    {
+      "name": "ConfidentialBadge",
+      "docs": [
+        "Confidential Whale Badge Account",
+        "Stores encrypted tier and pre-computed proofs using INCO Lightning"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "docs": [
+              "Current owner of the badge"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "tier",
+            "docs": [
+              "Tier level (1-5) - stored for reference",
+              "The actual tier is hidden via encrypted proofs"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "amount_paid",
+            "docs": [
+              "Amount paid for this badge (in lamports)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "encrypted_tier",
+            "docs": [
+              "Encrypted tier value (1-5)",
+              "INCO Euint128 handle"
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "proof_bronze",
+            "docs": [
+              "Pre-computed proof: is tier >= 1 (Bronze+)?",
+              "INCO Ebool handle - decrypts to true/false"
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "proof_silver",
+            "docs": [
+              "Pre-computed proof: is tier >= 2 (Silver+)?"
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "proof_gold",
+            "docs": [
+              "Pre-computed proof: is tier >= 3 (Gold+)?"
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "proof_diamond",
+            "docs": [
+              "Pre-computed proof: is tier >= 4 (Diamond+)?"
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "proof_legendary",
+            "docs": [
+              "Pre-computed proof: is tier >= 5 (Legendary)?"
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "created_at",
+            "docs": [
+              "When the badge was first claimed"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "updated_at",
+            "docs": [
+              "Last update timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "is_active",
+            "docs": [
+              "Whether the badge is currently active"
+            ],
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Config",
+      "docs": [
+        "Global configuration account for the program"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "docs": [
+              "Admin who can manage the program"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury",
+            "docs": [
+              "Treasury wallet to receive payments"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "total_badges",
+            "docs": [
+              "Total number of badges claimed"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "is_initialized",
+            "docs": [
+              "Whether config is initialized"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "price_bronze",
+            "docs": [
+              "Price for Bronze tier (default: 0.1 SOL = 100_000_000 lamports)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "price_silver",
+            "docs": [
+              "Price for Silver tier (default: 0.2 SOL)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "price_gold",
+            "docs": [
+              "Price for Gold tier (default: 0.3 SOL)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "price_diamond",
+            "docs": [
+              "Price for Diamond tier (default: 0.4 SOL)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "price_legendary",
+            "docs": [
+              "Price for Legendary tier (default: 0.5 SOL)"
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PaymentStatus",
+      "docs": [
+        "Payment status enum"
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Pending"
+          },
+          {
+            "name": "Claimed"
+          },
+          {
+            "name": "Cancelled"
+          },
+          {
+            "name": "Expired"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrivatePayment",
+      "docs": [
+        "Fully Private Payment Account",
+        "ALL sensitive data is encrypted using INCO Lightning",
+        "Nobody can see sender, recipient, or amount on-chain"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "payment_id",
+            "docs": [
+              "Unique payment identifier (32 bytes) - public"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "encrypted_sender",
+            "docs": [
+              "Encrypted hash of SENDER's address",
+              "Created by sender: encrypt(hash(sender_pubkey)[0:16])",
+              "Even the sender identity is hidden!"
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "encrypted_recipient",
+            "docs": [
+              "Encrypted hash of RECIPIENT's address",
+              "Created by sender: encrypt(hash(recipient_pubkey)[0:16])",
+              "Nobody knows who the payment is for"
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "encrypted_amount",
+            "docs": [
+              "Encrypted payment AMOUNT (in lamports)",
+              "Created by sender: encrypt(amount)",
+              "The actual amount is hidden!"
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "claim_proof",
+            "docs": [
+              "Proof handle from e_eq comparison (Ebool)",
+              "Set when someone attempts to claim",
+              "Decrypts to TRUE only for real recipient"
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "encrypted_claimer",
+            "docs": [
+              "Encrypted claimer hash (also hidden!)",
+              "We don't store the actual claimer address"
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "claim_initiated",
+            "docs": [
+              "Whether a claim has been initiated"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "created_at",
+            "docs": [
+              "When the payment was created"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "expires_at",
+            "docs": [
+              "Expiry timestamp (sender can cancel after this)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "claimed_at",
+            "docs": [
+              "When the payment was claimed (0 if not claimed)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "Payment status"
+            ],
+            "type": {
+              "defined": {
+                "name": "PaymentStatus"
+              }
+            }
+          },
+          {
+            "name": "escrow_bump",
+            "docs": [
+              "Escrow bump for PDA signing"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
