@@ -83,6 +83,7 @@ const featureCategories = [
   { id: "trading", label: "Trading", icon: "💱" },
   { id: "predictions", label: "Predictions", icon: "🎲" },
   { id: "analytics", label: "Analytics", icon: "📊" },
+  { id: "launch", label: "Launch", icon: "🚀" },
 ];
 
 // Privacy weight to label
@@ -163,6 +164,7 @@ function FeatureCard({
   subtitle,
   description,
   privacyLevel,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   network,
   stats,
   steps,
@@ -437,8 +439,8 @@ export default function DocsPage() {
                 <FeatureCard
                   icon="🛡️"
                   title="Privacy Cash"
-                  subtitle="Light Protocol"
-                  description="Shield your SOL balance using ZK compression. Balance becomes invisible on-chain."
+                  subtitle="Light Protocol (Main Sponsor)"
+                  description="Shield your SOL balance using ZK compression. Balance becomes invisible on-chain. Powered by Light Protocol's ZK state compression."
                   privacyLevel="Maximum"
                   network="Mainnet"
                   stats={{ popups: 1, gas: "~0.001 SOL", fee: "0%" }}
@@ -451,12 +453,13 @@ export default function DocsPage() {
                   ]}
                   useCases={["Hide large balances", "Whale protection", "Treasury privacy"]}
                   points="+10 pts per deposit"
+                  badge="$2.5K Bounty"
                 />
                 <FeatureCard
                   icon="👻"
                   title="Ghost Send"
-                  subtitle="ShadowWire"
-                  description="Send SOL privately with hidden amounts using Bulletproof ZK proofs."
+                  subtitle="ShadowWire (RADR)"
+                  description="Send SOL privately with hidden amounts using Bulletproof ZK proofs. Powered by ShadowWire's stealth protocol."
                   privacyLevel="High"
                   network="Mainnet"
                   stats={{ popups: 1, gas: "~0.002 SOL", fee: "0%" }}
@@ -470,6 +473,7 @@ export default function DocsPage() {
                   ]}
                   useCases={["Private payments", "Anonymous gifts", "Salary privacy", "Multi-send"]}
                   points="+25 pts per transfer"
+                  badge="Bounty"
                 />
               </div>
             )}
@@ -500,8 +504,8 @@ export default function DocsPage() {
                   icon="🔐"
                   title="Private Swap"
                   subtitle="Darklake ZK AMM"
-                  description="Swap tokens privately with hidden amounts using ZK proofs."
-                  privacyLevel="High"
+                  description="Swap tokens privately with hidden amounts using ZK proofs. First ZK-native AMM on Solana."
+                  privacyLevel="Maximum"
                   network="Mainnet"
                   stats={{ popups: 1, gas: "~0.002 SOL", fee: "~0.3%" }}
                   steps={[
@@ -513,6 +517,7 @@ export default function DocsPage() {
                   ]}
                   useCases={["Whale trades", "Hide trading patterns", "Private accumulation"]}
                   points="+15 pts per swap"
+                  badge="Bounty"
                 />
                 <FeatureCard
                   icon="🌙"
@@ -541,8 +546,8 @@ export default function DocsPage() {
                 <FeatureCard
                   icon="🎲"
                   title="PNP Markets"
-                  subtitle="Prediction Protocol"
-                  description="Trade on prediction markets. Take YES/NO positions on real-world events."
+                  subtitle="PNP Exchange"
+                  description="Trade on prediction markets anonymously. Take YES/NO positions on real-world events with privacy-preserving bets."
                   privacyLevel="Medium"
                   network="Mainnet"
                   stats={{ popups: 1, gas: "~0.0001 SOL", fee: "2% on wins" }}
@@ -556,6 +561,7 @@ export default function DocsPage() {
                   ]}
                   useCases={["Price predictions", "Event betting", "Portfolio hedging"]}
                   points="+8 pts per bet"
+                  badge="Bounty"
                 />
               </div>
             )}
@@ -566,8 +572,8 @@ export default function DocsPage() {
                 <FeatureCard
                   icon="🐋"
                   title="Whale Intelligence"
-                  subtitle="Real-time Analytics"
-                  description="Monitor platform activity, leaderboards, and flow analysis. No wallet needed."
+                  subtitle="Powered by Helius"
+                  description="Monitor platform activity, leaderboards, and flow analysis. Real-time data powered by Helius RPC & webhooks."
                   privacyLevel="Public"
                   network="All"
                   stats={{ popups: 0, gas: "None", fee: "Free" }}
@@ -579,22 +585,86 @@ export default function DocsPage() {
                   ]}
                   useCases={["Market monitoring", "Competitive tracking", "Flow analysis"]}
                   points="Earn by activity"
+                  badge="Sponsor"
                 />
                 <FeatureCard
                   icon="💳"
                   title="Virtual Cards"
-                  subtitle="Coming Soon"
-                  description="Virtual debit cards funded by crypto. Spend anywhere cards are accepted."
+                  subtitle="Starpay"
+                  description="Virtual debit cards funded by crypto. Anonymous spending anywhere cards are accepted."
                   privacyLevel="High"
                   network="Coming Soon"
                   stats={{ popups: "-", gas: "-", fee: "-" }}
                   steps={[
                     "Feature in development",
-                    "Powered by Radom Protocol",
+                    "Powered by Starpay Protocol",
+                    "Anonymous card generation",
                     "Coming soon!"
                   ]}
-                  useCases={["Crypto spending", "Online payments", "Privacy spending"]}
-                  badge="Soon"
+                  useCases={["Anonymous spending", "Online payments", "Crypto to fiat"]}
+                  badge="$3.5K Bounty"
+                />
+                <FeatureCard
+                  icon="📊"
+                  title="Portfolio Tracker"
+                  subtitle="Cross-Wallet View"
+                  description="Track your portfolio across all wallets. View balances, history, and performance."
+                  privacyLevel="Public"
+                  network="All"
+                  stats={{ popups: 0, gas: "None", fee: "Free" }}
+                  steps={[
+                    "Navigate to Portfolio",
+                    "Connect wallets",
+                    "View combined balances",
+                    "Track performance history"
+                  ]}
+                  useCases={["Portfolio tracking", "Multi-wallet management", "Performance analysis"]}
+                  points="View only"
+                />
+              </div>
+            )}
+
+            {/* LAUNCH */}
+            {featureCategory === "launch" && (
+              <div className="space-y-4">
+                <FeatureCard
+                  icon="🚀"
+                  title="Token Launcher"
+                  subtitle="Anoncoin Protocol"
+                  description="Launch tokens gaslessly with anonymous creator identity. Includes bonding curve, liquidity lock, and fair launch mechanics."
+                  privacyLevel="High"
+                  network="Mainnet"
+                  stats={{ popups: 1, gas: "Gasless", fee: "1% on trades" }}
+                  steps={[
+                    "Configure token (name, symbol, supply)",
+                    "Upload token image & metadata",
+                    "Set initial price curve",
+                    "Launch gaslessly → Sign (1 popup)",
+                    "Liquidity auto-locks on Raydium",
+                    "Share & promote your token!"
+                  ]}
+                  useCases={["Anonymous launches", "Fair token launches", "Meme coins", "Community tokens"]}
+                  points="+50 pts per launch"
+                  badge="$10K Bounty"
+                />
+                <FeatureCard
+                  icon="📨"
+                  title="Batch Send"
+                  subtitle="Multi-Recipient Transfers"
+                  description="Send tokens to multiple recipients in a single transaction. Save gas and time."
+                  privacyLevel="High"
+                  network="Mainnet"
+                  stats={{ popups: 1, gas: "~0.005 SOL", fee: "0%" }}
+                  steps={[
+                    "Go to Ghost Send → Multi-Send",
+                    "Add recipient addresses",
+                    "Enter amounts for each",
+                    "Review total amount",
+                    "Approve single transaction (1 popup)",
+                    "All transfers complete!"
+                  ]}
+                  useCases={["Airdrops", "Payroll", "Team payments", "Distribution events"]}
+                  points="+25 pts per batch"
                 />
               </div>
             )}
