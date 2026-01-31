@@ -6,6 +6,7 @@ import Card, { CardHeader, CardTitle } from '@/components/ui/Card';
 import Badge, { TierBadge } from '@/components/ui/Badge';
 import Tabs from '@/components/ui/Tabs';
 import Button from '@/components/ui/Button';
+import { AddressAvatar } from '@/components/ui/Avatar';
 import { LeaderboardTable, PointsDisplay, StreakCounter, RankBadge } from '@/components/leaderboard';
 import { useLeaderboard, type LeaderboardPeriod } from '@/hooks/useLeaderboard';
 import { useUserStats } from '@/hooks/useUserStats';
@@ -439,6 +440,9 @@ export default function IntelligencePage() {
                                 <Icon className="w-4 h-4 text-white" />
                               </div>
 
+                              {/* User Avatar */}
+                              <AddressAvatar address={item.wallet} size="sm" />
+
                               {/* Content - Compact */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -532,13 +536,16 @@ export default function IntelligencePage() {
                         : 'bg-bg-tertiary hover:bg-bg-elevated'
                     }`}
                   >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold ${
-                      i === 0 ? 'bg-gradient-to-br from-yellow-400 to-amber-600 text-white shadow-lg shadow-yellow-500/30' :
-                      i === 1 ? 'bg-gradient-to-br from-gray-400 to-gray-600 text-white' :
-                      i === 2 ? 'bg-gradient-to-br from-amber-500 to-amber-700 text-white' :
-                      'bg-bg-elevated text-text-muted'
-                    }`}>
-                      #{i + 1}
+                    <div className="relative">
+                      <AddressAvatar address={user.wallet} size="sm" />
+                      <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                        i === 0 ? 'bg-gradient-to-br from-yellow-400 to-amber-600 text-white shadow-lg shadow-yellow-500/30' :
+                        i === 1 ? 'bg-gradient-to-br from-gray-400 to-gray-600 text-white' :
+                        i === 2 ? 'bg-gradient-to-br from-amber-500 to-amber-700 text-white' :
+                        'bg-bg-elevated text-text-muted border border-border-primary'
+                      }`}>
+                        {i + 1}
+                      </div>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">

@@ -56,13 +56,33 @@ const ChevronIcon = ({ className, expanded }: { className?: string; expanded?: b
   </svg>
 );
 
-// Tabs
+const HeartIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+  </svg>
+);
+
+const RocketIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+  </svg>
+);
+
+// Main Tabs
 const tabs = [
   { id: "overview", label: "Overview", icon: <BookIcon className="w-4 h-4" /> },
-  { id: "stealth", label: "Stealth Rating", icon: <ShieldIcon className="w-4 h-4" /> },
-  { id: "points", label: "Points System", icon: <StarIcon className="w-4 h-4" /> },
-  { id: "sdks", label: "SDK Integrations", icon: <ChipIcon className="w-4 h-4" /> },
-  { id: "badges", label: "Badge Tiers", icon: <TrophyIcon className="w-4 h-4" /> },
+  { id: "features", label: "Features", icon: <RocketIcon className="w-4 h-4" /> },
+  { id: "rewards", label: "Points & Rewards", icon: <StarIcon className="w-4 h-4" /> },
+  { id: "partners", label: "SDK Partners", icon: <ChipIcon className="w-4 h-4" /> },
+  { id: "business", label: "About", icon: <HeartIcon className="w-4 h-4" /> },
+];
+
+// Feature Categories (nested tabs)
+const featureCategories = [
+  { id: "privacy", label: "Privacy Tools", icon: "🛡️" },
+  { id: "trading", label: "Trading", icon: "💱" },
+  { id: "predictions", label: "Predictions", icon: "🎲" },
+  { id: "analytics", label: "Analytics", icon: "📊" },
 ];
 
 // Privacy weight to label
@@ -136,8 +156,119 @@ function ActionRow({ action, config }: { action: string; config: typeof POINT_AC
   );
 }
 
+// Feature Card Component
+function FeatureCard({
+  icon,
+  title,
+  subtitle,
+  description,
+  privacyLevel,
+  network,
+  stats,
+  steps,
+  useCases,
+  points,
+  badge,
+}: {
+  icon: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  privacyLevel: string;
+  network: string;
+  stats: { popups: number | string; gas: string; fee: string };
+  steps: string[];
+  useCases: string[];
+  points: string;
+  badge?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const privacyColor =
+    privacyLevel === "Maximum" ? "text-neon-green" :
+    privacyLevel === "High" ? "text-neon-cyan" :
+    privacyLevel === "Medium" ? "text-yellow-400" : "text-text-muted";
+
+  return (
+    <Card variant="default" padding="md" className="hover:border-border-focus transition-colors">
+      <div className="flex items-start gap-4">
+        <div className="w-12 h-12 rounded-xl bg-bg-tertiary flex items-center justify-center text-2xl flex-shrink-0">
+          {icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-bold text-text-primary">{title}</h3>
+            <span className="text-xs text-text-muted">• {subtitle}</span>
+            {badge && <Badge variant="warning" size="xs">{badge}</Badge>}
+          </div>
+          <p className="text-sm text-text-secondary mt-1">{description}</p>
+
+          {/* Quick Stats */}
+          <div className="flex flex-wrap gap-3 mt-3 text-xs">
+            <span className="px-2 py-1 rounded bg-bg-tertiary">
+              <span className="text-text-muted">Popups:</span> <span className="text-text-primary font-medium">{stats.popups}</span>
+            </span>
+            <span className="px-2 py-1 rounded bg-bg-tertiary">
+              <span className="text-text-muted">Gas:</span> <span className="text-text-primary font-medium">{stats.gas}</span>
+            </span>
+            <span className="px-2 py-1 rounded bg-bg-tertiary">
+              <span className="text-text-muted">Fee:</span> <span className="text-neon-green font-medium">{stats.fee}</span>
+            </span>
+            <span className={`px-2 py-1 rounded bg-bg-tertiary ${privacyColor}`}>
+              {privacyLevel} Privacy
+            </span>
+            <span className="px-2 py-1 rounded bg-bg-tertiary text-neon-cyan">{points}</span>
+          </div>
+
+          {/* Expand/Collapse */}
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="mt-3 text-xs text-text-muted hover:text-neon-green transition-colors flex items-center gap-1"
+          >
+            {expanded ? "Hide details" : "Show steps & use cases"}
+            <ChevronIcon className="w-3 h-3" expanded={expanded} />
+          </button>
+
+          <AnimatePresence>
+            {expanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-4 grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs font-semibold text-text-muted uppercase mb-2">Steps</p>
+                    <ol className="space-y-1">
+                      {steps.map((step, i) => (
+                        <li key={i} className="text-xs text-text-secondary flex gap-2">
+                          <span className="text-neon-green font-bold">{i + 1}.</span> {step}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-text-muted uppercase mb-2">Use Cases</p>
+                    <ul className="space-y-1">
+                      {useCases.map((uc, i) => (
+                        <li key={i} className="text-xs text-text-secondary">• {uc}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export default function DocsPage() {
   const [activeTab, setActiveTab] = useState("overview");
+  const [featureCategory, setFeatureCategory] = useState("privacy");
 
   // Group actions by SDK
   const actionsByCategory = Object.entries(POINT_ACTIONS).reduce((acc, [action, config]) => {
@@ -261,106 +392,264 @@ export default function DocsPage() {
           </motion.div>
         )}
 
-        {activeTab === "stealth" && (
+
+        {activeTab === "features" && (
           <motion.div
-            key="stealth"
+            key="features"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             className="space-y-6"
           >
+            {/* Category Tabs */}
+            <div className="flex gap-2 p-1 bg-bg-tertiary rounded-xl overflow-x-auto">
+              {featureCategories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setFeatureCategory(cat.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                    featureCategory === cat.id
+                      ? "bg-bg-primary text-neon-green shadow-sm"
+                      : "text-text-muted hover:text-text-primary"
+                  }`}
+                >
+                  <span>{cat.icon}</span>
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Fee Banner */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-neon-green/10 border border-neon-green/30">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">💰</span>
+                <div>
+                  <p className="text-sm font-semibold text-neon-green">Whale Suite Fee: 0%</p>
+                  <p className="text-xs text-text-muted">Only SDK protocol fees apply</p>
+                </div>
+              </div>
+              <Badge variant="success" size="sm">Free Forever</Badge>
+            </div>
+
+            {/* PRIVACY TOOLS */}
+            {featureCategory === "privacy" && (
+              <div className="space-y-4">
+                <FeatureCard
+                  icon="🛡️"
+                  title="Privacy Cash"
+                  subtitle="Light Protocol"
+                  description="Shield your SOL balance using ZK compression. Balance becomes invisible on-chain."
+                  privacyLevel="Maximum"
+                  network="Mainnet"
+                  stats={{ popups: 1, gas: "~0.001 SOL", fee: "0%" }}
+                  steps={[
+                    "Navigate to Privacy Cash",
+                    "Enter amount to shield",
+                    "Click 'Shield SOL'",
+                    "Approve transaction (1 popup)",
+                    "Done! Balance is now hidden"
+                  ]}
+                  useCases={["Hide large balances", "Whale protection", "Treasury privacy"]}
+                  points="+10 pts per deposit"
+                />
+                <FeatureCard
+                  icon="👻"
+                  title="Ghost Send"
+                  subtitle="ShadowWire"
+                  description="Send SOL privately with hidden amounts using Bulletproof ZK proofs."
+                  privacyLevel="High"
+                  network="Mainnet"
+                  stats={{ popups: 1, gas: "~0.002 SOL", fee: "0%" }}
+                  steps={[
+                    "Shield SOL to your pool first",
+                    "Go to Transfer tab",
+                    "Enter recipient address",
+                    "Enter amount",
+                    "Approve transaction (1 popup)",
+                    "Amount hidden on-chain!"
+                  ]}
+                  useCases={["Private payments", "Anonymous gifts", "Salary privacy", "Multi-send"]}
+                  points="+25 pts per transfer"
+                />
+              </div>
+            )}
+
+            {/* TRADING */}
+            {featureCategory === "trading" && (
+              <div className="space-y-4">
+                <FeatureCard
+                  icon="💱"
+                  title="Jupiter Swap"
+                  subtitle="Best Rates"
+                  description="Swap any token with best rates across all Solana DEXs. Public transaction."
+                  privacyLevel="Public"
+                  network="Mainnet"
+                  stats={{ popups: 1, gas: "~0.0001 SOL", fee: "0%" }}
+                  steps={[
+                    "Select 'From' token",
+                    "Select 'To' token",
+                    "Enter amount",
+                    "Review rate & slippage",
+                    "Click Swap → Approve (1 popup)",
+                    "Tokens received!"
+                  ]}
+                  useCases={["Token trading", "Portfolio rebalancing", "Stablecoin conversion"]}
+                  points="+5 pts per swap"
+                />
+                <FeatureCard
+                  icon="🔐"
+                  title="Private Swap"
+                  subtitle="Darklake ZK AMM"
+                  description="Swap tokens privately with hidden amounts using ZK proofs."
+                  privacyLevel="High"
+                  network="Mainnet"
+                  stats={{ popups: 1, gas: "~0.002 SOL", fee: "~0.3%" }}
+                  steps={[
+                    "Select token pair",
+                    "Enter swap amount",
+                    "ZK proof generates automatically",
+                    "Click Swap → Approve (1 popup)",
+                    "Private swap complete!"
+                  ]}
+                  useCases={["Whale trades", "Hide trading patterns", "Private accumulation"]}
+                  points="+15 pts per swap"
+                />
+                <FeatureCard
+                  icon="🌙"
+                  title="Dark Pool"
+                  subtitle="Beta Testing"
+                  description="Experimental ZK swap feature. Test on devnet before mainnet launch."
+                  privacyLevel="High"
+                  network="Devnet"
+                  stats={{ popups: 1, gas: "Free (devnet)", fee: "0%" }}
+                  steps={[
+                    "Switch to Devnet network",
+                    "Get test tokens from faucet",
+                    "Navigate to Dark Pool",
+                    "Test private swaps"
+                  ]}
+                  useCases={["Beta testing", "Feature preview"]}
+                  points="No points (devnet)"
+                  badge="Beta"
+                />
+              </div>
+            )}
+
+            {/* PREDICTIONS */}
+            {featureCategory === "predictions" && (
+              <div className="space-y-4">
+                <FeatureCard
+                  icon="🎲"
+                  title="PNP Markets"
+                  subtitle="Prediction Protocol"
+                  description="Trade on prediction markets. Take YES/NO positions on real-world events."
+                  privacyLevel="Medium"
+                  network="Mainnet"
+                  stats={{ popups: 1, gas: "~0.0001 SOL", fee: "2% on wins" }}
+                  steps={[
+                    "Browse active markets",
+                    "Select a prediction",
+                    "Choose YES or NO",
+                    "Enter stake amount",
+                    "Place Bet → Approve (1 popup)",
+                    "Claim winnings if correct!"
+                  ]}
+                  useCases={["Price predictions", "Event betting", "Portfolio hedging"]}
+                  points="+8 pts per bet"
+                />
+              </div>
+            )}
+
+            {/* ANALYTICS */}
+            {featureCategory === "analytics" && (
+              <div className="space-y-4">
+                <FeatureCard
+                  icon="🐋"
+                  title="Whale Intelligence"
+                  subtitle="Real-time Analytics"
+                  description="Monitor platform activity, leaderboards, and flow analysis. No wallet needed."
+                  privacyLevel="Public"
+                  network="All"
+                  stats={{ popups: 0, gas: "None", fee: "Free" }}
+                  steps={[
+                    "Navigate to Whale Intelligence",
+                    "View live activity feed",
+                    "Check leaderboard rankings",
+                    "Analyze deposit/withdrawal flows"
+                  ]}
+                  useCases={["Market monitoring", "Competitive tracking", "Flow analysis"]}
+                  points="Earn by activity"
+                />
+                <FeatureCard
+                  icon="💳"
+                  title="Virtual Cards"
+                  subtitle="Coming Soon"
+                  description="Virtual debit cards funded by crypto. Spend anywhere cards are accepted."
+                  privacyLevel="High"
+                  network="Coming Soon"
+                  stats={{ popups: "-", gas: "-", fee: "-" }}
+                  steps={[
+                    "Feature in development",
+                    "Powered by Radom Protocol",
+                    "Coming soon!"
+                  ]}
+                  useCases={["Crypto spending", "Online payments", "Privacy spending"]}
+                  badge="Soon"
+                />
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {activeTab === "rewards" && (
+          <motion.div
+            key="rewards"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-6"
+          >
+            {/* Stealth Rating */}
             <Card variant="default" padding="lg">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <ShieldIcon className="w-5 h-5 text-neon-green" />
-                  Stealth Rating Breakdown
+                  Stealth Rating (0-1000)
                 </CardTitle>
               </CardHeader>
               <div className="mt-4 space-y-4">
                 <p className="text-text-secondary">
-                  Your Stealth Rating measures how invisible you are on the Solana blockchain.
-                  Max score is <strong className="text-neon-green">1000</strong>.
+                  Your privacy score. Higher = more invisible on the blockchain.
                 </p>
-
-                <div className="space-y-3 mt-6">
+                <div className="grid sm:grid-cols-2 gap-3">
                   {Object.entries(PRIVACY_SCORE_CONFIG.weights).map(([key, config]) => (
-                    <div
-                      key={key}
-                      className="flex items-center justify-between p-3 rounded-xl bg-bg-tertiary/50 border border-border-secondary"
-                    >
-                      <div>
-                        <p className="font-medium text-text-primary capitalize">
+                    <div key={key} className="p-3 rounded-xl bg-bg-tertiary/50 border border-border-secondary">
+                      <div className="flex justify-between items-center">
+                        <p className="font-medium text-text-primary capitalize text-sm">
                           {key.replace(/([A-Z])/g, " $1")}
                         </p>
-                        <p className="text-xs text-text-muted">{config.description}</p>
+                        <p className="text-sm font-bold text-neon-green">+{config.max}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-neon-green">Max {config.max}</p>
-                        {"pointsEach" in config && (
-                          <p className="text-[10px] text-text-muted">
-                            {config.pointsEach} pts each
-                          </p>
-                        )}
-                      </div>
+                      <p className="text-xs text-text-muted mt-1">{config.description}</p>
                     </div>
                   ))}
                 </div>
               </div>
             </Card>
 
-            {/* Badge Privacy Bonuses */}
-            <Card variant="default" padding="lg">
-              <CardHeader>
-                <CardTitle>Badge Privacy Bonuses</CardTitle>
-              </CardHeader>
-              <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {(Object.entries(BADGE_TIERS) as [BadgeTier, typeof BADGE_TIERS[BadgeTier]][]).map(
-                  ([tier, config]) => (
-                    <div
-                      key={tier}
-                      className="p-3 rounded-xl bg-bg-tertiary/50 border border-border-secondary text-center"
-                      style={{ borderColor: tier !== "none" ? config.color + "40" : undefined }}
-                    >
-                      <p
-                        className="font-semibold capitalize"
-                        style={{ color: tier !== "none" ? config.color : undefined }}
-                      >
-                        {tier}
-                      </p>
-                      <p className="text-lg font-bold text-neon-green mt-1">
-                        +{config.privacyBonus}
-                      </p>
-                    </div>
-                  )
-                )}
-              </div>
-            </Card>
-          </motion.div>
-        )}
-
-        {activeTab === "points" && (
-          <motion.div
-            key="points"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-6"
-          >
+            {/* Points System */}
             <Card variant="default" padding="lg">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <StarIcon className="w-5 h-5 text-neon-cyan" />
-                  All Point Actions
+                  Points by Action
                 </CardTitle>
               </CardHeader>
-              <div className="mt-4 space-y-4">
+              <div className="mt-4 space-y-3">
                 {Object.entries(actionsByCategory).map(([category, actions]) => (
                   <ExpandableSection
                     key={category}
-                    title={
-                      SDK_REGISTRY[category as SdkId]?.name ||
-                      category.charAt(0).toUpperCase() + category.slice(1)
-                    }
+                    title={SDK_REGISTRY[category as SdkId]?.name || category}
                     defaultExpanded={category === "privacy-cash"}
                   >
                     <div className="space-y-1">
@@ -373,52 +662,44 @@ export default function DocsPage() {
               </div>
             </Card>
 
-            {/* Multipliers */}
+            {/* Badge Multipliers */}
             <Card variant="default" padding="lg">
               <CardHeader>
-                <CardTitle>Point Multipliers by Badge</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <TrophyIcon className="w-5 h-5 text-yellow-400" />
+                  Badge Multipliers
+                </CardTitle>
               </CardHeader>
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border-secondary">
-                      <th className="text-left py-2 text-text-muted font-medium">Badge</th>
-                      <th className="text-right py-2 text-text-muted font-medium">Multiplier</th>
-                      <th className="text-right py-2 text-text-muted font-medium">100 Base →</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(Object.entries(BADGE_TIERS) as [BadgeTier, typeof BADGE_TIERS[BadgeTier]][]).map(
-                      ([tier, config]) => (
-                        <tr key={tier} className="border-b border-border-secondary/50">
-                          <td
-                            className="py-2 font-medium capitalize"
-                            style={{ color: tier !== "none" ? config.color : undefined }}
-                          >
-                            {config.name}
-                          </td>
-                          <td className="py-2 text-right">{config.multiplier}x</td>
-                          <td className="py-2 text-right font-bold text-neon-green">
-                            {Math.floor(100 * config.multiplier)} pts
-                          </td>
-                        </tr>
-                      )
-                    )}
-                  </tbody>
-                </table>
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {(Object.entries(BADGE_TIERS) as [BadgeTier, typeof BADGE_TIERS[BadgeTier]][])
+                  .filter(([tier]) => tier !== "none")
+                  .map(([tier, config]) => (
+                    <div
+                      key={tier}
+                      className="p-3 rounded-xl bg-bg-tertiary/50 border border-border-secondary text-center"
+                      style={{ borderColor: config.color + "40" }}
+                    >
+                      <p className="font-semibold" style={{ color: config.color }}>{config.name}</p>
+                      <p className="text-xl font-bold text-text-primary mt-1">{config.multiplier}x</p>
+                      <p className="text-[10px] text-text-muted">points multiplier</p>
+                    </div>
+                  ))}
               </div>
             </Card>
           </motion.div>
         )}
 
-        {activeTab === "sdks" && (
+        {activeTab === "partners" && (
           <motion.div
-            key="sdks"
+            key="partners"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             className="space-y-4"
           >
+            <p className="text-text-secondary mb-4">
+              Whale Suite integrates with the best privacy infrastructure on Solana:
+            </p>
             {(Object.entries(SDK_REGISTRY) as [SdkId, typeof SDK_REGISTRY[SdkId]][]).map(
               ([sdkId, sdk]) => (
                 <Card key={sdkId} variant="default" padding="md">
@@ -426,19 +707,9 @@ export default function DocsPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-bold text-text-primary">{sdk.name}</h3>
-                        {sdk.bounty && (
-                          <Badge variant="warning" size="sm">
-                            {sdk.bounty}
-                          </Badge>
-                        )}
+                        {sdk.bounty && <Badge variant="warning" size="sm">{sdk.bounty}</Badge>}
                         <Badge
-                          variant={
-                            sdk.privacyLevel === "maximum" || sdk.privacyLevel === "high"
-                              ? "success"
-                              : sdk.privacyLevel === "medium"
-                              ? "info"
-                              : "default"
-                          }
+                          variant={sdk.privacyLevel === "maximum" || sdk.privacyLevel === "high" ? "success" : sdk.privacyLevel === "medium" ? "info" : "default"}
                           size="sm"
                         >
                           {sdk.privacyLevel}
@@ -447,21 +718,13 @@ export default function DocsPage() {
                       <p className="text-sm text-text-secondary mb-2">{sdk.description}</p>
                       <div className="flex flex-wrap gap-1">
                         {sdk.features.map((feature) => (
-                          <span
-                            key={feature}
-                            className="px-2 py-0.5 text-[10px] bg-bg-tertiary rounded-full text-text-muted"
-                          >
+                          <span key={feature} className="px-2 py-0.5 text-[10px] bg-bg-tertiary rounded-full text-text-muted">
                             {feature}
                           </span>
                         ))}
                       </div>
                     </div>
-                    <a
-                      href={sdk.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-neon-cyan hover:underline flex-shrink-0"
-                    >
+                    <a href={sdk.website} target="_blank" rel="noopener noreferrer" className="text-xs text-neon-cyan hover:underline">
                       Visit →
                     </a>
                   </div>
@@ -471,54 +734,194 @@ export default function DocsPage() {
           </motion.div>
         )}
 
-        {activeTab === "badges" && (
+        {activeTab === "business" && (
           <motion.div
-            key="badges"
+            key="business"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="space-y-4"
+            className="space-y-6"
           >
-            {(Object.entries(BADGE_TIERS) as [BadgeTier, typeof BADGE_TIERS[BadgeTier]][])
-              .filter(([tier]) => tier !== "none")
-              .map(([tier, config]) => (
-                <Card
-                  key={tier}
-                  variant="default"
-                  padding="md"
-                  className="border-l-4"
-                  style={{ borderLeftColor: config.color }}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className="font-bold text-lg" style={{ color: config.color }}>
-                        {config.name}
-                      </h3>
-                      <p className="text-sm text-text-secondary mb-3">{config.description}</p>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="p-2 rounded-lg bg-bg-tertiary/50">
-                          <p className="text-xs text-text-muted">Price</p>
-                          <p className="font-bold text-text-primary">{"price" in config ? config.price : 0} SOL</p>
-                        </div>
-                        <div className="p-2 rounded-lg bg-bg-tertiary/50">
-                          <p className="text-xs text-text-muted">Multiplier</p>
-                          <p className="font-bold text-neon-green">{config.multiplier}x</p>
-                        </div>
-                        <div className="p-2 rounded-lg bg-bg-tertiary/50">
-                          <p className="text-xs text-text-muted">Affiliate</p>
-                          <p className="font-bold text-neon-cyan">
-                            {(config.affiliateRate * 100).toFixed(0)}%
-                          </p>
-                        </div>
-                        <div className="p-2 rounded-lg bg-bg-tertiary/50">
-                          <p className="text-xs text-text-muted">Privacy Bonus</p>
-                          <p className="font-bold text-purple-400">+{config.privacyBonus}</p>
-                        </div>
-                      </div>
-                    </div>
+            {/* Mission Statement */}
+            <Card variant="glow" padding="lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <HeartIcon className="w-5 h-5 text-pink-500" />
+                  Our Mission
+                </CardTitle>
+              </CardHeader>
+              <div className="mt-4 space-y-4">
+                <p className="text-lg text-text-primary">
+                  Privacy is a fundamental right, not a luxury.
+                </p>
+                <p className="text-text-secondary">
+                  Whale Suite exists to make blockchain privacy accessible to everyone. We believe that
+                  financial privacy should be easy to use, affordable, and available to all Solana users -
+                  not just technical experts or wealthy traders.
+                </p>
+              </div>
+            </Card>
+
+            {/* Free for Everyone */}
+            <Card variant="default" padding="lg" className="border-l-4 border-l-neon-green">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-2xl">🆓</span>
+                  Free to Use
+                </CardTitle>
+                <Badge variant="success" size="sm">No Platform Fees</Badge>
+              </CardHeader>
+              <div className="mt-4 space-y-4">
+                <p className="text-text-secondary">
+                  <strong className="text-neon-green">Whale Suite charges ZERO fees</strong> for using our platform.
+                  This is our initial launch version, and we want as many users as possible to experience
+                  true blockchain privacy.
+                </p>
+                <div className="grid sm:grid-cols-2 gap-4 mt-4">
+                  <div className="p-4 rounded-xl bg-neon-green/10 border border-neon-green/30">
+                    <h4 className="font-semibold text-neon-green mb-2">What&apos;s Free</h4>
+                    <ul className="text-sm text-text-secondary space-y-1">
+                      <li>✓ Privacy Cash shielding</li>
+                      <li>✓ ShadowWire transfers</li>
+                      <li>✓ Jupiter swaps</li>
+                      <li>✓ Private swaps</li>
+                      <li>✓ All platform features</li>
+                      <li>✓ Leaderboard & points</li>
+                    </ul>
                   </div>
-                </Card>
-              ))}
+                  <div className="p-4 rounded-xl bg-bg-tertiary/50 border border-border-secondary">
+                    <h4 className="font-semibold text-text-primary mb-2">Only SDK Fees Apply</h4>
+                    <ul className="text-sm text-text-secondary space-y-1">
+                      <li>• Light Protocol fees (~0.001 SOL)</li>
+                      <li>• ShadowWire network fees</li>
+                      <li>• Jupiter swap fees</li>
+                      <li>• Darklake pool fees</li>
+                      <li>• Standard Solana tx fees</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Revenue Model */}
+            <Card variant="default" padding="lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-2xl">💎</span>
+                  Future Sustainability
+                </CardTitle>
+              </CardHeader>
+              <div className="mt-4 space-y-4">
+                <p className="text-text-secondary">
+                  While the platform is currently free, we&apos;re building towards a sustainable future.
+                  Our potential revenue streams:
+                </p>
+                <div className="space-y-3">
+                  <div className="p-3 rounded-xl bg-bg-tertiary/50 border border-border-secondary">
+                    <h4 className="font-semibold text-text-primary mb-1">NFT Badges</h4>
+                    <p className="text-sm text-text-secondary">
+                      Premium badge tiers unlock multipliers, exclusive features, and affiliate commissions.
+                      Badge holders directly support platform development.
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-bg-tertiary/50 border border-border-secondary">
+                    <h4 className="font-semibold text-text-primary mb-1">Affiliate Program</h4>
+                    <p className="text-sm text-text-secondary">
+                      Badge holders earn 10-25% commission on referrals, creating a community-driven
+                      growth model.
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-bg-tertiary/50 border border-border-secondary">
+                    <h4 className="font-semibold text-text-primary mb-1">Premium Features (Future)</h4>
+                    <p className="text-sm text-text-secondary">
+                      Advanced analytics, custom alerts, priority support, and institutional-grade
+                      features may be introduced as premium options.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* For Investors */}
+            <Card variant="default" padding="lg" className="border-l-4 border-l-purple-500">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-2xl">🤝</span>
+                  For Investors & Partners
+                </CardTitle>
+              </CardHeader>
+              <div className="mt-4 space-y-4">
+                <p className="text-text-secondary">
+                  Whale Suite is built for the Solana Privacy Hack 2026. We&apos;re actively seeking
+                  partnerships and investment discussions to scale the platform.
+                </p>
+                <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/30">
+                  <h4 className="font-semibold text-purple-400 mb-2">What We Offer</h4>
+                  <ul className="text-sm text-text-secondary space-y-1">
+                    <li>• First-mover advantage in Solana privacy infrastructure</li>
+                    <li>• Integration with 5+ leading privacy SDKs</li>
+                    <li>• Gamified user acquisition through points & badges</li>
+                    <li>• Community-driven growth via affiliate system</li>
+                    <li>• Proven tech stack ready for scale</li>
+                  </ul>
+                </div>
+                <p className="text-sm text-text-muted">
+                  Interested in partnering? Reach out to discuss opportunities.
+                </p>
+              </div>
+            </Card>
+
+            {/* SDK Partners */}
+            <Card variant="default" padding="lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-2xl">🔗</span>
+                  Our SDK Partners
+                </CardTitle>
+              </CardHeader>
+              <div className="mt-4">
+                <p className="text-text-secondary mb-4">
+                  Whale Suite integrates with the best privacy infrastructure on Solana:
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {[
+                    { name: "Light Protocol", desc: "ZK Compression" },
+                    { name: "ShadowWire", desc: "Bulletproof Transfers" },
+                    { name: "Jupiter", desc: "DEX Aggregation" },
+                    { name: "Darklake", desc: "ZK AMM" },
+                    { name: "PNP Protocol", desc: "Prediction Markets" },
+                    { name: "Helius", desc: "RPC & Webhooks" },
+                  ].map(sdk => (
+                    <div key={sdk.name} className="p-3 rounded-xl bg-bg-tertiary/50 border border-border-secondary text-center">
+                      <p className="font-semibold text-text-primary text-sm">{sdk.name}</p>
+                      <p className="text-xs text-text-muted">{sdk.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Card>
+
+            {/* Open Source */}
+            <Card variant="default" padding="lg" className="border-l-4 border-l-neon-cyan">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-2xl">🌐</span>
+                  Transparency & Trust
+                </CardTitle>
+              </CardHeader>
+              <div className="mt-4 space-y-4">
+                <p className="text-text-secondary">
+                  We believe in transparency. Our platform is built on open protocols and verified
+                  smart contracts. All SDK integrations use official, audited libraries.
+                </p>
+                <div className="p-3 rounded-xl bg-neon-cyan/10 border border-neon-cyan/30">
+                  <p className="text-sm text-neon-cyan">
+                    <strong>Trust Model:</strong> We never have custody of your funds. All operations
+                    are executed directly through audited SDK protocols. Your keys, your crypto.
+                  </p>
+                </div>
+              </div>
+            </Card>
           </motion.div>
         )}
       </AnimatePresence>

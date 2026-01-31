@@ -5,6 +5,8 @@ import Link from 'next/link';
 import Card, { CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge, { TierBadge } from '@/components/ui/Badge';
+import { ProfileAvatar } from '@/components/ui/Avatar';
+import Toggle from '@/components/ui/Toggle';
 import { StealthRating } from '@/components/ui/Progress';
 import Tabs from '@/components/ui/Tabs';
 import VirtualCard3D from '@/components/cards/VirtualCard3D';
@@ -31,6 +33,14 @@ import {
   Users,
   Sparkles,
   Flame,
+  Settings,
+  Copy,
+  Check,
+  Globe,
+  Lock,
+  Eye,
+  EyeOff,
+  Camera,
 } from 'lucide-react';
 
 // Types
@@ -160,6 +170,99 @@ export default function ProfilePage() {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
 
+  // Profile settings state
+  const [profileSettings, setProfileSettings] = useState({
+    isPublic: false,
+    displayName: '',
+    avatarUrl: null as string | null,
+    visibleStats: {
+      points: true,
+      privacyScore: true,
+      streak: true,
+      rank: true,
+      badges: true,
+      transactions: false,
+      hiddenVolume: false,
+      memberSince: true,
+    },
+  });
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+
+  // Fetch profile settings
+  const fetchProfileSettings = useCallback(async () => {
+    if (!walletAddress) return;
+    setProfileLoading(true);
+    try {
+      const response = await get<{ profile: typeof profileSettings }>(`/api/users/${walletAddress}/profile`);
+      if (response.data?.profile) {
+        setProfileSettings(prev => ({
+          ...prev,
+          ...response.data!.profile,
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch profile settings:', error);
+    } finally {
+      setProfileLoading(false);
+    }
+  }, [walletAddress, get]);
+
+  // Save profile settings
+  const saveProfileSettings = useCallback(async (updates: Partial<typeof profileSettings>) => {
+    if (!walletAddress) return;
+    setProfileSaving(true);
+    try {
+      const response = await fetch(`/api/users/${walletAddress}/profile`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      const data = await response.json();
+      if (data.success && data.profile) {
+        setProfileSettings(prev => ({ ...prev, ...data.profile }));
+      }
+    } catch (error) {
+      console.error('Failed to save profile settings:', error);
+    } finally {
+      setProfileSaving(false);
+    }
+  }, [walletAddress]);
+
+  // Toggle public profile
+  const togglePublicProfile = () => {
+    const newValue = !profileSettings.isPublic;
+    setProfileSettings(prev => ({ ...prev, isPublic: newValue }));
+    saveProfileSettings({ isPublic: newValue });
+  };
+
+  // Toggle stat visibility
+  const toggleStatVisibility = (stat: keyof typeof profileSettings.visibleStats) => {
+    const newStats = {
+      ...profileSettings.visibleStats,
+      [stat]: !profileSettings.visibleStats[stat],
+    };
+    setProfileSettings(prev => ({ ...prev, visibleStats: newStats }));
+    saveProfileSettings({ visibleStats: newStats });
+  };
+
+  // Copy profile URL
+  const copyProfileUrl = () => {
+    const url = `${window.location.origin}/u/${walletAddress}`;
+    navigator.clipboard.writeText(url);
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
+  // Fetch profile settings on mount
+  useEffect(() => {
+    if (walletAddress && activeTab === 'settings') {
+      fetchProfileSettings();
+    }
+  }, [walletAddress, activeTab, fetchProfileSettings]);
+
   // Fetch activity history
   const fetchActivities = useCallback(async () => {
     if (!isAuthenticated || !walletAddress) return;
@@ -223,6 +326,7 @@ export default function ProfilePage() {
     { id: 'overview', label: 'Overview' },
     { id: 'activity', label: 'Activity' },
     { id: 'cards', label: 'Cards' },
+    { id: 'settings', label: 'Settings' },
   ];
 
   // If not authenticated, show connect prompt
@@ -272,16 +376,18 @@ export default function ProfilePage() {
       <Card variant="glow" padding="lg">
         <div className="flex flex-col md:flex-row md:items-center gap-6">
           {/* Avatar */}
-          <div className="relative">
-            <div className={`w-24 h-24 rounded-2xl bg-gradient-to-br ${badgeInfo.color} flex items-center justify-center text-4xl font-bold text-white shadow-lg`}>
-              {user?.displayName?.charAt(0) || 'W'}
-            </div>
-            {user?.badgeTier && user.badgeTier !== 'none' && (
-              <div className="absolute -bottom-2 -right-2">
+          <ProfileAvatar
+            address={walletAddress || ''}
+            imageUrl={profileSettings.avatarUrl}
+            size="2xl"
+            editable
+            onEditClick={() => setShowAvatarModal(true)}
+            badge={
+              user?.badgeTier && user.badgeTier !== 'none' ? (
                 <TierBadge tier={user.badgeTier as 'bronze' | 'silver' | 'gold' | 'diamond' | 'legendary'} size="sm" showLabel={false} />
-              </div>
-            )}
-          </div>
+              ) : undefined
+            }
+          />
 
           {/* Info */}
           <div className="flex-1">
@@ -627,6 +733,203 @@ export default function ProfilePage() {
           </CardHeader>
           <VirtualCardsDisplay />
         </Card>
+      )}
+
+      {/* Settings Tab */}
+      {activeTab === 'settings' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Public Profile Settings */}
+          <Card variant="default" padding="md">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Globe className="w-5 h-5 text-neon-green" />
+                Public Profile
+              </CardTitle>
+            </CardHeader>
+
+            <div className="space-y-6">
+              {/* Public Toggle */}
+              <div className="flex items-center justify-between p-4 rounded-xl bg-bg-tertiary">
+                <div className="flex items-center gap-3">
+                  {profileSettings.isPublic ? (
+                    <Globe className="w-5 h-5 text-neon-green" />
+                  ) : (
+                    <Lock className="w-5 h-5 text-text-muted" />
+                  )}
+                  <div>
+                    <p className="font-medium text-text-primary">
+                      {profileSettings.isPublic ? 'Profile is Public' : 'Profile is Private'}
+                    </p>
+                    <p className="text-xs text-text-muted">
+                      {profileSettings.isPublic
+                        ? 'Anyone with your link can view your profile'
+                        : 'Only you can see your profile'}
+                    </p>
+                  </div>
+                </div>
+                <Toggle
+                  checked={profileSettings.isPublic}
+                  onChange={togglePublicProfile}
+                  disabled={profileSaving}
+                />
+              </div>
+
+              {/* Share URL */}
+              {profileSettings.isPublic && (
+                <div className="p-4 rounded-xl bg-bg-tertiary">
+                  <p className="text-xs text-text-muted mb-2">Your Public Profile URL</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/u/${walletAddress}`}
+                      className="flex-1 px-3 py-2 rounded-lg bg-bg-elevated border border-border-primary text-sm text-text-secondary font-mono truncate"
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={copyProfileUrl}
+                    >
+                      {copiedUrl ? (
+                        <Check className="w-4 h-4 text-neon-green" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Display Name */}
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">
+                  Display Name
+                </label>
+                <input
+                  type="text"
+                  value={profileSettings.displayName || ''}
+                  onChange={(e) => setProfileSettings(prev => ({ ...prev, displayName: e.target.value }))}
+                  onBlur={() => saveProfileSettings({ displayName: profileSettings.displayName || undefined })}
+                  placeholder={`Whale #${user?.userNumber || '---'}`}
+                  maxLength={30}
+                  className="w-full px-4 py-3 rounded-xl bg-bg-tertiary border border-border-primary text-text-primary placeholder:text-text-muted focus:border-neon-green focus:outline-none transition-colors"
+                />
+                <p className="text-xs text-text-muted mt-1">
+                  Leave empty to use default (Whale #{user?.userNumber})
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Visible Stats Settings */}
+          <Card variant="default" padding="md">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Eye className="w-5 h-5 text-neon-cyan" />
+                Visible Stats
+              </CardTitle>
+            </CardHeader>
+
+            <p className="text-sm text-text-muted mb-4">
+              Choose which stats to show on your public profile
+            </p>
+
+            <div className="space-y-3">
+              {[
+                { id: 'points', label: 'Points', description: 'Your total points earned' },
+                { id: 'privacyScore', label: 'Stealth Rating', description: 'Your privacy score' },
+                { id: 'streak', label: 'Day Streak', description: 'Consecutive active days' },
+                { id: 'rank', label: 'Leaderboard Rank', description: 'Your global rank' },
+                { id: 'badges', label: 'NFT Badges', description: 'Your badge collection' },
+                { id: 'memberSince', label: 'Member Since', description: 'When you joined' },
+                { id: 'transactions', label: 'Transaction Count', description: 'Total private transfers' },
+                { id: 'hiddenVolume', label: 'Hidden Volume', description: 'Total hidden USD volume' },
+              ].map((stat) => (
+                <div
+                  key={stat.id}
+                  className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-bg-tertiary transition-colors"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">{stat.label}</p>
+                    <p className="text-xs text-text-muted">{stat.description}</p>
+                  </div>
+                  <Toggle
+                    checked={profileSettings.visibleStats[stat.id as keyof typeof profileSettings.visibleStats]}
+                    onChange={() => toggleStatVisibility(stat.id as keyof typeof profileSettings.visibleStats)}
+                    disabled={profileSaving || !profileSettings.isPublic}
+                    size="sm"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {!profileSettings.isPublic && (
+              <div className="mt-4 p-3 rounded-lg bg-bg-tertiary border border-border-primary">
+                <p className="text-xs text-text-muted flex items-center gap-2">
+                  <Lock className="w-3 h-3" />
+                  Enable public profile to customize visible stats
+                </p>
+              </div>
+            )}
+          </Card>
+
+          {/* Avatar Settings */}
+          <Card variant="default" padding="md" className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Camera className="w-5 h-5 text-purple-400" />
+                Profile Avatar
+              </CardTitle>
+              <Badge variant="warning" size="xs">Coming Soon</Badge>
+            </CardHeader>
+
+            <div className="flex items-center gap-6">
+              <ProfileAvatar
+                address={walletAddress || ''}
+                imageUrl={profileSettings.avatarUrl}
+                size="xl"
+              />
+              <div className="flex-1">
+                <p className="text-sm text-text-primary mb-2">
+                  Your avatar is automatically generated based on your wallet address
+                </p>
+                <p className="text-xs text-text-muted mb-4">
+                  Custom avatar upload will be available soon! You&apos;ll be able to upload your own image via Cloudinary.
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled
+                  className="opacity-50"
+                >
+                  <Camera className="w-4 h-4 mr-2" />
+                  Upload Custom Avatar
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Avatar Upload Modal (Coming Soon) */}
+      {showAvatarModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <Card variant="glow" padding="lg" className="max-w-md w-full">
+            <CardHeader>
+              <CardTitle>Change Avatar</CardTitle>
+            </CardHeader>
+            <div className="text-center py-6">
+              <Camera className="w-16 h-16 text-text-muted mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-text-primary mb-2">Coming Soon!</h3>
+              <p className="text-sm text-text-muted mb-6">
+                Custom avatar upload will be available in a future update. For now, your avatar is automatically generated from your wallet address.
+              </p>
+              <Button variant="primary" onClick={() => setShowAvatarModal(false)}>
+                Got it
+              </Button>
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   );

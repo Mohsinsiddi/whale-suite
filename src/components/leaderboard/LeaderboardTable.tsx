@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { Trophy, Flame, Shield, TrendingUp, Crown, Medal, Award } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
+import { AddressAvatar } from '@/components/ui/Avatar';
 import type { LeaderboardEntry } from '@/hooks/useLeaderboard';
 
 interface LeaderboardTableProps {
@@ -47,8 +48,11 @@ function Podium({ entries }: { entries: LeaderboardEntry[] }) {
         transition={{ delay: 0.1 }}
         className="flex flex-col items-center"
       >
-        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-gray-500 to-gray-700 flex items-center justify-center mb-2 border-2 border-gray-400">
-          <span className="text-2xl font-bold text-white">2</span>
+        <div className="relative mb-2">
+          <AddressAvatar address={second.wallet} size="lg" />
+          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-gray-500 flex items-center justify-center text-xs font-bold text-white border-2 border-bg-primary">
+            2
+          </div>
         </div>
         <p className="text-sm font-medium text-text-primary truncate max-w-[80px]">{second.displayName}</p>
         <p className="text-xs text-text-muted">{second.points.toLocaleString()} pts</p>
@@ -61,10 +65,11 @@ function Podium({ entries }: { entries: LeaderboardEntry[] }) {
         animate={{ opacity: 1, y: 0 }}
         className="flex flex-col items-center"
       >
-        <div className="relative">
-          <Crown className="w-6 h-6 text-yellow-400 absolute -top-6 left-1/2 -translate-x-1/2" />
-          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center mb-2 border-2 border-yellow-300 shadow-lg shadow-yellow-500/30">
-            <span className="text-3xl font-bold text-white">1</span>
+        <div className="relative mb-2">
+          <Crown className="w-6 h-6 text-yellow-400 absolute -top-6 left-1/2 -translate-x-1/2 z-10" />
+          <AddressAvatar address={first.wallet} size="xl" />
+          <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-yellow-500 flex items-center justify-center text-sm font-bold text-white border-2 border-bg-primary shadow-lg shadow-yellow-500/30">
+            1
           </div>
         </div>
         <p className="text-sm font-bold text-text-primary truncate max-w-[100px]">{first.displayName}</p>
@@ -79,8 +84,11 @@ function Podium({ entries }: { entries: LeaderboardEntry[] }) {
         transition={{ delay: 0.2 }}
         className="flex flex-col items-center"
       >
-        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-600 to-amber-800 flex items-center justify-center mb-2 border-2 border-amber-500">
-          <span className="text-2xl font-bold text-white">3</span>
+        <div className="relative mb-2">
+          <AddressAvatar address={third.wallet} size="lg" />
+          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-amber-600 flex items-center justify-center text-xs font-bold text-white border-2 border-bg-primary">
+            3
+          </div>
         </div>
         <p className="text-sm font-medium text-text-primary truncate max-w-[80px]">{third.displayName}</p>
         <p className="text-xs text-text-muted">{third.points.toLocaleString()} pts</p>
@@ -149,6 +157,9 @@ export default function LeaderboardTable({
               <div className="w-10 flex justify-center">
                 <RankIcon rank={entry.rank} />
               </div>
+
+              {/* Avatar */}
+              <AddressAvatar address={entry.wallet} size="sm" />
 
               {/* User Info */}
               <div className="flex-1 min-w-0">

@@ -15,6 +15,22 @@ export interface IUserSettings {
   theme: string;
 }
 
+export interface IProfileSettings {
+  isPublic: boolean;
+  avatarUrl?: string;
+  displayName?: string;
+  visibleStats: {
+    points: boolean;
+    privacyScore: boolean;
+    streak: boolean;
+    rank: boolean;
+    badges: boolean;
+    transactions: boolean;
+    hiddenVolume: boolean;
+    memberSince: boolean;
+  };
+}
+
 export interface IUser extends Document {
   wallet: string;
   email?: string;
@@ -30,6 +46,8 @@ export interface IUser extends Document {
   referralCode: string;
   referredBy?: string;
   settings: IUserSettings;
+  // Profile settings
+  profile: IProfileSettings;
   // Points & Leaderboard
   points: number;
   streak: number;
@@ -54,6 +72,34 @@ const UserSettingsSchema = new Schema<IUserSettings>({
   emailUpdates: { type: Boolean, default: false },
   language: { type: String, default: 'en' },
   theme: { type: String, default: 'dark' },
+}, { _id: false });
+
+const ProfileSettingsSchema = new Schema<IProfileSettings>({
+  isPublic: { type: Boolean, default: false },
+  avatarUrl: { type: String },
+  displayName: { type: String },
+  visibleStats: {
+    type: new Schema({
+      points: { type: Boolean, default: true },
+      privacyScore: { type: Boolean, default: true },
+      streak: { type: Boolean, default: true },
+      rank: { type: Boolean, default: true },
+      badges: { type: Boolean, default: true },
+      transactions: { type: Boolean, default: false },
+      hiddenVolume: { type: Boolean, default: false },
+      memberSince: { type: Boolean, default: true },
+    }, { _id: false }),
+    default: () => ({
+      points: true,
+      privacyScore: true,
+      streak: true,
+      rank: true,
+      badges: true,
+      transactions: false,
+      hiddenVolume: false,
+      memberSince: true,
+    }),
+  },
 }, { _id: false });
 
 const UserSchema = new Schema<IUser>({
@@ -89,6 +135,8 @@ const UserSchema = new Schema<IUser>({
   },
   referredBy: { type: String },
   settings: { type: UserSettingsSchema, default: () => ({}) },
+  // Profile settings
+  profile: { type: ProfileSettingsSchema, default: () => ({}) },
   // Points & Leaderboard
   points: { type: Number, default: 0 },
   streak: { type: Number, default: 0 },
