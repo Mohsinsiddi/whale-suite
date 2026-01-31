@@ -1,6 +1,6 @@
 # 🐋 WHALE SUITE - PROJECT STATUS
 
-> Last Updated: 2026-01-27
+> Last Updated: 2026-01-30
 > Status: 🟡 IN PROGRESS
 
 ---
@@ -57,6 +57,7 @@ TOTAL         [████████░░] 85%
 | `/vaults/[id]` | Vault Detail | 🔴 Not Started | P1 | Single vault view |
 | `/transfer` | Ghost Send | ✅ Done | P1 | SOL transfers |
 | `/swap` | Swap | ✅ Done | P1 | Jupiter Swap API v1 with optimistic updates |
+| `/private-swap` | Private Swap | ✅ Done | P0 | Darklake ZK-AMM with Groth16 proofs ($10k bounty) |
 | `/privacy` | Privacy Cash | ✅ Done | P0 | Shield/Unshield SOL |
 | `/markets` | Markets | ✅ Done | P2 | PNP prediction markets |
 | `/intelligence` | Whale Intel | ✅ Done | P1 | Whale feed & signals |
@@ -250,6 +251,14 @@ TOTAL         [████████░░] 85%
 | `/api/referrals/earnings` | GET | 🔴 Not Started | `app/api/referrals/earnings/route.ts` |
 | `/api/referrals/payout` | POST | 🔴 Not Started | `app/api/referrals/payout/route.ts` |
 
+### Darklake Orders Routes
+
+| Route | Method | Status | File |
+|-------|--------|--------|------|
+| `/api/darklake-orders` | GET | ✅ Done | `app/api/darklake-orders/route.ts` | Fetch pending/all orders |
+| `/api/darklake-orders` | POST | ✅ Done | `app/api/darklake-orders/route.ts` | Save new pending order |
+| `/api/darklake-orders` | PATCH | ✅ Done | `app/api/darklake-orders/route.ts` | Update order status |
+
 ---
 
 ## 🗄️ DATABASE SCHEMA STATUS
@@ -280,6 +289,7 @@ TOTAL         [████████░░] 85%
 | Transfer | Custom | ✅ Done | `lib/privacy-sdks/transfer.ts` | SOL transfers |
 | ShadowWire | `@radr/shadowwire` | ✅ Done | `lib/privacy-sdks/shadow-wire.ts` | Bulletproof ZK private transfers ($15k bounty) |
 | PNP Exchange | `pnp-sdk` | ✅ Done | `lib/privacy-sdks/pnp.ts` | Prediction markets ($2.5k bounty) - Buy/Sell/Create/Redeem |
+| Darklake | `@darklakefi/ts-sdk-on-chain` | ✅ Done | `lib/privacy-sdks/darklake.ts` | ZK-AMM private swaps with Groth16 proofs ($10k bounty) |
 | Light Protocol | `@lightprotocol/stateless.js` | ⬜ Pending | - | Alternative ZK private transfers |
 
 ---
@@ -350,6 +360,11 @@ Track any changes made during development here.
 | 2026-01-27 | PNP Create Market | V2 AMM + P2P market creation with progress modal | Full market creation flow with transaction progress |
 | 2026-01-27 | PNP P2P Markets | Fixed P2P market fetching | Now fetches both V2 and P2P markets from SDK |
 | 2026-01-27 | Transaction Progress | Enhanced progress modals for all PNP actions | Buy, Sell, Create, Redeem all show step progress |
+| 2026-01-30 | Darklake ZK-AMM | Full integration with @darklakefi/ts-sdk-on-chain | $10k bounty - Private swaps with Groth16 ZK proofs |
+| 2026-01-30 | Darklake Two-Step Flow | Commit → Settle with ZK proofs | MEV-resistant blind slippage pools |
+| 2026-01-30 | Darklake Order Persistence | MongoDB storage for pending orders | Resume orders if page closes, order history |
+| 2026-01-30 | Darklake Circuit Files | Postinstall copies settle.wasm, settle_final.zkey | Required for client-side ZK proof generation |
+| 2026-01-30 | Private Swap UI | Full page with SOL/WSOL/USDC/USDT support | Order history, pending order recovery, fee breakdown |
 | | | | |
 
 ---
@@ -394,8 +409,11 @@ Track any changes made during development here.
 18. [x] Integrate PNP Exchange SDK for prediction markets ($2.5k bounty)
 19. [x] Enhanced sidebar with section grouping and bounty badges
 20. [x] Connected dashboard with all privacy pools and real data
-21. [ ] Build Badge NFT purchase flow
-22. [ ] Add Affiliate dashboard with referral tracking
+21. [x] Integrate Darklake ZK-AMM for private swaps ($10k bounty)
+22. [x] Add order persistence for Darklake pending orders
+23. [x] Build Private Swap page with order history
+24. [ ] Build Badge NFT purchase flow
+25. [ ] Add Affiliate dashboard with referral tracking
 
 ---
 
@@ -404,6 +422,13 @@ Track any changes made during development here.
 - **Privy Embedded Wallets** = Shadow Vaults (not PDAs)
 - **Privacy Cash** = Dark Pool deposits/withdrawals (ZK proof based)
 - **ShadowWire** = Ghost Send (Bulletproof ZK transfers) - Internal: hidden amount, External: anonymous sender
+- **Darklake ZK-AMM** = Private Swaps with Groth16 proofs ($10k bounty):
+  - Two-step flow: Commit (encrypt intent) → Settle (ZK proof)
+  - MEV-resistant blind slippage pools
+  - Supports SOL/WSOL/USDC/USDT pairs
+  - Order persistence in MongoDB for recovery
+  - ~2 minute settlement deadline
+  - Circuit files: settle.wasm, settle_final.zkey for client-side proof generation
 - **PNP Exchange** = Prediction markets (V2 AMM + P2P) with full trading functionality:
   - Buy tokens (mint decision tokens via manual instruction building)
   - Sell tokens (burn decision tokens)
@@ -574,6 +599,71 @@ burn_decision_tokens:  [18, 198, 214, 1, 236, 94, 63, 29]
 - When buying YES tokens, AMM mints BOTH YES and NO tokens
 - Prices calculated from supply ratio: `yesPrice = noSupply / totalSupply`
 - Token decimals: 6 (same as USDC)
+
+---
+
+## 🔒 DARKLAKE ZK-AMM TECHNICAL DETAILS
+
+### Overview
+Darklake is a ZK-AMM (Zero-Knowledge Automated Market Maker) that provides MEV-resistant private swaps on Solana using Groth16 proofs.
+
+### Two-Step Swap Flow
+1. **Commit Phase (TX 1)**: Creates encrypted order commitment
+   - Trade intent hidden from MEV bots
+   - Amount and direction encrypted
+   - Order locked in smart contract
+
+2. **Settle Phase (TX 2)**: Executes swap with ZK proof
+   - Client generates Groth16 proof (settle.wasm + settle_final.zkey)
+   - Proof verifies validity without revealing details
+   - Must complete within ~2 minutes (300 slots)
+
+### Circuit Files (Required)
+Copied by `postinstall.mjs` from `@darklakefi/ts-sdk-on-chain/dist/zk/circuits/`:
+- `settle.wasm` - WASM circuit for settle proof
+- `settle_final.zkey` - Proving key for settle
+- `cancel.wasm` - WASM circuit for cancel proof
+- `cancel_final.zkey` - Proving key for cancel
+
+### Fee Structure
+- **Trade Fee**: 0.5% (taken from swap amount)
+- **Account Rent**: ~0.002-0.003 SOL (refunded on order close)
+- **Transaction Fees**: ~0.002-0.004 SOL per transaction
+- **Total Extra**: ~0.007 SOL (mostly refundable rent)
+
+### Key Implementation Files
+- **Service**: `src/lib/privacy-sdks/darklake.ts`
+  - `executePrivateSwap()` - Full commit→settle flow
+  - `settlePendingOrder()` - Resume pending orders
+  - `getQuote()` - Get swap quote with fees
+  - `isOrderPending()` - Check on-chain order status
+
+- **Hook**: `src/hooks/useDarklake.ts`
+  - `executePrivateSwap()` - Swap with Privy signing
+  - `resumePendingOrder()` - Resume with Privy signing
+  - `fetchPendingOrders()` - Get pending orders from DB
+  - `fetchAllOrders()` - Get all orders (history)
+
+- **API**: `src/app/api/darklake-orders/route.ts`
+  - `GET` - Fetch orders (pending or all)
+  - `POST` - Save new pending order
+  - `PATCH` - Update order status (settled/expired/cancelled)
+
+- **UI**: `src/app/(dashboard)/private-swap/page.tsx`
+  - Token selector (SOL, WSOL, USDC, USDT)
+  - Quote display with fees
+  - Two-step progress modal
+  - Pending order recovery section
+  - Order history with TX links
+
+### Supported Tokens
+- SOL (native) - Auto-wrapped by SDK
+- WSOL - Swap directly
+- USDC - EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+- USDT - Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
+
+### SOL/WSOL Validation
+Cannot swap between SOL ↔ WSOL (same asset). UI shows warning and disables swap button.
 
 ---
 

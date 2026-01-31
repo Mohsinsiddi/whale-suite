@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useId } from "react";
+import { useId, useState } from "react";
+import Image from "next/image";
 
 interface WhaleLogoProps {
   size?: "xs" | "sm" | "md" | "lg" | "xl";
@@ -9,6 +10,10 @@ interface WhaleLogoProps {
   animated?: boolean;
   collapsed?: boolean;
   className?: string;
+  /** Use GIF instead of SVG animation */
+  useGif?: boolean;
+  /** Custom GIF path (default: /logo.gif) */
+  gifSrc?: string;
 }
 
 const sizeConfig = {
@@ -25,10 +30,73 @@ export default function WhaleLogo({
   animated = true,
   collapsed = false,
   className = "",
+  useGif = false,
+  gifSrc = "/logo.gif",
 }: WhaleLogoProps) {
   const { icon: iconSize, text: textSize } = sizeConfig[size];
   // Generate unique IDs for gradients to prevent conflicts between multiple instances
   const uniqueId = useId();
+  const [gifError, setGifError] = useState(false);
+
+  // If using GIF and it exists
+  if (useGif && !gifError) {
+    return (
+      <div className={`flex items-center gap-2.5 ${className}`}>
+        <motion.div
+          className="relative flex-shrink-0"
+          whileHover={{ scale: 1.05 }}
+          transition={{ type: "spring", stiffness: 400, damping: 15 }}
+        >
+          {/* Glow effect */}
+          <div
+            className="absolute rounded-xl blur-xl opacity-60"
+            style={{
+              width: iconSize + 12,
+              height: iconSize + 12,
+              left: -6,
+              top: -6,
+              background: "linear-gradient(135deg, rgba(0,255,136,0.4) 0%, rgba(0,212,255,0.4) 100%)",
+            }}
+          />
+          {/* GIF container */}
+          <div
+            className="relative rounded-xl bg-gradient-to-br from-neon-green via-neon-cyan to-neon-green p-[2px] overflow-hidden"
+            style={{ width: iconSize + 4, height: iconSize + 4 }}
+          >
+            <div className="w-full h-full rounded-[10px] bg-bg-primary flex items-center justify-center overflow-hidden">
+              <Image
+                src={gifSrc}
+                alt="Whale Suite Logo"
+                width={iconSize}
+                height={iconSize}
+                className="object-contain"
+                onError={() => setGifError(true)}
+                unoptimized // Required for GIFs to animate
+              />
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Text */}
+        {showText && !collapsed && (
+          <motion.div
+            className="flex flex-col"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            <span className={`font-bold ${textSize} bg-gradient-to-r from-neon-green via-neon-cyan to-neon-green bg-clip-text text-transparent bg-[length:200%_auto] animate-gradient tracking-tight`}>
+              WHALE SUITE
+            </span>
+            <span className="text-[9px] text-text-muted tracking-[0.15em] uppercase -mt-0.5">
+              Privacy Protocol
+            </span>
+          </motion.div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`flex items-center gap-2.5 ${className}`}>
@@ -403,4 +471,38 @@ export function WhaleLogoCompact({ size = "sm" }: { size?: "xs" | "sm" | "md" })
       </div>
     </motion.div>
   );
+}
+
+// Static logo using SVG file (for external use / download)
+export function WhaleLogoStatic({
+  variant = "default",
+  size = 64,
+  className = "",
+}: {
+  variant?: "default" | "dark";
+  size?: number;
+  className?: string;
+}) {
+  const src = variant === "dark" ? "/logo-dark.svg" : "/logo.svg";
+
+  return (
+    <Image
+      src={src}
+      alt="Whale Suite Logo"
+      width={size}
+      height={size}
+      className={className}
+    />
+  );
+}
+
+// Download logo helper
+export function downloadLogo(variant: "svg" | "dark-svg" = "svg") {
+  const filename = variant === "dark-svg" ? "logo-dark.svg" : "logo.svg";
+  const link = document.createElement("a");
+  link.href = `/${filename}`;
+  link.download = `whale-suite-${filename}`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }

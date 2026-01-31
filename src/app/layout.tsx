@@ -23,10 +23,17 @@ export const metadata: Metadata = {
   description: "Privacy-first trading platform for Solana whales. Hidden balances, anonymous transfers, whale intelligence, and more.",
   keywords: ["Solana", "Privacy", "Whale", "Trading", "DeFi", "Crypto"],
   authors: [{ name: "Whale Suite" }],
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/logo-dark.svg",
+  },
   openGraph: {
     title: "Whale Suite",
     description: "Trade in Shadows. Profit in Silence.",
     type: "website",
+    images: ["/logo-dark.svg"],
   },
 };
 
