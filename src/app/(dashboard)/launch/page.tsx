@@ -875,16 +875,16 @@ export default function LaunchPage() {
 
       {/* Tab Content */}
       <TabPanel value="launch" activeValue={activeTab}>
-        {/* Privacy Banner */}
+        {/* Gasless + Anonymous Banner */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1, duration: 0.4 }}
           className="mb-6"
         >
-          <Card variant="default" padding="md" className="border-neon-green/30 bg-gradient-to-r from-neon-green/5 to-neon-cyan/5 overflow-hidden relative">
+          <Card variant="default" padding="md" className="border-neon-green/30 bg-gradient-to-r from-neon-green/5 via-bg-tertiary/50 to-neon-cyan/5 overflow-hidden relative">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-neon-green/10 via-transparent to-transparent" />
-            <div className="flex items-center gap-4 relative z-10">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 relative z-10">
               <motion.div
                 animate={{
                   boxShadow: ["0 0 0 0 rgba(0,255,136,0.4)", "0 0 0 10px rgba(0,255,136,0)", "0 0 0 0 rgba(0,255,136,0)"]
@@ -894,14 +894,29 @@ export default function LaunchPage() {
               >
                 <ShieldIcon className="w-6 h-6 text-neon-green" />
               </motion.div>
-              <div>
-                <p className="text-base font-semibold text-neon-green">
-                  100% Anonymous Token Creation
-                </p>
-                <p className="text-sm text-text-secondary mt-0.5">
-                  Your identity is never linked to the token. Create memecoins, utility tokens, or NFT collections with complete privacy.
+              <div className="flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-base font-semibold text-neon-green">
+                    100% Anonymous & Gasless
+                  </p>
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-neon-cyan/20 text-neon-cyan rounded-full border border-neon-cyan/30">
+                    NO GAS FEES
+                  </span>
+                </div>
+                <p className="text-sm text-text-secondary mt-1">
+                  Launch tokens on Solana mainnet without paying gas. Your identity is never linked. Powered by Anoncoin.
                 </p>
               </div>
+              <a
+                href="https://anoncoin.it"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-neon-green bg-neon-green/10 hover:bg-neon-green/20 border border-neon-green/30 rounded-lg transition-colors flex-shrink-0"
+              >
+                <ShieldIcon className="w-3.5 h-3.5" />
+                Anoncoin
+                <ExternalLinkIcon className="w-3 h-3" />
+              </a>
             </div>
           </Card>
         </motion.div>

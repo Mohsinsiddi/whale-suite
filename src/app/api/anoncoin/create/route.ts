@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
 
     try {
       data = JSON.parse(responseText);
-    } catch (parseError) {
+    } catch {
       console.error('[Anoncoin API] JSON parse error:', responseText.substring(0, 500));
       return NextResponse.json(
         {

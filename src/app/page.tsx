@@ -66,11 +66,6 @@ const SwapIcon = () => (
   </svg>
 );
 
-const UsersIcon = () => (
-  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-  </svg>
-);
 
 const BoltIcon = () => (
   <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -84,7 +79,39 @@ const ArrowRightIcon = () => (
   </svg>
 );
 
+const CheckBadge = ({ className = "" }: { className?: string }) => (
+  <svg className={`w-3.5 h-3.5 ${className}`} fill="currentColor" viewBox="0 0 20 20">
+    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+  </svg>
+);
+
+const RocketIcon = () => (
+  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+  </svg>
+);
+
+const LockIcon = () => (
+  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+  </svg>
+);
+
 const features = [
+  {
+    icon: <RocketIcon />,
+    title: "Gasless Token Launch",
+    description: "Create tokens on Solana without paying gas fees. 100% anonymous via Anoncoin.",
+    tag: "Anoncoin",
+    highlight: true,
+  },
+  {
+    icon: <LockIcon />,
+    title: "Private Swaps",
+    description: "Swap tokens with hidden amounts using Darklake's ZK-powered liquidity pools.",
+    tag: "Darklake",
+    highlight: true,
+  },
   {
     icon: <ShieldIcon />,
     title: "Hidden Balance",
@@ -99,7 +126,7 @@ const features = [
   },
   {
     icon: <SwapIcon />,
-    title: "Anonymous Betting",
+    title: "Anonymous Predictions",
     description: "Place predictions on PNP Exchange without exposing your wallet size.",
     tag: "P2P Markets",
   },
@@ -107,19 +134,7 @@ const features = [
     icon: <ChartIcon />,
     title: "Whale Intelligence",
     description: "Track what other whales are doing while staying anonymous yourself.",
-    tag: null,
-  },
-  {
-    icon: <UsersIcon />,
-    title: "Best Swap Rates",
-    description: "Integrated Jupiter for optimal token swaps with multi-wallet strategies.",
-    tag: null,
-  },
-  {
-    icon: <BoltIcon />,
-    title: "Lightning Fast",
-    description: "Powered by Helius RPC for instant transaction processing. No delays.",
-    tag: null,
+    tag: "Helius",
   },
 ];
 
@@ -303,21 +318,40 @@ export default function LandingPage() {
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: i * 0.1 }}
                 whileHover={{ y: -8, scale: 1.02 }}
-                className="group p-6 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border border-border-primary hover:border-neon-green/40 hover:shadow-glow-sm transition-all duration-300 relative overflow-hidden"
+                className={`group p-6 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border transition-all duration-300 relative overflow-hidden ${
+                  feature.highlight
+                    ? 'border-neon-green/50 shadow-glow-sm hover:shadow-glow-md'
+                    : 'border-border-primary hover:border-neon-green/40 hover:shadow-glow-sm'
+                }`}
               >
                 {/* Feature tag */}
                 {feature.tag && (
-                  <div className="absolute top-4 right-4 px-2 py-1 text-[10px] font-medium bg-neon-green/10 text-neon-green/80 rounded-full border border-neon-green/20">
+                  <div className={`absolute top-4 right-4 px-2 py-1 text-[10px] font-medium rounded-full border ${
+                    feature.highlight
+                      ? 'bg-neon-green/20 text-neon-green border-neon-green/40'
+                      : 'bg-neon-green/10 text-neon-green/80 border-neon-green/20'
+                  }`}>
                     {feature.tag}
                   </div>
                 )}
 
+                {/* Highlight badge for new features */}
+                {feature.highlight && (
+                  <div className="absolute top-4 left-4 px-2 py-0.5 text-[9px] font-bold bg-neon-cyan/20 text-neon-cyan rounded-full border border-neon-cyan/30 uppercase tracking-wider">
+                    New
+                  </div>
+                )}
+
                 {/* Hover glow */}
-                <div className="absolute inset-0 bg-gradient-to-br from-neon-green/5 to-neon-cyan/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className={`absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity ${
+                  feature.highlight
+                    ? 'from-neon-green/10 to-neon-cyan/10'
+                    : 'from-neon-green/5 to-neon-cyan/5'
+                }`} />
 
                 <div className="relative">
                   <motion.div
-                    className="text-neon-green mb-5"
+                    className={feature.highlight ? 'text-neon-green mb-5' : 'text-neon-green mb-5'}
                     whileHover={{ scale: 1.1, rotate: 5 }}
                     transition={{ type: "spring", stiffness: 300 }}
                   >
@@ -333,6 +367,291 @@ export default function LandingPage() {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Powered By - Bounty Sponsors Section */}
+      <section className="py-20 relative">
+        <div className="absolute inset-0 bg-bg-secondary/30" />
+        <div className="max-w-6xl mx-auto px-4 relative">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-4 text-xs font-medium bg-neon-green/10 border border-neon-green/30 rounded-full text-neon-green">
+              <span className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
+              Solana Privacy Hack 2026
+            </div>
+            <h3 className="text-2xl md:text-3xl font-bold text-text-primary mb-2">
+              Powered By Industry Leaders
+            </h3>
+            <p className="text-sm text-text-muted max-w-lg mx-auto">
+              Built with the best privacy infrastructure on Solana
+            </p>
+          </motion.div>
+
+          {/* Featured Bounty Sponsors - Large Cards */}
+          <div className="grid md:grid-cols-2 gap-5 mb-6">
+            {/* Anoncoin */}
+            <motion.a
+              href="https://anoncoin.it"
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              whileHover={{ scale: 1.02, y: -5 }}
+              className="group p-5 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border-2 border-neon-green/40 hover:border-neon-green/70 hover:shadow-glow-md transition-all"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-14 h-14 rounded-xl bg-neon-green/20 flex items-center justify-center flex-shrink-0">
+                  <RocketIcon />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <h4 className="text-lg font-bold text-text-primary group-hover:text-neon-green transition-colors">Anoncoin</h4>
+                    <span className="px-2 py-0.5 text-[9px] font-bold bg-neon-cyan/20 text-neon-cyan rounded-full">GASLESS</span>
+                    <span className="px-2 py-0.5 text-[9px] font-bold bg-warning/20 text-warning rounded-full">BOUNTY</span>
+                  </div>
+                  <p className="text-xs text-text-secondary mb-2">Launch tokens without gas fees. 100% anonymous token creation on Solana mainnet.</p>
+                  <div className="flex items-center gap-3 text-[10px] text-text-muted">
+                    <span className="flex items-center gap-1"><CheckBadge className="text-neon-green" /> No Gas</span>
+                    <span className="flex items-center gap-1"><CheckBadge className="text-neon-green" /> Anonymous</span>
+                    <span className="flex items-center gap-1"><CheckBadge className="text-neon-green" /> Mainnet</span>
+                  </div>
+                </div>
+              </div>
+            </motion.a>
+
+            {/* Privacy Cash */}
+            <motion.a
+              href="https://privacycash.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              whileHover={{ scale: 1.02, y: -5 }}
+              className="group p-5 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border-2 border-purple-500/40 hover:border-purple-500/70 hover:shadow-[0_0_30px_rgba(168,85,247,0.2)] transition-all"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-14 h-14 rounded-xl bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                  <ShieldIcon />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <h4 className="text-lg font-bold text-text-primary group-hover:text-purple-400 transition-colors">Privacy Cash</h4>
+                    <span className="px-2 py-0.5 text-[9px] font-bold bg-purple-500/20 text-purple-400 rounded-full">ZK PROOFS</span>
+                    <span className="px-2 py-0.5 text-[9px] font-bold bg-warning/20 text-warning rounded-full">$2.5K BOUNTY</span>
+                  </div>
+                  <p className="text-xs text-text-secondary mb-2">Hide your SOL balance with zero-knowledge proofs. Complete financial privacy on Solana.</p>
+                  <div className="flex items-center gap-3 text-[10px] text-text-muted">
+                    <span className="flex items-center gap-1"><CheckBadge className="text-purple-400" /> Hidden Balance</span>
+                    <span className="flex items-center gap-1"><CheckBadge className="text-purple-400" /> ZK Proofs</span>
+                  </div>
+                </div>
+              </div>
+            </motion.a>
+
+            {/* ShadowWire / Radr Labs */}
+            <motion.a
+              href="https://radr.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              whileHover={{ scale: 1.02, y: -5 }}
+              className="group p-5 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border-2 border-blue-500/40 hover:border-blue-500/70 hover:shadow-[0_0_30px_rgba(59,130,246,0.2)] transition-all"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-14 h-14 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                  <WalletIcon />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <h4 className="text-lg font-bold text-text-primary group-hover:text-blue-400 transition-colors">ShadowWire</h4>
+                    <span className="px-2 py-0.5 text-[9px] font-bold bg-blue-500/20 text-blue-400 rounded-full">BULLETPROOFS</span>
+                    <span className="px-2 py-0.5 text-[9px] font-bold bg-warning/20 text-warning rounded-full">BOUNTY</span>
+                  </div>
+                  <p className="text-xs text-text-secondary mb-2">Private transfers with hidden amounts. Powered by Radr Labs bulletproof technology.</p>
+                  <div className="flex items-center gap-3 text-[10px] text-text-muted">
+                    <span className="flex items-center gap-1"><CheckBadge className="text-blue-400" /> Hidden Amounts</span>
+                    <span className="flex items-center gap-1"><CheckBadge className="text-blue-400" /> Radr Labs</span>
+                  </div>
+                </div>
+              </div>
+            </motion.a>
+
+            {/* Starpay */}
+            <motion.a
+              href="https://starpay.finance"
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              whileHover={{ scale: 1.02, y: -5 }}
+              className="group p-5 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border-2 border-amber-500/40 hover:border-amber-500/70 hover:shadow-[0_0_30px_rgba(245,158,11,0.2)] transition-all"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-14 h-14 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-8 h-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <h4 className="text-lg font-bold text-text-primary group-hover:text-amber-400 transition-colors">Starpay</h4>
+                    <span className="px-2 py-0.5 text-[9px] font-bold bg-amber-500/20 text-amber-400 rounded-full">VIRTUAL CARDS</span>
+                    <span className="px-2 py-0.5 text-[9px] font-bold bg-warning/20 text-warning rounded-full">$3.5K BOUNTY</span>
+                  </div>
+                  <p className="text-xs text-text-secondary mb-2">Anonymous virtual cards for crypto spending. Privacy-first payment infrastructure.</p>
+                  <div className="flex items-center gap-3 text-[10px] text-text-muted">
+                    <span className="flex items-center gap-1"><CheckBadge className="text-amber-400" /> Virtual Cards</span>
+                    <span className="flex items-center gap-1"><CheckBadge className="text-amber-400" /> ZK Swap</span>
+                  </div>
+                </div>
+              </div>
+            </motion.a>
+          </div>
+
+          {/* Other Bounty Sponsors - Grid */}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {/* PNP Exchange */}
+            <motion.a
+              href="https://pnp.exchange"
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.15 }}
+              whileHover={{ scale: 1.03, y: -3 }}
+              className="group p-4 rounded-xl bg-bg-tertiary/50 border border-pink-500/30 hover:border-pink-500/60 transition-all"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-lg bg-pink-500/20 flex items-center justify-center">
+                  <ChartIcon />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1">
+                    <h4 className="font-semibold text-text-primary group-hover:text-pink-400 transition-colors text-sm">PNP Exchange</h4>
+                  </div>
+                  <p className="text-[9px] text-warning">BOUNTY</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-text-secondary">Anonymous prediction markets</p>
+            </motion.a>
+
+            {/* Helius */}
+            <motion.a
+              href="https://helius.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2 }}
+              whileHover={{ scale: 1.03, y: -3 }}
+              className="group p-4 rounded-xl bg-bg-tertiary/50 border border-orange-500/30 hover:border-orange-500/60 transition-all"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                  <BoltIcon />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-text-primary group-hover:text-orange-400 transition-colors text-sm">Helius</h4>
+                  <p className="text-[9px] text-warning">SPONSOR</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-text-secondary">RPC & whale intelligence</p>
+            </motion.a>
+
+            {/* Light Protocol */}
+            <motion.a
+              href="https://lightprotocol.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.25 }}
+              whileHover={{ scale: 1.03, y: -3 }}
+              className="group p-4 rounded-xl bg-bg-tertiary/50 border border-yellow-500/30 hover:border-yellow-500/60 transition-all"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                  <BoltIcon />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-text-primary group-hover:text-yellow-400 transition-colors text-sm">Light Protocol</h4>
+                  <p className="text-[9px] text-warning">MAIN SPONSOR</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-text-secondary">ZK state compression</p>
+            </motion.a>
+
+            {/* Jupiter */}
+            <motion.a
+              href="https://jup.ag"
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.3 }}
+              whileHover={{ scale: 1.03, y: -3 }}
+              className="group p-4 rounded-xl bg-bg-tertiary/50 border border-emerald-500/30 hover:border-emerald-500/60 transition-all"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                  <SwapIcon />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-text-primary group-hover:text-emerald-400 transition-colors text-sm">Jupiter</h4>
+                  <p className="text-[9px] text-text-muted">ECOSYSTEM</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-text-secondary">Best swap rates on Solana</p>
+            </motion.a>
+          </div>
+
+          {/* Darklake - At end */}
+          <motion.a
+            href="https://darklake.fi"
+            target="_blank"
+            rel="noopener noreferrer"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.35 }}
+            whileHover={{ scale: 1.01, y: -5 }}
+            className="group block p-5 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border-2 border-neon-cyan/40 hover:border-neon-cyan/70 hover:shadow-[0_0_30px_rgba(0,212,255,0.2)] transition-all"
+          >
+            <div className="flex flex-col md:flex-row items-start gap-4">
+              <div className="w-14 h-14 rounded-xl bg-neon-cyan/20 flex items-center justify-center flex-shrink-0">
+                <LockIcon />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                  <h4 className="text-lg font-bold text-text-primary group-hover:text-neon-cyan transition-colors">Darklake</h4>
+                  <span className="px-2 py-0.5 text-[9px] font-bold bg-neon-cyan/20 text-neon-cyan rounded-full">ZK SWAPS</span>
+                  <span className="px-2 py-0.5 text-[9px] font-bold bg-warning/20 text-warning rounded-full">BOUNTY</span>
+                </div>
+                <p className="text-xs text-text-secondary mb-2">Private token swaps with hidden amounts. Zero-knowledge proofs keep your trade sizes confidential.</p>
+                <div className="flex items-center gap-3 text-[10px] text-text-muted">
+                  <span className="flex items-center gap-1"><CheckBadge className="text-neon-cyan" /> Hidden Amounts</span>
+                  <span className="flex items-center gap-1"><CheckBadge className="text-neon-cyan" /> ZK Proofs</span>
+                  <span className="flex items-center gap-1"><CheckBadge className="text-neon-cyan" /> Deep Liquidity</span>
+                </div>
+              </div>
+            </div>
+          </motion.a>
         </div>
       </section>
 
