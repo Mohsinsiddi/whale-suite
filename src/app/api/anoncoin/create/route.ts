@@ -139,9 +139,10 @@ export async function POST(request: NextRequest) {
 
     // Log what we're sending to Anoncoin
     console.log('[Anoncoin API] FormData contents:');
-    for (const [key, value] of formData.entries()) {
+    const entries = Array.from(formData.entries());
+    entries.forEach(([key, value]) => {
       console.log(`  ${key}:`, typeof value === 'string' ? value : `[${typeof value}]`);
-    }
+    });
 
     const response = await fetch(`${ANONCOIN_API_URL}/thirdParty/v1/createToken`, {
       method: 'POST',
@@ -259,7 +260,7 @@ export async function POST(request: NextRequest) {
           message: 'Token created successfully!',
           links: {
             dexscreener: `https://dexscreener.com/solana/${data.data.mintAddress}`,
-            jupiter: `https://jup.ag/swap/SOL-${data.data.mintAddress}`,
+            jupiter: `https://jup.ag/swap?sell=So11111111111111111111111111111111111111112&buy=${data.data.mintAddress}`,
             anoncoin: `https://anoncoin.it/${formData.get('tickerSymbol')}`,
             solscan: `https://solscan.io/token/${data.data.mintAddress}`,
           },

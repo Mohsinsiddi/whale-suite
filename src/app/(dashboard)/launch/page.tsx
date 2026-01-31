@@ -255,7 +255,7 @@ const StepItem = ({
   </motion.div>
 );
 
-// Token Preview Modal
+// Token Preview Modal - Clean & Responsive
 const TokenPreviewModal = ({
   token,
   onClose,
@@ -263,68 +263,77 @@ const TokenPreviewModal = ({
   token: TokenRecord;
   onClose: () => void;
 }) => {
-  const [activeView, setActiveView] = useState<'anoncoin' | 'dexscreener'>('anoncoin');
+  const [copied, setCopied] = useState(false);
+
+  const copyMint = () => {
+    navigator.clipboard.writeText(token.mintAddress);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+        exit={{ scale: 0.95, opacity: 0, y: 20 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-5xl max-h-[90vh] bg-bg-secondary rounded-2xl border border-border-primary overflow-hidden shadow-2xl"
+        className="w-full max-w-6xl h-[90vh] bg-bg-secondary rounded-2xl border border-border-primary overflow-hidden shadow-2xl flex flex-col"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border-secondary bg-bg-tertiary/50">
-          <div className="flex items-center gap-3">
+        {/* Header - Compact with all info */}
+        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-border-secondary bg-bg-tertiary/50 flex-shrink-0">
+          {/* Left: Token Info */}
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             {token.imageUrl && (
               <img
                 src={token.imageUrl}
                 alt={token.name}
-                className="w-10 h-10 rounded-xl object-cover"
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl object-cover flex-shrink-0"
               />
             )}
-            <div>
-              <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
-                {token.name}
-                <span className="text-sm font-mono text-neon-green">${token.symbol}</span>
-              </h3>
-              <p className="text-xs text-text-muted font-mono">
-                {token.mintAddress.slice(0, 8)}...{token.mintAddress.slice(-8)}
-              </p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base sm:text-xl font-bold text-text-primary truncate">
+                  {token.name}
+                </h3>
+                <Badge variant="success" size="sm">${token.symbol}</Badge>
+              </div>
+              <div className="flex items-center gap-3 mt-0.5">
+                <button
+                  onClick={copyMint}
+                  className="text-xs text-text-muted font-mono hover:text-neon-cyan transition-colors flex items-center gap-1"
+                >
+                  {token.mintAddress.slice(0, 6)}...{token.mintAddress.slice(-6)}
+                  {copied ? <CheckIcon className="w-3 h-3 text-neon-green" /> : <CopyIcon className="w-3 h-3" />}
+                </button>
+                {token.description && (
+                  <span className="hidden md:block text-xs text-text-muted truncate max-w-xs">
+                    {token.description}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* View Toggle */}
-            <div className="flex gap-1 p-1 bg-bg-tertiary rounded-lg">
-              <button
-                onClick={() => setActiveView('anoncoin')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                  activeView === 'anoncoin'
-                    ? 'bg-neon-green/20 text-neon-green'
-                    : 'text-text-muted hover:text-text-secondary'
-                }`}
-              >
-                Anoncoin
-              </button>
-              <button
-                onClick={() => setActiveView('dexscreener')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                  activeView === 'dexscreener'
-                    ? 'bg-neon-cyan/20 text-neon-cyan'
-                    : 'text-text-muted hover:text-text-secondary'
-                }`}
-              >
-                DexScreener
-              </button>
-            </div>
+
+          {/* Right: Quick Links + Close */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <a
+              href={`https://anoncoin.it/${token.symbol.toLowerCase()}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-neon-green bg-neon-green/10 hover:bg-neon-green/20 border border-neon-green/30 rounded-lg transition-colors"
+            >
+              <ShieldIcon className="w-3.5 h-3.5" />
+              Anoncoin
+              <ExternalLinkIcon className="w-3 h-3" />
+            </a>
             <button
               onClick={onClose}
               className="p-2 hover:bg-bg-tertiary rounded-lg transition-colors"
@@ -334,68 +343,53 @@ const TokenPreviewModal = ({
           </div>
         </div>
 
-        {/* Iframe Content */}
-        <div className="h-[70vh] bg-bg-primary">
-          <AnimatePresence mode="wait">
-            {activeView === 'anoncoin' ? (
-              <motion.iframe
-                key="anoncoin"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                src={`https://anoncoin.it/${token.symbol.toLowerCase()}`}
-                className="w-full h-full border-0"
-                title={`${token.name} on Anoncoin`}
-              />
-            ) : (
-              <motion.iframe
-                key="dexscreener"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                src={`https://dexscreener.com/solana/${token.mintAddress}?embed=1&theme=dark&trades=0&info=0`}
-                className="w-full h-full border-0"
-                title={`${token.name} on DexScreener`}
-              />
-            )}
-          </AnimatePresence>
+        {/* DexScreener Iframe - Takes most space */}
+        <div className="flex-1 bg-bg-primary">
+          <iframe
+            src={`https://dexscreener.com/solana/${token.mintAddress}?embed=1&theme=dark`}
+            className="w-full h-full border-0"
+            title={`${token.name} on DexScreener`}
+          />
         </div>
 
-        {/* Footer with Links */}
-        <div className="flex items-center justify-between p-4 border-t border-border-secondary bg-bg-tertiary/50">
-          <div className="flex items-center gap-2">
+        {/* Footer - Compact action bar */}
+        <div className="flex items-center justify-between p-3 border-t border-border-secondary bg-bg-tertiary/50 flex-shrink-0">
+          {/* Social Links */}
+          <div className="flex items-center gap-1">
             {token.twitterLink && (
-              <a
-                href={token.twitterLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 hover:bg-bg-tertiary rounded-lg transition-colors"
-              >
+              <a href={token.twitterLink} target="_blank" rel="noopener noreferrer"
+                 className="p-2 hover:bg-bg-tertiary rounded-lg transition-colors">
                 <TwitterIcon className="w-4 h-4 text-text-muted hover:text-text-primary" />
               </a>
             )}
             {token.telegramLink && (
-              <a
-                href={token.telegramLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 hover:bg-bg-tertiary rounded-lg transition-colors"
-              >
+              <a href={token.telegramLink} target="_blank" rel="noopener noreferrer"
+                 className="p-2 hover:bg-bg-tertiary rounded-lg transition-colors">
                 <TelegramIcon className="w-4 h-4 text-text-muted hover:text-text-primary" />
               </a>
             )}
           </div>
+
+          {/* Action Buttons */}
           <div className="flex items-center gap-2">
+            <a
+              href={`https://anoncoin.it/${token.symbol.toLowerCase()}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="sm:hidden flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-neon-green bg-bg-tertiary rounded-lg"
+            >
+              Anoncoin <ExternalLinkIcon className="w-3 h-3" />
+            </a>
             <a
               href={`https://solscan.io/token/${token.mintAddress}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-neon-cyan bg-bg-tertiary rounded-lg transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-text-secondary hover:text-neon-cyan bg-bg-tertiary rounded-lg transition-colors"
             >
               Solscan <ExternalLinkIcon className="w-3 h-3" />
             </a>
             <a
-              href={`https://jup.ag/swap/SOL-${token.mintAddress}`}
+              href={`https://jup.ag/swap?sell=So11111111111111111111111111111111111111112&buy=${token.mintAddress}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-bg-primary bg-neon-green hover:bg-neon-green/90 rounded-lg transition-colors"
@@ -409,7 +403,7 @@ const TokenPreviewModal = ({
   );
 };
 
-// Token Card for My Coins
+// Token Card for My Coins (Responsive)
 const TokenCard = ({
   token,
   onView,
@@ -435,67 +429,72 @@ const TokenCard = ({
       whileHover={{ y: -4, transition: { duration: 0.2 } }}
     >
       <Card variant="default" padding="md" className="group hover:border-neon-green/50 transition-all duration-300">
-        <div className="flex items-start gap-4">
-          {/* Token Image */}
-          <div className="relative">
-            {token.imageUrl ? (
-              <img
-                src={token.imageUrl}
-                alt={token.name}
-                className="w-16 h-16 rounded-xl object-cover shadow-lg"
-              />
-            ) : (
-              <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-neon-green/20 to-neon-cyan/20 flex items-center justify-center">
-                <CoinsIcon className="w-8 h-8 text-neon-green" />
-              </div>
-            )}
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="absolute -bottom-1 -right-1 w-6 h-6 bg-neon-green rounded-full flex items-center justify-center shadow-lg"
-            >
-              <CheckIcon className="w-3 h-3 text-bg-primary" />
-            </motion.div>
-          </div>
-
-          {/* Token Info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-base font-bold text-text-primary truncate">
-                {token.name}
-              </h3>
-              <Badge variant="success" size="sm">
-                ${token.symbol}
-              </Badge>
-            </div>
-            <p className="text-xs text-text-muted line-clamp-2 mb-2">
-              {token.description || "No description"}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={copyMint}
-                className="flex items-center gap-1.5 text-xs font-mono text-text-muted hover:text-neon-green transition-colors"
+        <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
+          {/* Token Image + Info Row on Mobile */}
+          <div className="flex items-start gap-3 w-full sm:w-auto">
+            {/* Token Image */}
+            <div className="relative flex-shrink-0">
+              {token.imageUrl ? (
+                <img
+                  src={token.imageUrl}
+                  alt={token.name}
+                  className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl object-cover shadow-lg"
+                />
+              ) : (
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl bg-gradient-to-br from-neon-green/20 to-neon-cyan/20 flex items-center justify-center">
+                  <CoinsIcon className="w-6 h-6 sm:w-8 sm:h-8 text-neon-green" />
+                </div>
+              )}
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 bg-neon-green rounded-full flex items-center justify-center shadow-lg"
               >
-                {token.mintAddress.slice(0, 6)}...{token.mintAddress.slice(-4)}
-                {copied ? (
-                  <CheckIcon className="w-3 h-3 text-neon-green" />
-                ) : (
-                  <CopyIcon className="w-3 h-3" />
-                )}
-              </button>
-              <span className="text-xs text-text-muted">
-                {new Date(token.createdAt).toLocaleDateString()}
-              </span>
+                <CheckIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-bg-primary" />
+              </motion.div>
+            </div>
+
+            {/* Token Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-1 flex-wrap">
+                <h3 className="text-sm sm:text-base font-bold text-text-primary truncate max-w-[120px] sm:max-w-none">
+                  {token.name}
+                </h3>
+                <Badge variant="success" size="sm">
+                  ${token.symbol}
+                </Badge>
+              </div>
+              <p className="text-[10px] sm:text-xs text-text-muted line-clamp-2 mb-1.5 sm:mb-2">
+                {token.description || "No description"}
+              </p>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <button
+                  onClick={copyMint}
+                  className="flex items-center gap-1 text-[10px] sm:text-xs font-mono text-text-muted hover:text-neon-green transition-colors"
+                >
+                  <span className="hidden xs:inline">{token.mintAddress.slice(0, 6)}...{token.mintAddress.slice(-4)}</span>
+                  <span className="xs:hidden">{token.mintAddress.slice(0, 4)}...{token.mintAddress.slice(-3)}</span>
+                  {copied ? (
+                    <CheckIcon className="w-3 h-3 text-neon-green" />
+                  ) : (
+                    <CopyIcon className="w-3 h-3" />
+                  )}
+                </button>
+                <span className="text-[10px] sm:text-xs text-text-muted">
+                  {new Date(token.createdAt).toLocaleDateString()}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex flex-col gap-2">
+          {/* Actions - Always visible on mobile, hover on desktop */}
+          <div className="flex sm:flex-col gap-2 w-full sm:w-auto mt-2 sm:mt-0">
             <Button
               variant="primary"
               size="sm"
               onClick={onView}
-              className="opacity-0 group-hover:opacity-100 transition-opacity"
+              fullWidth
+              className="sm:w-auto sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
             >
               <EyeIcon className="w-4 h-4 mr-1" />
               View
@@ -1363,26 +1362,27 @@ export default function LaunchPage() {
             </Button>
           </motion.div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-text-primary">Your Tokens</h2>
-                <p className="text-sm text-text-muted">{myTokens.length} token{myTokens.length !== 1 ? 's' : ''} launched</p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="text-base sm:text-lg font-bold text-text-primary">Your Tokens</h2>
+                <p className="text-xs sm:text-sm text-text-muted">{myTokens.length} token{myTokens.length !== 1 ? 's' : ''} launched</p>
               </div>
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={fetchMyTokens}
                 disabled={tokensLoading}
+                className="flex-shrink-0"
               >
-                <RefreshIcon className={`w-4 h-4 mr-1 ${tokensLoading ? 'animate-spin' : ''}`} />
-                Refresh
+                <RefreshIcon className={`w-4 h-4 sm:mr-1 ${tokensLoading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
               </Button>
             </div>
 
             {/* Token Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
               {myTokens.map((token, index) => (
                 <TokenCard
                   key={token._id || token.mintAddress}
