@@ -70,7 +70,7 @@ export default function SwapPage() {
   const tokens = useMemo(() => {
     const tokenList = [...DEFAULT_TOKENS];
 
-    // Add SOL balance
+    // Add native SOL balance
     if (balances?.sol !== undefined) {
       const solToken = tokenList.find((t) => t.symbol === "SOL");
       if (solToken) solToken.balance = balances.sol;
@@ -79,8 +79,18 @@ export default function SwapPage() {
     // Add token balances from wallet
     if (balances?.tokens) {
       for (const token of balances.tokens) {
+        // Special case: WSOL (wrapped SOL) - same mint as SOL but from token account
+        const isWSOL = token.mint.toLowerCase() === TOKEN_MINTS.SOL.toLowerCase();
+        if (isWSOL) {
+          const wsolToken = tokenList.find((t) => t.symbol === "WSOL");
+          if (wsolToken) {
+            wsolToken.balance = token.uiAmount;
+          }
+          continue; // Don't overwrite native SOL balance
+        }
+
         const existingToken = tokenList.find(
-          (t) => t.mint.toLowerCase() === token.mint.toLowerCase()
+          (t) => t.mint.toLowerCase() === token.mint.toLowerCase() && t.symbol !== "SOL"
         );
         if (existingToken) {
           existingToken.balance = token.uiAmount;
@@ -266,6 +276,14 @@ export default function SwapPage() {
 
     // Fallback: check from balances object
     if (token.symbol === "SOL") return balances?.sol || 0;
+
+    // WSOL comes from token accounts (same mint as SOL but wrapped)
+    if (token.symbol === "WSOL") {
+      const wsolToken = balances?.tokens?.find(
+        (t) => t.mint.toLowerCase() === TOKEN_MINTS.SOL.toLowerCase()
+      );
+      return wsolToken?.uiAmount || 0;
+    }
 
     const walletToken = balances?.tokens?.find(
       (t) => t.mint.toLowerCase() === token.mint.toLowerCase()
@@ -524,18 +542,24 @@ export default function SwapPage() {
                     ?.filter((t) => t.uiAmount > 0)
                     .slice(0, 10)
                     .map((token) => {
+                      // Check if this is WSOL (same mint as SOL but from token account)
+                      const isWSOL = token.mint.toLowerCase() === TOKEN_MINTS.SOL.toLowerCase();
+
                       // Get metadata from DEFAULT_TOKENS if available
-                      const defaultToken = DEFAULT_TOKENS.find(
-                        (dt) => dt.mint.toLowerCase() === token.mint.toLowerCase()
-                      );
+                      // For WSOL, explicitly use WSOL metadata, not SOL
+                      const defaultToken = isWSOL
+                        ? DEFAULT_TOKENS.find((dt) => dt.symbol === "WSOL")
+                        : DEFAULT_TOKENS.find(
+                            (dt) => dt.mint.toLowerCase() === token.mint.toLowerCase() && dt.symbol !== "SOL"
+                          );
                       const logoURI = defaultToken?.logoURI || token.logoURI;
-                      const symbol = defaultToken?.symbol || token.symbol || "???";
+                      const symbol = isWSOL ? "WSOL" : (defaultToken?.symbol || token.symbol || "???");
                       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                      const name = defaultToken?.name || token.name || symbol;
+                      const name = isWSOL ? "Wrapped SOL" : (defaultToken?.name || token.name || symbol);
 
                       return (
                         <div
-                          key={token.mint}
+                          key={`${token.mint}-${symbol}`}
                           className="flex items-center justify-between py-2 border-b border-border-secondary last:border-0"
                         >
                           <div className="flex items-center gap-2">

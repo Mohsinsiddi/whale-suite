@@ -469,6 +469,9 @@ export default function IntelligencePage() {
                                       <span className="font-mono text-neon-green">
                                         {item.metadata.toAmount?.toFixed(2) || '?'} {item.metadata.toToken}
                                       </span>
+                                      <span className="text-text-muted">
+                                        ({formatTokenUSD(item.amount, item.metadata.fromToken)})
+                                      </span>
                                     </>
                                   ) : (
                                     <>

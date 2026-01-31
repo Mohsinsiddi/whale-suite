@@ -14,6 +14,7 @@ import { useUserStats } from '@/hooks/useUserStats';
 import { useRequireAuth } from '@/hooks/useAuth';
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch';
 import { useNetwork } from '@/hooks/useNetwork';
+import { useTokenPrices } from '@/hooks/useTokenPrices';
 import {
   CreditCard,
   Plus,
@@ -152,6 +153,7 @@ export default function ProfilePage() {
   const { stats, loading: statsLoading, rank, points, streak, refresh: refreshStats } = useUserStats();
   const { get } = useAuthenticatedFetch();
   const { network } = useNetwork();
+  const { formatUSD } = useTokenPrices();
 
   // Activity state
   const [activeTab, setActiveTab] = useState('overview');
@@ -186,12 +188,17 @@ export default function ProfilePage() {
             description = `${tx.amount?.toFixed(4) || ''} ${tx.metadata.fromToken} → ${toAmount} ${tx.metadata.toToken}`;
           }
 
+          // Calculate USD value based on token
+          const token = tx.token || 'SOL';
+          const usdValue = formatUSD(tx.amount || 0, token);
+
           return {
             id: tx._id,
             type: getType(tx.type),
             action: tx.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
             description,
             amount: tx.amount,
+            amountLabel: usdValue, // Proper USD value
             status: tx.status as ActivityItem['status'],
             timestamp: tx.createdAt,
             txSignature: tx.signature,
@@ -204,7 +211,7 @@ export default function ProfilePage() {
     } finally {
       setActivitiesLoading(false);
     }
-  }, [isAuthenticated, walletAddress, network, get]);
+  }, [isAuthenticated, walletAddress, network, get, formatUSD]);
 
   useEffect(() => {
     if (activeTab === 'activity') {

@@ -75,12 +75,17 @@ const tokenMetadataCache: Map<string, TokenMetadata> = new Map();
 
 // Known token decimals (fallback)
 const KNOWN_DECIMALS: Record<string, number> = {
-  'So11111111111111111111111111111111111111112': 9, // SOL
+  'So11111111111111111111111111111111111111111': 9, // Native SOL (Darklake)
+  'So11111111111111111111111111111111111111112': 9, // WSOL
   'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': 6, // USDC
   'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB': 6, // USDT
+  'USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB': 6, // USD1
   'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263': 5, // BONK
   'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN': 6, // JUP
   'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm': 6, // WIF
+  'jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL': 9, // JTO
+  'CzFvsLdUazabdiu9TYXujj4EY495fG7VgJJ3vQs6bonk': 9, // RADR
+  'WLFinEv6ypjkczcS83FZqFpgFZYwQXutRbxGe7oC16g': 6, // WLFI
 };
 
 class HeliusService {

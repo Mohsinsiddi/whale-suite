@@ -21,6 +21,7 @@ export interface TokenMetadata {
 export const TOKEN_MINTS = {
   // Native
   SOL: 'So11111111111111111111111111111111111111112',
+  WSOL: 'So11111111111111111111111111111111111111112', // Wrapped SOL (same mint as SOL)
   // Stablecoins
   USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
   USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
@@ -48,6 +49,17 @@ export const TOKENS: Record<string, TokenMetadata> = {
     swapEnabled: true,
     shadowWireEnabled: true,
     multiSendEnabled: true,
+  },
+  WSOL: {
+    symbol: 'WSOL',
+    name: 'Wrapped SOL',
+    icon: '◎',
+    mint: TOKEN_MINTS.WSOL,
+    decimals: 9,
+    logoURI: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
+    swapEnabled: true,       // Only for Jupiter swap
+    shadowWireEnabled: false,
+    multiSendEnabled: false,
   },
   USDC: {
     symbol: 'USDC',

@@ -471,6 +471,7 @@ export default function TransferPage() {
             txSignature: result.signature,
             transferType: privateTransferType,
             amount: parseFloat(amount),
+            token: poolToken,
             network,
           });
           if (pointsResult) {
@@ -505,6 +506,7 @@ export default function TransferPage() {
           const pointsResult = await awardPoints('standard_transfer', {
             txSignature: result.signature,
             amount: parseFloat(amount),
+            token: poolToken,
             network,
           });
           if (pointsResult) {
@@ -589,6 +591,7 @@ export default function TransferPage() {
         const pointsResult = await awardPoints('privacy_deposit', {
           txSignature: result.signature,
           amount: parseFloat(depositAmount),
+          token: poolToken,
           network,
         });
         if (pointsResult) {
@@ -657,6 +660,7 @@ export default function TransferPage() {
         const pointsResult = await awardPoints('privacy_withdraw', {
           txSignature: result.signature,
           amount: parseFloat(withdrawAmount),
+          token: poolToken,
           network,
         });
         if (pointsResult) {
