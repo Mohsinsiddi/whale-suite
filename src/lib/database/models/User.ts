@@ -28,6 +28,7 @@ export interface IProfileSettings {
     transactions: boolean;
     hiddenVolume: boolean;
     memberSince: boolean;
+    activity: boolean;
   };
 }
 
@@ -88,6 +89,7 @@ const ProfileSettingsSchema = new Schema<IProfileSettings>({
       transactions: { type: Boolean, default: false },
       hiddenVolume: { type: Boolean, default: false },
       memberSince: { type: Boolean, default: true },
+      activity: { type: Boolean, default: false },
     }, { _id: false }),
     default: () => ({
       points: true,
@@ -98,6 +100,7 @@ const ProfileSettingsSchema = new Schema<IProfileSettings>({
       transactions: false,
       hiddenVolume: false,
       memberSince: true,
+      activity: false,
     }),
   },
 }, { _id: false });

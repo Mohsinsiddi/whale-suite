@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/users/[wallet]/profile
- * Get user profile settings
+ * Get user profile settings (public endpoint for shareable profiles)
  */
 export async function GET(
   request: NextRequest,
@@ -24,9 +24,18 @@ export async function GET(
     await connectDB();
     const { wallet } = await params;
 
-    const user = await User.findOne({ wallet }).select(
-      'wallet userNumber badgeTier points privacyScore streak profile stats createdAt'
-    ).lean();
+    // Fetch user and calculate rank in parallel
+    const [user, rank] = await Promise.all([
+      User.findOne({ wallet }).select(
+        'wallet userNumber badgeTier points privacyScore streak profile stats createdAt'
+      ).lean(),
+      // Calculate rank (users with more points + 1)
+      User.findOne({ wallet }).then(async (u) => {
+        if (!u) return null;
+        const higherCount = await User.countDocuments({ points: { $gt: u.points } });
+        return higherCount + 1;
+      }),
+    ]);
 
     if (!user) {
       return NextResponse.json(
@@ -35,21 +44,36 @@ export async function GET(
       );
     }
 
+    // Get total users for percentile calculation
+    const totalUsers = await User.countDocuments();
+    const percentile = totalUsers > 0 ? Math.round(((totalUsers - (rank || 1)) / totalUsers) * 100) : 0;
+
+    // Default profile settings (merge with existing to fill missing fields)
+    const defaultVisibleStats = {
+      points: true,
+      privacyScore: true,
+      streak: true,
+      rank: true,
+      badges: true,
+      transactions: false,
+      hiddenVolume: false,
+      memberSince: true,
+      activity: false,
+    };
+
+    const profileData = {
+      isPublic: user.profile?.isPublic ?? false,
+      avatarUrl: user.profile?.avatarUrl,
+      displayName: user.profile?.displayName,
+      visibleStats: {
+        ...defaultVisibleStats,
+        ...(user.profile?.visibleStats || {}),
+      },
+    };
+
     return NextResponse.json({
       success: true,
-      profile: user.profile || {
-        isPublic: false,
-        visibleStats: {
-          points: true,
-          privacyScore: true,
-          streak: true,
-          rank: true,
-          badges: true,
-          transactions: false,
-          hiddenVolume: false,
-          memberSince: true,
-        },
-      },
+      profile: profileData,
       user: {
         wallet: user.wallet,
         userNumber: user.userNumber,
@@ -59,6 +83,10 @@ export async function GET(
         streak: user.streak,
         stats: user.stats,
         createdAt: user.createdAt,
+        // Include rank data for public profiles
+        rank: rank,
+        totalUsers: totalUsers,
+        percentile: percentile,
       },
     });
   } catch (error) {
@@ -104,7 +132,7 @@ export async function PATCH(
     }
 
     if (visibleStats && typeof visibleStats === 'object') {
-      const validStats = ['points', 'privacyScore', 'streak', 'rank', 'badges', 'transactions', 'hiddenVolume', 'memberSince'];
+      const validStats = ['points', 'privacyScore', 'streak', 'rank', 'badges', 'transactions', 'hiddenVolume', 'memberSince', 'activity'];
       for (const [key, value] of Object.entries(visibleStats)) {
         if (validStats.includes(key) && typeof value === 'boolean') {
           updateFields[`profile.visibleStats.${key}`] = value;
@@ -119,11 +147,15 @@ export async function PATCH(
       );
     }
 
+    console.log('Profile PATCH - updateFields:', JSON.stringify(updateFields));
+
     const user = await User.findOneAndUpdate(
       { wallet },
       { $set: updateFields },
       { new: true }
     ).select('profile').lean();
+
+    console.log('Profile PATCH - updated user.profile:', JSON.stringify(user?.profile));
 
     if (!user) {
       return NextResponse.json(
@@ -132,9 +164,32 @@ export async function PATCH(
       );
     }
 
+    // Merge with defaults to ensure all fields are present
+    const defaultVisibleStats = {
+      points: true,
+      privacyScore: true,
+      streak: true,
+      rank: true,
+      badges: true,
+      transactions: false,
+      hiddenVolume: false,
+      memberSince: true,
+      activity: false,
+    };
+
+    const profileData = {
+      isPublic: user.profile?.isPublic ?? false,
+      avatarUrl: user.profile?.avatarUrl,
+      displayName: user.profile?.displayName,
+      visibleStats: {
+        ...defaultVisibleStats,
+        ...(user.profile?.visibleStats || {}),
+      },
+    };
+
     return NextResponse.json({
       success: true,
-      profile: user.profile,
+      profile: profileData,
     });
   } catch (error) {
     console.error('Profile PATCH error:', error);

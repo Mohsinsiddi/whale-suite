@@ -33,13 +33,11 @@ import {
   Users,
   Sparkles,
   Flame,
-  Settings,
   Copy,
   Check,
   Globe,
   Lock,
   Eye,
-  EyeOff,
   Camera,
 } from 'lucide-react';
 
@@ -184,9 +182,10 @@ export default function ProfilePage() {
       transactions: false,
       hiddenVolume: false,
       memberSince: true,
+      activity: false,
     },
   });
-  const [profileLoading, setProfileLoading] = useState(false);
+  const [, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
@@ -198,9 +197,16 @@ export default function ProfilePage() {
     try {
       const response = await get<{ profile: typeof profileSettings }>(`/api/users/${walletAddress}/profile`);
       if (response.data?.profile) {
+        const apiProfile = response.data.profile;
         setProfileSettings(prev => ({
           ...prev,
-          ...response.data!.profile,
+          isPublic: apiProfile.isPublic ?? prev.isPublic,
+          displayName: apiProfile.displayName ?? prev.displayName,
+          avatarUrl: apiProfile.avatarUrl ?? prev.avatarUrl,
+          visibleStats: {
+            ...prev.visibleStats,
+            ...(apiProfile.visibleStats || {}),
+          },
         }));
       }
     } catch (error) {
@@ -222,7 +228,17 @@ export default function ProfilePage() {
       });
       const data = await response.json();
       if (data.success && data.profile) {
-        setProfileSettings(prev => ({ ...prev, ...data.profile }));
+        const apiProfile = data.profile;
+        setProfileSettings(prev => ({
+          ...prev,
+          isPublic: apiProfile.isPublic ?? prev.isPublic,
+          displayName: apiProfile.displayName ?? prev.displayName,
+          avatarUrl: apiProfile.avatarUrl ?? prev.avatarUrl,
+          visibleStats: {
+            ...prev.visibleStats,
+            ...(apiProfile.visibleStats || {}),
+          },
+        }));
       }
     } catch (error) {
       console.error('Failed to save profile settings:', error);
@@ -844,6 +860,7 @@ export default function ProfilePage() {
                 { id: 'memberSince', label: 'Member Since', description: 'When you joined' },
                 { id: 'transactions', label: 'Transaction Count', description: 'Total private transfers' },
                 { id: 'hiddenVolume', label: 'Hidden Volume', description: 'Total hidden USD volume' },
+                { id: 'activity', label: 'Recent Activity', description: 'Show your recent transactions' },
               ].map((stat) => (
                 <div
                   key={stat.id}
