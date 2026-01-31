@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 use inco_lightning::{
-    cpi::{self, accounts::Operation, accounts::Allow},
+    cpi::{self, accounts::Operation},
     program::IncoLightning,
     types::{Ebool, Euint128},
 };
@@ -13,16 +13,15 @@ use crate::state::{ConfidentialBadge, Config};
 ///
 /// The client must encrypt the tier value using INCO JS SDK before calling this.
 ///
-/// **IMPORTANT - TWO-STEP PROCESS:**
-/// 1. First, simulate the transaction to get handle values from logs
-/// 2. Then, derive allowance PDAs for each handle and call with remaining_accounts
+/// **WORKFLOW:**
+/// 1. Call claim_badge to create encrypted tier and proof handles
+/// 2. Call grant_access to grant decrypt permissions for the handles
 ///
 /// This instruction:
 /// 1. Converts the encrypted tier into an INCO handle
 /// 2. Pre-computes all tier comparison proofs (tier >= 1, tier >= 2, etc.)
-/// 3. Logs all handle values for client to extract
-/// 4. If remaining_accounts provided, grants decrypt permissions
-/// 5. Stores all handles in the badge account
+/// 3. Logs all handle values for debugging
+/// 4. Stores all handles in the badge account
 pub fn handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, ClaimBadge<'info>>,
     encrypted_tier_ciphertext: Vec<u8>,
@@ -103,100 +102,9 @@ pub fn handler<'info>(
     msg!("Legendary proof handle: {}", proof_legendary.0);
 
     // ============================================
-    // STEP 4: Grant decrypt permissions (if remaining_accounts provided)
+    // STEP 4: Store handles in badge account
     // ============================================
-    // Client must:
-    // 1. Simulate tx first to get handle values from logs
-    // 2. Derive allowance PDAs for each handle: PDA([handle_bytes, user_pubkey], INCO_PROGRAM)
-    // 3. Pass as remaining_accounts: [allowance_pda_0, user, allowance_pda_1, user, ...]
-
-    // We need 6 handles to allow: tier + 5 proofs
-    // Each allow needs 2 accounts: allowance_pda + allowed_address
-    // Total: 12 remaining accounts minimum
-
-    if ctx.remaining_accounts.len() >= 12 {
-        msg!("Granting decrypt permissions...");
-
-        // Allow tier handle
-        let allow_tier = CpiContext::new(
-            inco.clone(),
-            Allow {
-                allowance_account: ctx.remaining_accounts[0].clone(),
-                signer: user.to_account_info(),
-                allowed_address: ctx.remaining_accounts[1].clone(),
-                system_program: ctx.accounts.system_program.to_account_info(),
-            },
-        );
-        cpi::allow(allow_tier, encrypted_tier.0, true, user.key())?;
-
-        // Allow Bronze proof
-        let allow_bronze = CpiContext::new(
-            inco.clone(),
-            Allow {
-                allowance_account: ctx.remaining_accounts[2].clone(),
-                signer: user.to_account_info(),
-                allowed_address: ctx.remaining_accounts[3].clone(),
-                system_program: ctx.accounts.system_program.to_account_info(),
-            },
-        );
-        cpi::allow(allow_bronze, proof_bronze.0, true, user.key())?;
-
-        // Allow Silver proof
-        let allow_silver = CpiContext::new(
-            inco.clone(),
-            Allow {
-                allowance_account: ctx.remaining_accounts[4].clone(),
-                signer: user.to_account_info(),
-                allowed_address: ctx.remaining_accounts[5].clone(),
-                system_program: ctx.accounts.system_program.to_account_info(),
-            },
-        );
-        cpi::allow(allow_silver, proof_silver.0, true, user.key())?;
-
-        // Allow Gold proof
-        let allow_gold = CpiContext::new(
-            inco.clone(),
-            Allow {
-                allowance_account: ctx.remaining_accounts[6].clone(),
-                signer: user.to_account_info(),
-                allowed_address: ctx.remaining_accounts[7].clone(),
-                system_program: ctx.accounts.system_program.to_account_info(),
-            },
-        );
-        cpi::allow(allow_gold, proof_gold.0, true, user.key())?;
-
-        // Allow Diamond proof
-        let allow_diamond = CpiContext::new(
-            inco.clone(),
-            Allow {
-                allowance_account: ctx.remaining_accounts[8].clone(),
-                signer: user.to_account_info(),
-                allowed_address: ctx.remaining_accounts[9].clone(),
-                system_program: ctx.accounts.system_program.to_account_info(),
-            },
-        );
-        cpi::allow(allow_diamond, proof_diamond.0, true, user.key())?;
-
-        // Allow Legendary proof
-        let allow_legendary = CpiContext::new(
-            inco.clone(),
-            Allow {
-                allowance_account: ctx.remaining_accounts[10].clone(),
-                signer: user.to_account_info(),
-                allowed_address: ctx.remaining_accounts[11].clone(),
-                system_program: ctx.accounts.system_program.to_account_info(),
-            },
-        );
-        cpi::allow(allow_legendary, proof_legendary.0, true, user.key())?;
-
-        msg!("Decrypt permissions granted for all 6 handles");
-    } else {
-        msg!("No remaining_accounts - skipping allow (simulate mode)");
-    }
-
-    // ============================================
-    // STEP 5: Store handles in badge account
-    // ============================================
+    // NOTE: Call grant_access instruction separately to grant decrypt permissions
     badge.bump = ctx.bumps.badge;
     badge.owner = user.key();
     badge.encrypted_tier = encrypted_tier.0;

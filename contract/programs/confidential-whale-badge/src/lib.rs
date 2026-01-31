@@ -78,4 +78,16 @@ pub mod confidential_whale_badge {
     pub fn revoke_badge(ctx: Context<RevokeBadge>) -> Result<()> {
         instructions::revoke_badge::handler(ctx)
     }
+
+    /// Grant decrypt access to badge handles
+    ///
+    /// Call this after claim_badge to grant decrypt permission for the stored handles.
+    /// Requires 12 remaining_accounts: 6 allowance PDAs + 6 user pubkeys (interleaved)
+    ///
+    /// Allowance PDA derivation: PDA([handle_bytes_le_16, user_pubkey], INCO_PROGRAM_ID)
+    pub fn grant_access<'info>(
+        ctx: Context<'_, '_, 'info, 'info, GrantAccess<'info>>,
+    ) -> Result<()> {
+        instructions::grant_access::handler(ctx)
+    }
 }

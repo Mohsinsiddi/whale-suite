@@ -34,4 +34,7 @@ pub enum BadgeError {
 
     #[msg("Missing required remaining accounts for INCO allow")]
     MissingAllowAccounts,
+
+    #[msg("Insufficient remaining accounts provided")]
+    InsufficientAccounts,
 }
