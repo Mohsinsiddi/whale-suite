@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/database/mongodb';
 import { User } from '@/lib/database/models';
+import { calculatePrivacyScore, type BadgeTier } from '@/lib/points';
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,6 +29,17 @@ export async function POST(request: NextRequest) {
       if (email && !user.email) {
         user.email = email;
       }
+
+      // Recalculate privacy score on login
+      user.privacyScore = calculatePrivacyScore({
+        hiddenBalance: user.stats?.hiddenBalance,
+        privateTransfers: user.stats?.privateTransfers,
+        anonymousBets: user.stats?.anonymousBets,
+        swapVolume: user.stats?.swapVolume,
+        streak: user.streak,
+        badgeTier: (user.badgeTier || 'none') as BadgeTier,
+      });
+
       await user.save();
     } else {
       // Get the next user number

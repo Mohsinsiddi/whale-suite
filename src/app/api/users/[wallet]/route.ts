@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/database/mongodb';
 import { User } from '@/lib/database/models';
+import { calculatePrivacyScore, type BadgeTier } from '@/lib/points';
 
 interface RouteParams {
   params: Promise<{ wallet: string }>;
@@ -28,6 +29,21 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Recalculate privacy score for consistency
+    const privacyScore = calculatePrivacyScore({
+      hiddenBalance: user.stats?.hiddenBalance,
+      privateTransfers: user.stats?.privateTransfers,
+      anonymousBets: user.stats?.anonymousBets,
+      swapVolume: user.stats?.swapVolume,
+      streak: user.streak,
+      badgeTier: (user.badgeTier || 'none') as BadgeTier,
+    });
+
+    // Update in DB if changed significantly (async, don't wait)
+    if (Math.abs((user.privacyScore || 0) - privacyScore) > 5) {
+      User.updateOne({ wallet }, { privacyScore }).catch(() => {});
+    }
+
     return NextResponse.json({
       success: true,
       user: {
@@ -38,7 +54,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         badgeMint: user.badgeMint,
         isPremium: user.isPremium,
         premiumExpiry: user.premiumExpiry,
-        privacyScore: user.privacyScore,
+        privacyScore, // Use recalculated score
         stats: user.stats,
         referralCode: user.referralCode,
         referredBy: user.referredBy,
@@ -83,6 +99,21 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Recalculate privacy score after update
+    const privacyScore = calculatePrivacyScore({
+      hiddenBalance: user.stats?.hiddenBalance,
+      privateTransfers: user.stats?.privateTransfers,
+      anonymousBets: user.stats?.anonymousBets,
+      swapVolume: user.stats?.swapVolume,
+      streak: user.streak,
+      badgeTier: (user.badgeTier || 'none') as BadgeTier,
+    });
+
+    // Update in DB if changed (async, don't wait)
+    if (Math.abs((user.privacyScore || 0) - privacyScore) > 5) {
+      User.updateOne({ wallet }, { privacyScore }).catch(() => {});
+    }
+
     return NextResponse.json({
       success: true,
       user: {
@@ -93,7 +124,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         badgeMint: user.badgeMint,
         isPremium: user.isPremium,
         premiumExpiry: user.premiumExpiry,
-        privacyScore: user.privacyScore,
+        privacyScore, // Use recalculated score
         stats: user.stats,
         referralCode: user.referralCode,
         referredBy: user.referredBy,

@@ -7,7 +7,7 @@ import Button from "@/components/ui/Button";
 import { StealthRating } from "@/components/ui/Progress";
 import Badge, { TierBadge } from "@/components/ui/Badge";
 import DashboardGate from "@/components/dashboard/DashboardGate";
-import { useShadowWire, useWalletBalance, useWhaleFeed, useNetwork } from "@/hooks";
+import { useShadowWire, useWalletBalance, useWhaleFeed, useNetwork, useUserStats } from "@/hooks";
 import { usePrivacyCash } from "@/hooks/usePrivacyCash";
 import { usePNP } from "@/hooks/usePNP";
 import { useAuth } from "@/lib/privy/hooks";
@@ -26,6 +26,10 @@ function DashboardContent() {
   const { walletAddress } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState("24h");
   const [privacyCashInitLoading, setPrivacyCashInitLoading] = useState(false);
+
+  // User stats (including real privacy score)
+  const { stats: userStats } = useUserStats();
+  const privacyScore = userStats?.user?.privacyScore || 0;
 
   // Network state
   const { network, isFeatureAvailable } = useNetwork();
@@ -326,7 +330,7 @@ function DashboardContent() {
             <CardTitle>Stealth Rating</CardTitle>
           </CardHeader>
           <div className="space-y-4">
-            <StealthRating score={totalHiddenSOL > 0 ? 750 : 250} />
+            <StealthRating score={privacyScore} />
             <div className="grid grid-cols-2 gap-2 text-center">
               <div className="p-2 rounded-lg bg-bg-tertiary">
                 <div className="text-sm font-semibold text-neon-green">

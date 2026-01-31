@@ -1,44 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/database/mongodb';
 import { User, PointsHistory, Transaction, CardOrder, Referral } from '@/lib/database/models';
+import { calculatePrivacyScore, type BadgeTier } from '@/lib/points';
 
 export const dynamic = 'force-dynamic';
+
+// In-memory cache for stats (reduces DB load)
+const statsCache = new Map<string, { data: unknown; timestamp: number }>();
+const CACHE_TTL = 10000; // 10 seconds
 
 /**
  * GET /api/users/[wallet]/stats
  * Get comprehensive user stats including rank, points, activity
+ * Optimized with caching and parallel queries
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ wallet: string }> }
 ) {
   try {
-    await connectDB();
-
     const { wallet } = await params;
 
-    // Find user
+    // Check cache first
+    const cached = statsCache.get(wallet);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return NextResponse.json(cached.data, {
+        headers: {
+          'Cache-Control': 'private, max-age=10',
+          'X-Cache': 'HIT',
+        },
+      });
+    }
+
+    await connectDB();
+
+    // Find user with lean for performance
     const user = await User.findOne({ wallet }).lean();
     if (!user) {
       return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
     }
 
-    // Calculate user's rank
-    const rank = await User.countDocuments({
-      points: { $gt: user.points || 0 },
-    }) + 1;
+    // Calculate privacy score using centralized function
+    const privacyScore = calculatePrivacyScore({
+      hiddenBalance: user.stats?.hiddenBalance,
+      privateTransfers: user.stats?.privateTransfers,
+      anonymousBets: user.stats?.anonymousBets,
+      swapVolume: user.stats?.swapVolume,
+      streak: user.streak,
+      badgeTier: (user.badgeTier || 'none') as BadgeTier,
+    });
 
-    // Get total users for percentile
-    const totalUsers = await User.countDocuments({ points: { $gt: 0 } });
-    const percentile = totalUsers > 0 ? Math.round(((totalUsers - rank) / totalUsers) * 100) : 0;
+    // Update privacy score in DB if it changed significantly (async, don't wait)
+    if (Math.abs((user.privacyScore || 0) - privacyScore) > 5) {
+      User.updateOne({ wallet }, { privacyScore }).catch(() => {});
+    }
 
-    // Get recent points history
-    const recentPoints = await PointsHistory.find({ wallet })
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .lean();
-
-    // Calculate points earned today/week/month in a single aggregation
+    // Time boundaries for aggregations
     const now = new Date();
     const todayStart = new Date(now);
     todayStart.setHours(0, 0, 0, 0);
@@ -47,27 +64,43 @@ export async function GET(
     const monthStart = new Date(now);
     monthStart.setMonth(monthStart.getMonth() - 1);
 
-    // Single aggregation for all time periods
-    const pointsAggregation = await PointsHistory.aggregate([
-      { $match: { wallet, createdAt: { $gte: monthStart } } },
-      {
-        $group: {
-          _id: null,
-          totalMonth: { $sum: '$totalPoints' },
-          totalWeek: {
-            $sum: { $cond: [{ $gte: ['$createdAt', weekStart] }, '$totalPoints', 0] }
-          },
-          totalToday: {
-            $sum: { $cond: [{ $gte: ['$createdAt', todayStart] }, '$totalPoints', 0] }
+    // Run ALL queries in parallel for speed
+    const [
+      rankResult,
+      totalUsersResult,
+      recentPoints,
+      pointsAggregation,
+      transactionStats,
+      cardCount,
+      referralCount,
+    ] = await Promise.all([
+      // Rank - use index on points
+      User.countDocuments({ points: { $gt: user.points || 0 } }),
+      // Total users with points
+      User.countDocuments({ points: { $gt: 0 } }),
+      // Recent points (limit 10)
+      PointsHistory.find({ wallet })
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .select('action totalPoints createdAt')
+        .lean(),
+      // Points aggregation for time periods
+      PointsHistory.aggregate([
+        { $match: { wallet, createdAt: { $gte: monthStart } } },
+        {
+          $group: {
+            _id: null,
+            totalMonth: { $sum: '$totalPoints' },
+            totalWeek: {
+              $sum: { $cond: [{ $gte: ['$createdAt', weekStart] }, '$totalPoints', 0] },
+            },
+            totalToday: {
+              $sum: { $cond: [{ $gte: ['$createdAt', todayStart] }, '$totalPoints', 0] },
+            },
           },
         },
-      },
-    ]);
-
-    const pointsData = pointsAggregation[0] || { totalMonth: 0, totalWeek: 0, totalToday: 0 };
-
-    // Get transaction counts
-    const [transactionStats, cardCount, referralCount] = await Promise.all([
+      ]),
+      // Transaction stats
       Transaction.aggregate([
         { $match: { wallet } },
         {
@@ -78,13 +111,20 @@ export async function GET(
           },
         },
       ]),
+      // Card count
       CardOrder.countDocuments({ wallet }),
+      // Referral count
       Referral.countDocuments({ referrerWallet: wallet }),
     ]);
 
+    const rank = rankResult + 1;
+    const totalUsers = totalUsersResult;
+    const percentile = totalUsers > 0 ? Math.round(((totalUsers - rank) / totalUsers) * 100) : 0;
+    const pointsData = pointsAggregation[0] || { totalMonth: 0, totalWeek: 0, totalToday: 0 };
+
     // Build activity breakdown
     const activityBreakdown: Record<string, { count: number; amount: number }> = {};
-    transactionStats.forEach((stat) => {
+    transactionStats.forEach((stat: { _id: string; count: number; totalAmount?: number }) => {
       activityBreakdown[stat._id] = {
         count: stat.count,
         amount: stat.totalAmount || 0,
@@ -100,7 +140,7 @@ export async function GET(
         : false,
     };
 
-    return NextResponse.json({
+    const responseData = {
       success: true,
       user: {
         wallet: user.wallet,
@@ -109,7 +149,7 @@ export async function GET(
         badgeTier: user.badgeTier,
         isPremium: user.isPremium,
         premiumExpiry: user.premiumExpiry,
-        privacyScore: user.privacyScore,
+        privacyScore,
         memberSince: user.createdAt,
       },
       points: {
@@ -133,6 +173,16 @@ export async function GET(
         referrals: referralCount,
       },
       activity: activityBreakdown,
+    };
+
+    // Cache the result
+    statsCache.set(wallet, { data: responseData, timestamp: Date.now() });
+
+    return NextResponse.json(responseData, {
+      headers: {
+        'Cache-Control': 'private, max-age=10',
+        'X-Cache': 'MISS',
+      },
     });
   } catch (error) {
     console.error('User stats error:', error);

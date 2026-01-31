@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRequireAuth } from './useAuth';
+import { useStore } from '@/store';
 
 export interface UserStats {
   user: {
@@ -52,7 +53,7 @@ export interface UserStats {
 
 // Cache to prevent duplicate calls across component instances
 const statsCache: Map<string, { data: UserStats; timestamp: number }> = new Map();
-const CACHE_DURATION = 5000; // 5 seconds cache
+const CACHE_DURATION = 15000; // 15 seconds cache - matches API cache
 const pendingRequests: Map<string, Promise<UserStats | null>> = new Map();
 
 export function useUserStats() {
@@ -99,6 +100,23 @@ export function useUserStats() {
         // Update cache
         statsCache.set(targetWallet, { data, timestamp: Date.now() });
         setStats(data);
+
+        // Sync to Zustand store so Sidebar and other components stay updated
+        const store = useStore.getState();
+        if (data.user) {
+          store.setPrivacyScore(data.user.privacyScore || 0);
+          store.setBadgeTier(data.user.badgeTier || 'none');
+        }
+        if (data.stats) {
+          store.setStats({
+            hiddenBalance: data.stats.hiddenBalance || 0,
+            privateTransfers: data.stats.privateTransfers || 0,
+            anonymousBets: data.stats.anonymousBets || 0,
+            swapVolume: data.stats.swapVolume || 0,
+            activeDays: data.stats.activeDays || 0,
+          });
+        }
+
         return data as UserStats;
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Failed to fetch stats';

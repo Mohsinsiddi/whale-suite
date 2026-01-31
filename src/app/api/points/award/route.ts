@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PrivyClient } from '@privy-io/server-auth';
 import connectDB from '@/lib/database/mongodb';
 import { User, PointsHistory, Transaction, calculatePoints, POINT_VALUES } from '@/lib/database/models';
+import { calculatePrivacyScore } from '@/lib/points';
 import type { PointAction, BadgeTier, TransactionType, SdkType } from '@/lib/database/models';
 
 // Map PointAction to TransactionType (only for on-chain activities)
@@ -217,7 +218,26 @@ export async function POST(request: NextRequest) {
       if (metadata.amount) {
         user.stats.swapVolume = (user.stats.swapVolume || 0) + metadata.amount;
       }
+    } else if (action === 'pnp_bet') {
+      user.stats = user.stats || {};
+      user.stats.anonymousBets = (user.stats.anonymousBets || 0) + 1;
+    } else if (action === 'darklake_swap') {
+      user.stats = user.stats || {};
+      user.stats.privateTransfers = (user.stats.privateTransfers || 0) + 1;
+      if (metadata.amount) {
+        user.stats.swapVolume = (user.stats.swapVolume || 0) + metadata.amount;
+      }
     }
+
+    // Calculate and update privacy score (Stealth Rating) using centralized function
+    user.privacyScore = calculatePrivacyScore({
+      hiddenBalance: user.stats?.hiddenBalance,
+      privateTransfers: user.stats?.privateTransfers,
+      anonymousBets: user.stats?.anonymousBets,
+      swapVolume: user.stats?.swapVolume,
+      streak: user.streak,
+      badgeTier: (user.badgeTier || 'none') as BadgeTier,
+    });
 
     await user.save();
 

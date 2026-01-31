@@ -1,40 +1,43 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
-/**
- * Point action types and their base values
- */
-export const POINT_VALUES = {
-  privacy_deposit: 10,
-  privacy_withdraw: 5,
-  shadow_transfer: 25,
-  standard_transfer: 5,
-  jupiter_swap: 5, // per $100 volume
-  card_order: 50,
-  daily_login: 10,
-  referral: 100,
-  badge_bronze: 500,
-  badge_silver: 1000,
-  badge_gold: 2000,
-  badge_diamond: 3500,
-  badge_legendary: 5000,
-  pnp_bet: 15,
-} as const;
+// Import from centralized points config
+import {
+  POINT_ACTIONS,
+  BADGE_TIERS,
+  calculatePoints as calcPoints,
+  type PointAction,
+  type BadgeTier,
+} from '@/lib/points/config';
 
-export type PointAction = keyof typeof POINT_VALUES;
+// Re-export for backwards compatibility
+export type { PointAction, BadgeTier };
 
-/**
- * Badge multipliers for point earnings
- */
-export const BADGE_MULTIPLIERS = {
-  none: 1.0,
-  bronze: 1.25,
-  silver: 1.5,
-  gold: 1.75,
-  diamond: 2.0,
-  legendary: 2.5,
-} as const;
+// Legacy exports - derive from new config for consistency
+export const POINT_VALUES = Object.fromEntries(
+  Object.entries(POINT_ACTIONS).map(([key, value]) => [key, value.basePoints])
+) as Record<PointAction, number>;
 
-export type BadgeTier = keyof typeof BADGE_MULTIPLIERS;
+export const BADGE_MULTIPLIERS = Object.fromEntries(
+  Object.entries(BADGE_TIERS).map(([key, value]) => [key, value.multiplier])
+) as Record<BadgeTier, number>;
+
+// Re-export calculatePoints with same signature for backwards compatibility
+export function calculatePoints(
+  action: PointAction,
+  badgeTier: BadgeTier,
+  volumeMultiplier: number = 1
+): {
+  basePoints: number;
+  multiplier: number;
+  totalPoints: number;
+} {
+  const result = calcPoints(action, badgeTier, volumeMultiplier);
+  return {
+    basePoints: result.basePoints,
+    multiplier: result.multiplier,
+    totalPoints: result.totalPoints,
+  };
+}
 
 export interface IPointsHistory extends Document {
   wallet: string;
@@ -62,7 +65,7 @@ const PointsHistorySchema = new Schema<IPointsHistory>({
   action: {
     type: String,
     required: true,
-    enum: Object.keys(POINT_VALUES),
+    enum: Object.keys(POINT_ACTIONS),
     index: true,
   },
   basePoints: {
@@ -81,7 +84,7 @@ const PointsHistorySchema = new Schema<IPointsHistory>({
   },
   badgeTier: {
     type: String,
-    enum: Object.keys(BADGE_MULTIPLIERS),
+    enum: Object.keys(BADGE_TIERS),
     default: 'none',
   },
   metadata: {
@@ -95,21 +98,6 @@ const PointsHistorySchema = new Schema<IPointsHistory>({
 PointsHistorySchema.index({ wallet: 1, createdAt: -1 }); // User points history
 PointsHistorySchema.index({ createdAt: -1 }); // Global recent activity
 PointsHistorySchema.index({ wallet: 1, action: 1, createdAt: -1 }); // Action-specific queries
-
-/**
- * Calculate points for an action with badge multiplier
- */
-export function calculatePoints(action: PointAction, badgeTier: BadgeTier, volumeMultiplier: number = 1): {
-  basePoints: number;
-  multiplier: number;
-  totalPoints: number;
-} {
-  const basePoints = POINT_VALUES[action] * volumeMultiplier;
-  const multiplier = BADGE_MULTIPLIERS[badgeTier];
-  const totalPoints = Math.floor(basePoints * multiplier);
-
-  return { basePoints, multiplier, totalPoints };
-}
 
 const PointsHistory: Model<IPointsHistory> =
   mongoose.models.PointsHistory || mongoose.model<IPointsHistory>('PointsHistory', PointsHistorySchema);

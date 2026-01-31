@@ -6,6 +6,7 @@ import Header from "./Header";
 import Sidebar from "./Sidebar";
 import { useAuth } from "@/lib/privy/hooks";
 import { useWalletChange } from "@/hooks/useWalletChange";
+import { useUserStats } from "@/hooks/useUserStats";
 import { useUI } from "@/store";
 
 // Sync with sidebar's values
@@ -58,6 +59,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   // Handle wallet changes (only if authenticated)
   useWalletChange();
+
+  // Fetch user stats and sync to store (keeps Sidebar privacy score updated)
+  useUserStats();
 
   // Calculate sidebar width
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;

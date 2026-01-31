@@ -90,6 +90,10 @@ export async function GET(request: NextRequest) {
         hasMore: offset + limit < total,
       },
       period,
+    }, {
+      headers: {
+        'Cache-Control': 'private, max-age=30', // 30 seconds cache for leaderboard
+      },
     });
   } catch (error) {
     console.error('Leaderboard API error:', error);
