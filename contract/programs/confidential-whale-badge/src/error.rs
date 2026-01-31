@@ -37,4 +37,41 @@ pub enum BadgeError {
 
     #[msg("Insufficient remaining accounts provided")]
     InsufficientAccounts,
+
+    // ============================================
+    // PRIVATE PAYMENT ERRORS
+    // ============================================
+
+    #[msg("Payment amount must be greater than zero")]
+    InvalidPaymentAmount,
+
+    #[msg("Payment has already been claimed")]
+    PaymentAlreadyClaimed,
+
+    #[msg("Payment is not active")]
+    PaymentNotActive,
+
+    #[msg("Payment has expired")]
+    PaymentExpired,
+
+    #[msg("Payment has not expired yet, cannot cancel")]
+    PaymentNotExpired,
+
+    #[msg("Claim has not been initiated")]
+    ClaimNotInitiated,
+
+    #[msg("Claim has already been initiated")]
+    ClaimAlreadyInitiated,
+
+    #[msg("Invalid claimer - not the address that initiated claim")]
+    InvalidClaimer,
+
+    #[msg("Payment is in pending status, waiting for finalization")]
+    PaymentPending,
+
+    #[msg("Only sender can cancel the payment")]
+    OnlySenderCanCancel,
+
+    #[msg("Insufficient funds in escrow")]
+    InsufficientEscrowFunds,
 }

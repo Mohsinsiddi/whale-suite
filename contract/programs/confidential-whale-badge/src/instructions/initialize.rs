@@ -19,7 +19,15 @@ pub fn handler(ctx: Context<Initialize>) -> Result<()> {
     config.is_initialized = true;
     config.bump = ctx.bumps.config;
 
+    // Set default tier prices
+    config.price_bronze = Config::DEFAULT_PRICE_BRONZE;
+    config.price_silver = Config::DEFAULT_PRICE_SILVER;
+    config.price_gold = Config::DEFAULT_PRICE_GOLD;
+    config.price_diamond = Config::DEFAULT_PRICE_DIAMOND;
+    config.price_legendary = Config::DEFAULT_PRICE_LEGENDARY;
+
     msg!("Config initialized by admin: {}", config.admin);
+    msg!("Tier prices: Bronze=0.1, Silver=0.2, Gold=0.3, Diamond=0.4, Legendary=0.5 SOL");
 
     Ok(())
 }

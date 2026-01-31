@@ -10,6 +10,13 @@ pub struct ConfidentialBadge {
     /// Current owner of the badge
     pub owner: Pubkey,
 
+    /// Tier level (1-5) - stored for reference
+    /// The actual tier is hidden via encrypted proofs
+    pub tier: u8,
+
+    /// Amount paid for this badge (in lamports)
+    pub amount_paid: u64,
+
     // ============================================
     // INCO ENCRYPTED DATA (handles, not values!)
     // These are u128 handles pointing to encrypted
@@ -55,6 +62,8 @@ impl ConfidentialBadge {
     pub const SIZE: usize = 8 +     // discriminator
         1 +         // bump
         32 +        // owner (Pubkey)
+        1 +         // tier (u8)
+        8 +         // amount_paid (u64)
         16 +        // encrypted_tier (u128)
         16 +        // proof_bronze (u128)
         16 +        // proof_silver (u128)

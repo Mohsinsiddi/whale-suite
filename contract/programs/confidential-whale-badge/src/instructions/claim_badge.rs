@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_lang::system_program;
 
 use inco_lightning::{
     cpi::{self, accounts::Operation},
@@ -7,23 +8,27 @@ use inco_lightning::{
 };
 
 use crate::constants::{BADGE_SEED, CONFIG_SEED};
+use crate::error::BadgeError;
 use crate::state::{ConfidentialBadge, Config};
 
-/// Claim a confidential badge
+/// Claim a confidential badge with payment
 ///
 /// The client must encrypt the tier value using INCO JS SDK before calling this.
 ///
 /// **WORKFLOW:**
-/// 1. Call claim_badge to create encrypted tier and proof handles
-/// 2. Call grant_access to grant decrypt permissions for the handles
+/// 1. Pay SOL to claim a tier (0.1-0.5 SOL based on tier)
+/// 2. Call claim_badge with payment + encrypted tier
+/// 3. Call grant_access to grant decrypt permissions
 ///
-/// This instruction:
-/// 1. Converts the encrypted tier into an INCO handle
-/// 2. Pre-computes all tier comparison proofs (tier >= 1, tier >= 2, etc.)
-/// 3. Logs all handle values for debugging
-/// 4. Stores all handles in the badge account
+/// **Tier Prices (admin configurable):**
+/// - Bronze (1): 0.1 SOL
+/// - Silver (2): 0.2 SOL
+/// - Gold (3): 0.3 SOL
+/// - Diamond (4): 0.4 SOL
+/// - Legendary (5): 0.5 SOL
 pub fn handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, ClaimBadge<'info>>,
+    requested_tier: u8,              // Tier user wants (1-5)
     encrypted_tier_ciphertext: Vec<u8>,
     encrypted_threshold_1: Vec<u8>,  // Encrypted "1" (Bronze threshold)
     encrypted_threshold_2: Vec<u8>,  // Encrypted "2" (Silver threshold)
@@ -34,11 +39,35 @@ pub fn handler<'info>(
     let badge = &mut ctx.accounts.badge;
     let config = &mut ctx.accounts.config;
     let user = &ctx.accounts.user;
+    let treasury = &ctx.accounts.treasury;
     let inco = ctx.accounts.inco_lightning_program.to_account_info();
 
     // Get current timestamp
     let clock = Clock::get()?;
     let now = clock.unix_timestamp;
+
+    // ============================================
+    // STEP 0: Validate tier and process payment
+    // ============================================
+    require!(requested_tier >= 1 && requested_tier <= 5, BadgeError::InvalidTier);
+
+    let required_price = config.get_tier_price(requested_tier);
+    msg!("Requested tier: {}, Price: {} lamports", requested_tier, required_price);
+
+    // Transfer SOL from user to treasury
+    let cpi_context = CpiContext::new(
+        ctx.accounts.system_program.to_account_info(),
+        system_program::Transfer {
+            from: user.to_account_info(),
+            to: treasury.to_account_info(),
+        },
+    );
+    system_program::transfer(cpi_context, required_price)?;
+    msg!("Payment of {} lamports sent to treasury", required_price);
+
+    // Store the tier and payment amount in badge (for reference)
+    badge.tier = requested_tier;
+    badge.amount_paid = required_price;
 
     // ============================================
     // STEP 1: Convert encrypted tier to INCO handle
@@ -134,6 +163,14 @@ pub struct ClaimBadge<'info> {
     /// User claiming the badge
     #[account(mut)]
     pub user: Signer<'info>,
+
+    /// Treasury account to receive payment
+    /// CHECK: Validated against config.treasury
+    #[account(
+        mut,
+        constraint = treasury.key() == config.treasury @ BadgeError::Unauthorized
+    )]
+    pub treasury: AccountInfo<'info>,
 
     /// Global config account
     #[account(

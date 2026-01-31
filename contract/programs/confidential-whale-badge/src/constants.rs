@@ -18,6 +18,11 @@ pub const MAX_TIER: u8 = TIER_LEGENDARY;
 /// PDA Seeds
 pub const CONFIG_SEED: &[u8] = b"config";
 pub const BADGE_SEED: &[u8] = b"badge";
+pub const PAYMENT_SEED: &[u8] = b"payment";
+pub const ESCROW_SEED: &[u8] = b"escrow";
+
+/// Default payment expiry (7 days in seconds)
+pub const DEFAULT_PAYMENT_EXPIRY: i64 = 7 * 24 * 60 * 60;
 
 /// Account sizes (for rent calculation)
 pub const CONFIG_SIZE: usize = 8 + // discriminator
