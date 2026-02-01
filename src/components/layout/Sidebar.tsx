@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ReactNode, useMemo, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TierBadge } from "../ui/Badge";
+import { WalletAvatar } from "../ui/Avatar";
 import WhaleLogo from "../ui/WhaleLogo";
 import NetworkSelectModal from "../ui/NetworkSelectModal";
 import { useUser, useWallet } from "@/store";
@@ -313,6 +314,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           balance={balance}
           balanceLoading={balanceLoading}
           hiddenBalance={hiddenBalance}
+          walletAddress={walletAddress}
         />
       </aside>
 
@@ -346,6 +348,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             badgeTier={badgeTier}
             shortWallet={shortWallet}
             privacyScore={privacyScore}
+            walletAddress={walletAddress}
           />
         </div>
 
@@ -681,32 +684,16 @@ function UserCardWithTooltip({
   userNumber,
   badgeTier,
   shortWallet,
+  walletAddress,
 }: {
   isCollapsed: boolean;
   userNumber: number | null;
   badgeTier: string;
   shortWallet: string;
   privacyScore: number;
+  walletAddress: string | null;
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
-
-  // Get badge initial and color
-  const getBadgeDisplay = () => {
-    if (badgeTier === 'none' || !badgeTier) return { initial: 'W', color: 'from-neon-green to-neon-cyan' };
-    const colors: Record<string, string> = {
-      bronze: 'from-amber-600 to-amber-400',
-      silver: 'from-gray-400 to-gray-200',
-      gold: 'from-yellow-500 to-yellow-300',
-      diamond: 'from-cyan-400 to-blue-300',
-      legendary: 'from-purple-500 to-pink-400',
-    };
-    return {
-      initial: badgeTier.charAt(0).toUpperCase(),
-      color: colors[badgeTier] || 'from-neon-green to-neon-cyan'
-    };
-  };
-
-  const { initial, color } = getBadgeDisplay();
 
   if (isCollapsed) {
     return (
@@ -715,16 +702,20 @@ function UserCardWithTooltip({
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
       >
-        {/* Collapsed Avatar */}
-        <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center text-bg-primary font-bold text-base shadow-md cursor-pointer hover:scale-105 transition-transform`}>
-          {initial}
+        {/* Collapsed Avatar - Using WalletAvatar */}
+        <div className="cursor-pointer hover:scale-105 transition-transform">
+          <WalletAvatar
+            address={walletAddress || "0x0000"}
+            size="lg"
+            showAddress={false}
+          />
         </div>
 
         {/* Simple Tooltip */}
         {showTooltip && (
           <div className="fixed left-[92px] z-[100] bg-bg-elevated border border-border-primary rounded-lg shadow-xl py-2 px-3 whitespace-nowrap">
             <p className="text-sm font-medium text-text-primary">
-              {userNumber ? `Whale #${userNumber}` : 'Loading...'}
+              {userNumber ? `Whale #${userNumber}` : 'New Whale'}
             </p>
             <p className="text-xs text-text-muted font-mono">{shortWallet}</p>
             {badgeTier && badgeTier !== 'none' && (
@@ -740,12 +731,14 @@ function UserCardWithTooltip({
   return (
     <div className="p-3 rounded-xl bg-gradient-to-br from-bg-tertiary to-bg-elevated border border-border-primary hover:border-neon-green/30 transition-colors">
       <div className="flex items-center gap-3 mb-2">
-        <div className={`flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br ${color} flex items-center justify-center text-bg-primary font-bold text-sm shadow-md`}>
-          {initial}
-        </div>
+        <WalletAvatar
+          address={walletAddress || "0x0000"}
+          size="lg"
+          showAddress={false}
+        />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-text-primary truncate">
-            {userNumber ? `Whale #${userNumber}` : 'Loading...'}
+            {userNumber ? `Whale #${userNumber}` : 'New Whale'}
           </p>
           <p className="text-xs text-text-muted font-mono">{shortWallet}</p>
         </div>
@@ -773,6 +766,7 @@ function MobileSidebarContent({
   balance,
   balanceLoading,
   hiddenBalance,
+  walletAddress,
 }: {
   navGroups: NavGroup[];
   channelData: { hub: NavItem; joined: NavItem[]; comingSoon: NavItem[] };
@@ -789,6 +783,7 @@ function MobileSidebarContent({
   balance: number;
   balanceLoading: boolean;
   hiddenBalance: number;
+  walletAddress: string | null;
 }) {
   const [showNetworkModal, setShowNetworkModal] = useState(false);
   const [mobileChannelsExpanded, setMobileChannelsExpanded] = useState(true);
@@ -809,12 +804,14 @@ function MobileSidebarContent({
       <div className="p-4">
         <div className="p-3 rounded-xl bg-gradient-to-br from-bg-tertiary to-bg-elevated border border-border-primary">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-green to-neon-cyan flex items-center justify-center text-bg-primary font-bold text-sm">
-              {badgeTier !== 'none' ? badgeTier.charAt(0).toUpperCase() : 'W'}
-            </div>
+            <WalletAvatar
+              address={walletAddress || "0x0000"}
+              size="lg"
+              showAddress={false}
+            />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-text-primary truncate">
-                {userNumber ? `Whale #${userNumber}` : 'Loading...'}
+                {userNumber ? `Whale #${userNumber}` : 'New Whale'}
               </p>
               <p className="text-xs text-text-muted font-mono">{shortWallet}</p>
             </div>

@@ -5,7 +5,6 @@ import Image from "next/image";
 import {
   generateAvatarGradient,
   generateIdenticonSVG,
-  getAddressInitials,
   truncateAddress,
   getCloudinaryTransformedUrl,
 } from "@/lib/utils/avatar";
@@ -267,41 +266,61 @@ export function AddressAvatar({
   );
 }
 
-// Legacy Wallet Avatar (for backwards compatibility)
+// Legacy Wallet Avatar (for backwards compatibility) - Now uses identicon
 interface WalletAvatarProps {
   address: string;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   showAddress?: boolean;
   onClick?: () => void;
 }
 
 export function WalletAvatar({ address, size = "md", showAddress = true, onClick }: WalletAvatarProps) {
-  const truncated = truncateAddress(address);
-
-  // Generate a consistent color based on address
-  const gradient = useMemo(() => generateAvatarGradient(address), [address]);
-  const initials = useMemo(() => getAddressInitials(address), [address]);
+  const safeAddress = address || "0x0000000000000000";
+  const truncated = truncateAddress(safeAddress);
 
   const sizeClasses = {
-    sm: "w-6 h-6 text-[10px]",
-    md: "w-8 h-8 text-xs",
-    lg: "w-10 h-10 text-sm",
+    xs: "w-5 h-5",
+    sm: "w-6 h-6",
+    md: "w-8 h-8",
+    lg: "w-10 h-10",
   };
+
+  const pixelSizes = {
+    xs: 20,
+    sm: 24,
+    md: 32,
+    lg: 40,
+  };
+
+  // Generate identicon SVG
+  const identiconUrl = useMemo(
+    () => generateIdenticonSVG(safeAddress, pixelSizes[size]),
+    [safeAddress, size]
+  );
+
+  const gradient = useMemo(() => generateAvatarGradient(safeAddress), [safeAddress]);
 
   return (
     <div
-      className={`flex items-center gap-2 ${onClick ? "cursor-pointer" : ""}`}
+      className={`flex items-center gap-2 ${onClick ? "cursor-pointer hover:opacity-90 transition-opacity" : ""}`}
       onClick={onClick}
     >
       <div
         className={`
           ${sizeClasses[size]}
-          rounded-full flex items-center justify-center
-          font-bold text-white
+          rounded-full overflow-hidden
+          ring-2 ring-bg-tertiary
+          relative
         `}
         style={{ background: gradient }}
       >
-        {initials}
+        <Image
+          src={identiconUrl}
+          alt={`Avatar for ${truncated}`}
+          fill
+          className="object-cover"
+          unoptimized
+        />
       </div>
       {showAddress && (
         <span className="text-xs text-text-secondary font-mono">{truncated}</span>
