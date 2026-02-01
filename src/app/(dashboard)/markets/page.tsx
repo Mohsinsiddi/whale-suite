@@ -9,8 +9,12 @@ import Input, { SearchInput } from "@/components/ui/Input";
 import Modal, { SuccessModal, TransactionModal } from "@/components/ui/Modal";
 import { usePNP, MarketCategory, CreateMarketParams } from "@/hooks/usePNP";
 import { usePoints } from "@/hooks";
+import { useWalletBalances } from "@/hooks/useHelius";
 import { PNPMarket } from "@/lib/privacy-sdks/pnp";
 import LearnMoreLink from "@/components/ui/LearnMoreLink";
+
+// USDC mint address on mainnet
+const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 // Loading skeleton component
 function MarketSkeleton() {
@@ -71,6 +75,14 @@ export default function MarketsPage() {
   } = usePNP();
   const { awardPoints } = usePoints();
 
+  // Fetch user's token balances including USDC
+  const { balances: walletBalances, loading: balancesLoading } = useWalletBalances(walletAddress);
+
+  // Extract USDC balance from wallet balances
+  const usdcBalance = walletBalances?.tokens.find(
+    t => t.mint === USDC_MINT
+  )?.uiAmount || 0;
+
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showMyMarkets, setShowMyMarkets] = useState(false);
@@ -108,6 +120,9 @@ export default function MarketsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState(false);
   const [lastCreatedMarket, setLastCreatedMarket] = useState<{ market: string; signature?: string } | null>(null);
+
+  // Minimum liquidity required to create a market
+  const minLiquidityRequired = 1; // 1 USDC minimum
 
   // Fetch markets on mount and when category changes
   useEffect(() => {
@@ -281,6 +296,19 @@ export default function MarketsPage() {
       return;
     }
 
+    // Check USDC balance for buy trades
+    if (tradeMode === "buy" && amount > usdcBalance) {
+      setTradeError(`Insufficient USDC balance. You have $${usdcBalance.toFixed(2)} USDC`);
+      return;
+    }
+
+    // Validate decimal precision (max 6 decimals for USDC)
+    const decimalPlaces = tradeAmount.includes('.') ? tradeAmount.split('.')[1].length : 0;
+    if (decimalPlaces > 6) {
+      setTradeError("Maximum 6 decimal places allowed");
+      return;
+    }
+
     // Check sell amount doesn't exceed balance
     if (tradeMode === "sell") {
       const maxSellable = tradeSide === "yes" ? tokenBalances.yesBalance : tokenBalances.noBalance;
@@ -415,8 +443,14 @@ export default function MarketsPage() {
     }
 
     const liquidity = parseFloat(createLiquidity);
-    if (isNaN(liquidity) || liquidity < 1) {
-      setCreateError("Initial liquidity must be at least 1 USDC");
+    if (isNaN(liquidity) || liquidity < minLiquidityRequired) {
+      setCreateError(`Initial liquidity must be at least ${minLiquidityRequired} USDC`);
+      return;
+    }
+
+    // Check if user has enough USDC for initial liquidity
+    if (liquidity > usdcBalance) {
+      setCreateError(`Insufficient USDC. You have $${usdcBalance.toFixed(2)}, need $${liquidity.toFixed(2)}`);
       return;
     }
 
@@ -550,13 +584,24 @@ export default function MarketsPage() {
       </div>
 
       {/* Global Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         {[
           { label: "Total Markets", value: stats.totalCount.toLocaleString(), highlight: true },
           { label: "V2 AMM", value: stats.v2Count.toLocaleString() },
           { label: "P2P Markets", value: stats.p2pCount.toLocaleString() },
           { label: "Loaded", value: `${stats.loadedCount}/${category === "v2" ? stats.v2Count : category === "p2p" ? stats.p2pCount : stats.totalCount}` },
           { label: "Status", value: error ? "Error" : loading ? "Loading..." : "Connected", positive: !error && !loading },
+          {
+            label: "USDC Balance",
+            value: walletConnected
+              ? balancesLoading
+                ? "..."
+                : `$${usdcBalance.toFixed(2)}`
+              : "---",
+            positive: usdcBalance > 0,
+            highlight: walletConnected && usdcBalance > 0,
+            icon: walletConnected ? "💵" : undefined
+          },
           {
             label: "Wallet",
             value: walletConnected ? `${walletAddress?.slice(0, 4)}...${walletAddress?.slice(-4)}` : "Not Connected",
@@ -931,11 +976,41 @@ export default function MarketsPage() {
                   </button>
                 </div>
 
+                {/* USDC Balance Display for Buy Mode */}
+                {tradeMode === "buy" && walletConnected && (
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-neon-cyan/5 to-neon-green/5 border border-neon-cyan/20">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-muted">Available USDC</span>
+                      <span className={`text-sm font-bold ${usdcBalance > 0 ? 'text-neon-green' : 'text-text-muted'}`}>
+                        {balancesLoading ? '...' : `$${usdcBalance.toFixed(2)}`}
+                      </span>
+                    </div>
+                    {usdcBalance === 0 && !balancesLoading && (
+                      <p className="text-xs text-warning mt-1">
+                        You need USDC to place trades. Swap SOL for USDC first.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs text-text-secondary">
                       {tradeMode === "buy" ? "Amount (USDC)" : "Token Amount"}
                     </label>
+                    {tradeMode === "buy" && usdcBalance > 0 && (
+                      <button
+                        onClick={() => {
+                          // Leave 0.01 USDC for fees/rounding
+                          const maxBuy = Math.max(0, usdcBalance - 0.01);
+                          setTradeAmount(maxBuy.toFixed(2));
+                        }}
+                        className="text-xs text-neon-cyan hover:text-neon-green transition-colors"
+                        disabled={balancesLoading}
+                      >
+                        Max: ${usdcBalance.toFixed(2)}
+                      </button>
+                    )}
                     {tradeMode === "sell" && (
                       <button
                         onClick={() => {
@@ -1067,7 +1142,11 @@ export default function MarketsPage() {
       <SuccessModal
         isOpen={showSuccess}
         onClose={() => setShowSuccess(false)}
-        title={lastTrade?.mode === "sell" ? "Sell Complete!" : lastTrade?.mode === "redeem" ? "Redeem Complete!" : "Trade Submitted!"}
+        title={
+          lastTrade?.mode === "sell" ? "Sell Complete!"
+          : lastTrade?.mode === "redeem" ? "Redeem Complete!"
+          : "Trade Submitted!"
+        }
         message={
           lastTrade
             ? lastTrade.mode === "sell"
@@ -1214,6 +1293,7 @@ export default function MarketsPage() {
               )}
             </div>
 
+            {/* Warning for invalid token mints */}
             {/* Actions */}
             <div className="flex gap-2">
               <Button
@@ -1291,21 +1371,49 @@ export default function MarketsPage() {
             </p>
           </div>
 
+          {/* USDC Balance Display */}
+          {walletConnected && (
+            <div className="p-3 rounded-xl bg-gradient-to-r from-neon-cyan/5 to-neon-green/5 border border-neon-cyan/20">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">Your USDC Balance</span>
+                <span className={`text-sm font-bold ${usdcBalance > 0 ? 'text-neon-green' : 'text-text-muted'}`}>
+                  {balancesLoading ? '...' : `$${usdcBalance.toFixed(2)}`}
+                </span>
+              </div>
+              {usdcBalance === 0 && !balancesLoading && (
+                <p className="text-xs text-warning mt-1">
+                  You need USDC to create markets. Swap SOL for USDC first.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Initial Liquidity */}
           <div>
-            <label className="block text-xs text-text-secondary mb-1">
-              Initial Liquidity (USDC)
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs text-text-secondary">
+                Initial Liquidity (USDC)
+              </label>
+              {usdcBalance > 0 && (
+                <button
+                  onClick={() => setCreateLiquidity(Math.floor(usdcBalance).toString())}
+                  className="text-xs text-neon-cyan hover:text-neon-green transition-colors"
+                  disabled={balancesLoading}
+                >
+                  Max: ${usdcBalance.toFixed(0)}
+                </button>
+              )}
+            </div>
             <Input
               type="number"
               value={createLiquidity}
               onChange={(e) => setCreateLiquidity(e.target.value)}
-              placeholder="100"
-              min="1"
+              placeholder={minLiquidityRequired.toString()}
+              min={minLiquidityRequired.toString()}
               step="1"
             />
             <p className="text-xs text-text-muted mt-1">
-              Minimum 1 USDC. Higher liquidity = less slippage for traders
+              Minimum {minLiquidityRequired} USDC. Higher liquidity = less slippage for traders
             </p>
           </div>
 
