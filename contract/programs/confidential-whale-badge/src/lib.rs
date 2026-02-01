@@ -56,8 +56,17 @@ pub mod confidential_whale_badge {
     }
 
     /// Upgrade tier when user buys a higher badge on mainnet
+    ///
+    /// User must pay the full price for the new tier.
+    /// Only proofs up to the NEW PAID tier are computed.
+    ///
+    /// **Parameters:**
+    /// - new_tier: The tier to upgrade to (1-5, must be > current)
+    /// - encrypted_tier_ciphertext: User's actual tier encrypted via INCO
+    /// - encrypted_threshold_1-5: Constants 1,2,3,4,5 encrypted
     pub fn upgrade_tier<'info>(
         ctx: Context<'_, '_, 'info, 'info, UpgradeTier<'info>>,
+        new_tier: u8,
         encrypted_tier_ciphertext: Vec<u8>,
         encrypted_threshold_1: Vec<u8>,
         encrypted_threshold_2: Vec<u8>,
@@ -67,6 +76,7 @@ pub mod confidential_whale_badge {
     ) -> Result<()> {
         instructions::upgrade_tier::handler(
             ctx,
+            new_tier,
             encrypted_tier_ciphertext,
             encrypted_threshold_1,
             encrypted_threshold_2,

@@ -6,3 +6,11 @@ export { default as WhaleFeed, type IWhaleFeed, type WhaleFeedEventType } from '
 export { default as CardOrder, type ICardOrder } from './CardOrder';
 export { default as PointsHistory, type IPointsHistory, type PointAction, type BadgeTier, POINT_VALUES, BADGE_MULTIPLIERS, calculatePoints } from './PointsHistory';
 export { default as MultiSendBatch, type IMultiSendBatch, type IMultiSendRecipient, type MultiSendStatus, type TokenType } from './MultiSendBatch';
+
+// Confidential Badge & Channels System
+export { default as ConfidentialBadge, type IConfidentialBadge, type IProofHandles } from './ConfidentialBadge';
+export { default as Channel, type IChannel, DEFAULT_CHANNELS } from './Channel';
+export { default as ChannelMembership, type IChannelMembership, generateAnonId } from './ChannelMembership';
+export { default as ChannelMessage, type IChannelMessage, type IActivityData, type MessageContentType } from './ChannelMessage';
+export { default as PrivatePayment, type IPrivatePayment, type PaymentStatus } from './PrivatePayment';
+export { default as Follow, type IFollow, getFollowerCount, getFollowingCount, isFollowing } from './Follow';

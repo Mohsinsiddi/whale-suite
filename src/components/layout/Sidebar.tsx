@@ -10,6 +10,7 @@ import NetworkSelectModal from "../ui/NetworkSelectModal";
 import { useUser, useWallet } from "@/store";
 import { useNetwork, type FeatureKey } from "@/hooks/useNetwork";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { useConfidentialBadge } from "@/hooks/useConfidentialBadge";
 import { useAuth } from "@/lib/privy/hooks";
 
 interface SidebarProps {
@@ -45,6 +46,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const { network, rpcPing, isFeatureAvailable } = useNetwork();
   const { walletAddress } = useAuth();
   const { balance, loading: balanceLoading } = useWalletBalance(walletAddress);
+  const { badge: confidentialBadge } = useConfidentialBadge();
 
   // Collapsed state for desktop toggle - default to false (expanded)
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -73,6 +75,49 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     ? `${wallet.slice(0, 4)}...${wallet.slice(-4)}`
     : "...";
 
+  // Generate channel items based on badge status
+  const getChannelItems = useCallback((): NavItem[] => {
+    // If badge not claimed, show claim badge item
+    if (!confidentialBadge?.hasClaimed) {
+      return [
+        { href: "/channels", icon: <ChannelsIcon />, label: "Claim Badge to Unlock", badge: "🔒", badgeColor: "warning" },
+      ];
+    }
+
+    // Show channels based on tier
+    const userTier = confidentialBadge.tier || 0;
+    const channels: NavItem[] = [];
+
+    // Channel definitions
+    const channelDefs = [
+      { tier: 1, href: "/channels/bronze-lounge", icon: "🥉", label: "Bronze Lounge" },
+      { tier: 2, href: "/channels/silver-circle", icon: "🥈", label: "Silver Circle" },
+      { tier: 3, href: "/channels/gold-vault", icon: "🥇", label: "Gold Vault" },
+      { tier: 4, href: "/channels/diamond-den", icon: "💎", label: "Diamond Den" },
+      { tier: 5, href: "/channels/legendary-council", icon: "👑", label: "Legendary Council" },
+    ];
+
+    for (const ch of channelDefs) {
+      if (userTier >= ch.tier) {
+        channels.push({
+          href: ch.href,
+          icon: <span className="text-sm">{ch.icon}</span>,
+          label: ch.label,
+        });
+      } else {
+        channels.push({
+          href: ch.href,
+          icon: <span className="text-sm opacity-50">{ch.icon}</span>,
+          label: ch.label,
+          badge: "🔒",
+          badgeColor: "warning",
+        });
+      }
+    }
+
+    return channels;
+  }, [confidentialBadge]);
+
   // Sort items within each group: available first, then unavailable
   const navGroups = useMemo(() => {
     const baseNavGroups: NavGroup[] = [
@@ -89,8 +134,13 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           { href: "/transfer", icon: <GhostIcon />, label: "Ghost Send", featureKey: 'shadow-wire' },
           { href: "/swap", icon: <SwapIcon />, label: "Jupiter Swap", featureKey: 'jupiter-swap' },
           { href: "/private-swap", icon: <PrivateSwapIcon />, label: "Private Swap", badge: "ZK", badgeColor: "cyan", featureKey: 'darklake' },
+          { href: "/private-payments", icon: <LockIcon />, label: "Private Payments", badge: "INCO", badgeColor: "cyan", featureKey: 'private-payments' as FeatureKey },
           { href: "/dark-pool", icon: <DarkPoolIcon />, label: "Dark Pool", badge: "Beta", badgeColor: "warning", featureKey: 'dark-pool' },
         ],
+      },
+      {
+        title: "Channels",
+        items: getChannelItems(),
       },
       {
         title: "Predictions",
@@ -143,7 +193,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       }),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [network]);
+  }, [network, getChannelItems]);
 
   const bottomItems = [
     { href: "/profile", icon: <ProfileIcon />, label: "Profile" },
@@ -994,5 +1044,17 @@ const RocketIcon = () => (
 const DocsIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+  </svg>
+);
+
+const LockIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+  </svg>
+);
+
+const ChannelsIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
   </svg>
 );

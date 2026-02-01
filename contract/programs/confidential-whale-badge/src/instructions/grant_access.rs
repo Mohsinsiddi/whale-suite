@@ -42,7 +42,7 @@ pub fn handler<'info>(ctx: Context<'_, '_, 'info, 'info, GrantAccess<'info>>) ->
         BadgeError::InsufficientAccounts
     );
 
-    msg!("Granting decrypt permissions for badge handles...");
+    msg!("Granting decrypt permissions for all 6 badge handles...");
 
     // Allow tier handle
     let allow_tier = CpiContext::new(

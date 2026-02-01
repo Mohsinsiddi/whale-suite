@@ -35,6 +35,11 @@ export const FEATURE_NETWORK_SUPPORT = {
   // StarPay Virtual Cards (mainnet only)
   "virtual-cards": { mainnet: true, devnet: false, label: "Virtual Cards" },
 
+  // INCO Confidential Badge & Channels System
+  "confidential-badge": { mainnet: false, devnet: true, label: "Confidential Badge" },
+  "channels": { mainnet: true, devnet: true, label: "Private Channels" },
+  "private-payments": { mainnet: false, devnet: true, label: "Private Payments" },
+
   // Coming soon - will be enabled as SDKs are integrated
   // "arcium": { mainnet: false, devnet: true, label: "Arcium (Coming Soon)" },
   // "inco": { mainnet: false, devnet: true, label: "Inco Network (Coming Soon)" },

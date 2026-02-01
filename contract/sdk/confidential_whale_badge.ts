@@ -1108,7 +1108,11 @@ export type ConfidentialWhaleBadge = {
       "name": "confidentialBadge",
       "docs": [
         "Confidential Whale Badge Account",
-        "Stores encrypted tier and pre-computed proofs using INCO Lightning"
+        "PRIVACY-FIRST DESIGN:",
+        "- NO plain text tier stored (was leaking privacy!)",
+        "- NO amount_paid stored (reveals tier via price)",
+        "- ONLY encrypted INCO handles stored",
+        "- Tier can only be verified via INCO proof decryption"
       ],
       "type": {
         "kind": "struct",
@@ -1128,25 +1132,10 @@ export type ConfidentialWhaleBadge = {
             "type": "pubkey"
           },
           {
-            "name": "tier",
-            "docs": [
-              "Tier level (1-5) - stored for reference",
-              "The actual tier is hidden via encrypted proofs"
-            ],
-            "type": "u8"
-          },
-          {
-            "name": "amountPaid",
-            "docs": [
-              "Amount paid for this badge (in lamports)"
-            ],
-            "type": "u64"
-          },
-          {
             "name": "encryptedTier",
             "docs": [
               "Encrypted tier value (1-5)",
-              "INCO Euint128 handle"
+              "INCO Euint128 handle - ONLY way to know tier"
             ],
             "type": "u128"
           },

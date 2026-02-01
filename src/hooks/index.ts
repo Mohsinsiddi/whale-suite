@@ -72,3 +72,7 @@ export type {
 // Darklake Private Swap
 export { useDarklake } from './useDarklake';
 export type { DarklakeState, UseDarklakeReturn } from './useDarklake';
+
+// Confidential Badge & Channels
+export { useConfidentialBadge, TIER_INFO, TIER_PRICES } from './useConfidentialBadge';
+export type { ConfidentialBadgeData, UseConfidentialBadgeReturn } from './useConfidentialBadge';

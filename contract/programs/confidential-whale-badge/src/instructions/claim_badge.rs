@@ -13,6 +13,9 @@ use crate::state::{ConfidentialBadge, Config};
 
 /// Claim a confidential badge with payment
 ///
+/// PRIVACY-FIRST: The tier is NEVER stored in plain text!
+/// Only encrypted INCO handles are stored on-chain.
+///
 /// The client must encrypt the tier value using INCO JS SDK before calling this.
 ///
 /// **WORKFLOW:**
@@ -26,6 +29,11 @@ use crate::state::{ConfidentialBadge, Config};
 /// - Gold (3): 0.3 SOL
 /// - Diamond (4): 0.4 SOL
 /// - Legendary (5): 0.5 SOL
+///
+/// **PRIVACY NOTE:**
+/// The requested_tier parameter is used ONLY for payment validation.
+/// It is NOT stored on-chain. The actual tier is only known via
+/// the encrypted INCO handles which require decrypt permission.
 pub fn handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, ClaimBadge<'info>>,
     requested_tier: u8,              // Tier user wants (1-5)
@@ -52,7 +60,8 @@ pub fn handler<'info>(
     require!(requested_tier >= 1 && requested_tier <= 5, BadgeError::InvalidTier);
 
     let required_price = config.get_tier_price(requested_tier);
-    msg!("Requested tier: {}, Price: {} lamports", requested_tier, required_price);
+    // PRIVACY: Don't log the tier - only log payment amount
+    msg!("Processing badge claim. Price: {} lamports", required_price);
 
     // Transfer SOL from user to treasury
     let cpi_context = CpiContext::new(
@@ -63,11 +72,11 @@ pub fn handler<'info>(
         },
     );
     system_program::transfer(cpi_context, required_price)?;
-    msg!("Payment of {} lamports sent to treasury", required_price);
+    msg!("Payment sent to treasury");
 
-    // Store the tier and payment amount in badge (for reference)
-    badge.tier = requested_tier;
-    badge.amount_paid = required_price;
+    // PRIVACY: We do NOT store tier or amount_paid in plain text!
+    // The tier is only known via the encrypted INCO handles.
+    // Payment is validated above, but not stored to prevent leaking tier info.
 
     // ============================================
     // STEP 1: Convert encrypted tier to INCO handle
@@ -106,26 +115,42 @@ pub fn handler<'info>(
     let tier_5: Euint128 = cpi::new_euint128(cpi_ctx_5, encrypted_threshold_5, 0)?;
 
     // ============================================
-    // STEP 3: Compute tier proofs (is tier >= threshold?)
+    // STEP 3: Compute ALL tier proofs (PRIVACY-FIRST)
     // ============================================
-    msg!("Computing tier proofs...");
+    // PRIVACY: Always compute ALL 5 proofs so all handles are non-zero.
+    // This prevents observers from determining tier based on which
+    // handles are zero vs non-zero.
+    //
+    // SECURITY: Payment validates entitlement to claim up to requested_tier.
+    // The encrypted_tier should be <= requested_tier (enforced client-side).
+    // When decrypted, only proofs where actual_tier >= threshold are TRUE.
+    //
+    // Example: User pays for Gold (tier 3), encrypts tier=3
+    // - All 5 handles are non-zero (observer can't tell tier)
+    // - Decrypted: Bronze=TRUE, Silver=TRUE, Gold=TRUE, Diamond=FALSE, Legendary=FALSE
+    msg!("Computing ALL tier proofs (privacy-first - all handles non-zero)...");
 
+    // Bronze proof (tier >= 1)
     let cpi_ctx_ge1 = CpiContext::new(inco.clone(), Operation { signer: user.to_account_info() });
     let proof_bronze: Ebool = cpi::e_ge(cpi_ctx_ge1, encrypted_tier, tier_1, 0)?;
     msg!("Bronze proof handle: {}", proof_bronze.0);
 
+    // Silver proof (tier >= 2)
     let cpi_ctx_ge2 = CpiContext::new(inco.clone(), Operation { signer: user.to_account_info() });
     let proof_silver: Ebool = cpi::e_ge(cpi_ctx_ge2, encrypted_tier, tier_2, 0)?;
     msg!("Silver proof handle: {}", proof_silver.0);
 
+    // Gold proof (tier >= 3)
     let cpi_ctx_ge3 = CpiContext::new(inco.clone(), Operation { signer: user.to_account_info() });
     let proof_gold: Ebool = cpi::e_ge(cpi_ctx_ge3, encrypted_tier, tier_3, 0)?;
     msg!("Gold proof handle: {}", proof_gold.0);
 
+    // Diamond proof (tier >= 4)
     let cpi_ctx_ge4 = CpiContext::new(inco.clone(), Operation { signer: user.to_account_info() });
     let proof_diamond: Ebool = cpi::e_ge(cpi_ctx_ge4, encrypted_tier, tier_4, 0)?;
     msg!("Diamond proof handle: {}", proof_diamond.0);
 
+    // Legendary proof (tier >= 5)
     let cpi_ctx_ge5 = CpiContext::new(inco.clone(), Operation { signer: user.to_account_info() });
     let proof_legendary: Ebool = cpi::e_ge(cpi_ctx_ge5, encrypted_tier, tier_5, 0)?;
     msg!("Legendary proof handle: {}", proof_legendary.0);
@@ -134,6 +159,7 @@ pub fn handler<'info>(
     // STEP 4: Store handles in badge account
     // ============================================
     // NOTE: Call grant_access instruction separately to grant decrypt permissions
+    // ALL proofs are non-zero handles (privacy-first design)
     badge.bump = ctx.bumps.badge;
     badge.owner = user.key();
     badge.encrypted_tier = encrypted_tier.0;

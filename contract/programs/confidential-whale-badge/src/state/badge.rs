@@ -1,7 +1,12 @@
 use anchor_lang::prelude::*;
 
 /// Confidential Whale Badge Account
-/// Stores encrypted tier and pre-computed proofs using INCO Lightning
+///
+/// PRIVACY-FIRST DESIGN:
+/// - NO plain text tier stored (was leaking privacy!)
+/// - NO amount_paid stored (reveals tier via price)
+/// - ONLY encrypted INCO handles stored
+/// - Tier can only be verified via INCO proof decryption
 #[account]
 pub struct ConfidentialBadge {
     /// PDA bump seed
@@ -10,22 +15,18 @@ pub struct ConfidentialBadge {
     /// Current owner of the badge
     pub owner: Pubkey,
 
-    /// Tier level (1-5) - stored for reference
-    /// The actual tier is hidden via encrypted proofs
-    pub tier: u8,
-
-    /// Amount paid for this badge (in lamports)
-    pub amount_paid: u64,
-
     // ============================================
     // INCO ENCRYPTED DATA (handles, not values!)
     // These are u128 handles pointing to encrypted
     // data in the INCO network. Nobody can decode
     // the actual values from these handles.
+    //
+    // PRIVACY: The tier is ONLY stored encrypted!
+    // To verify access, decrypt the relevant proof.
     // ============================================
 
     /// Encrypted tier value (1-5)
-    /// INCO Euint128 handle
+    /// INCO Euint128 handle - ONLY way to know tier
     pub encrypted_tier: u128,
 
     /// Pre-computed proof: is tier >= 1 (Bronze+)?
@@ -45,7 +46,7 @@ pub struct ConfidentialBadge {
     pub proof_legendary: u128,
 
     // ============================================
-    // METADATA
+    // METADATA (non-sensitive)
     // ============================================
 
     /// When the badge was first claimed
@@ -59,11 +60,12 @@ pub struct ConfidentialBadge {
 }
 
 impl ConfidentialBadge {
+    // Size calculation (removed tier: u8 and amount_paid: u64)
     pub const SIZE: usize = 8 +     // discriminator
         1 +         // bump
         32 +        // owner (Pubkey)
-        1 +         // tier (u8)
-        8 +         // amount_paid (u64)
+        // REMOVED: tier (u8) - privacy leak!
+        // REMOVED: amount_paid (u64) - privacy leak!
         16 +        // encrypted_tier (u128)
         16 +        // proof_bronze (u128)
         16 +        // proof_silver (u128)
