@@ -14,6 +14,7 @@ import { TOKEN_MINTS } from "@/lib/privacy-sdks";
 import { SWAP_TOKENS, type TokenMetadata } from "@/lib/tokens";
 import { useWallet } from "@/store";
 import { PointsEarned } from "@/components/leaderboard";
+import LearnMoreLink from "@/components/ui/LearnMoreLink";
 
 interface Token {
   symbol: string;
@@ -315,14 +316,17 @@ export default function SwapPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <div className="flex items-center gap-3 mb-1">
-          <h1 className="text-xl font-bold text-text-primary">Jupiter Swap</h1>
-          <Badge size="xs" variant="warning">Public</Badge>
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <h1 className="text-xl font-bold text-text-primary">Jupiter Swap</h1>
+            <Badge size="xs" variant="warning">Public</Badge>
+          </div>
+          <p className="text-sm text-text-secondary">
+            Swap tokens via Jupiter aggregator (on-chain, visible to everyone)
+          </p>
         </div>
-        <p className="text-sm text-text-secondary">
-          Swap tokens via Jupiter aggregator (on-chain, visible to everyone)
-        </p>
+        <LearnMoreLink section="jupiter">Docs</LearnMoreLink>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

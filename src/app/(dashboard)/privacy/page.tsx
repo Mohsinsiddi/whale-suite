@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/privy/hooks";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useNetwork } from "@/hooks/useNetwork";
 import { PointsEarned } from "@/components/leaderboard";
+import LearnMoreLink from "@/components/ui/LearnMoreLink";
 
 type TabType = "deposit" | "withdraw";
 
@@ -231,11 +232,14 @@ export default function PrivacyCashPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h1 className="text-xl font-bold text-text-primary">Privacy Cash</h1>
-        <p className="text-sm text-text-secondary">
-          Shield your SOL balance from public view
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-text-primary">Privacy Cash</h1>
+          <p className="text-sm text-text-secondary">
+            Shield your SOL balance from public view
+          </p>
+        </div>
+        <LearnMoreLink section="privacy">How it works</LearnMoreLink>
       </div>
 
       {/* Balance Overview */}

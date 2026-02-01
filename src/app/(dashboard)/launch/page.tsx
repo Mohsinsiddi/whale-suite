@@ -8,6 +8,8 @@ import Badge from "@/components/ui/Badge";
 import Tabs, { TabPanel } from "@/components/ui/Tabs";
 import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
 import { useAuth } from "@/lib/privy/hooks";
+import LearnMoreLink from "@/components/ui/LearnMoreLink";
+import { usePoints } from "@/hooks";
 
 interface TokenLinks {
   dexscreener: string;
@@ -508,6 +510,7 @@ const TokenCard = ({
 
 export default function LaunchPage() {
   const { authenticated, walletAddress, login } = useAuth();
+  const { awardPoints } = usePoints();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Tab state
@@ -781,6 +784,18 @@ export default function LaunchPage() {
           mintAddress: data.mintAddress,
           signature: data.signature,
         });
+
+        // Award points for token launch
+        try {
+          await awardPoints("token_launch", {
+            txSignature: data.signature,
+            mintAddress: data.mintAddress,
+            tokenName,
+            tokenSymbol: tokenSymbol.toUpperCase(),
+          });
+        } catch (pointsError) {
+          console.warn("Failed to award points:", pointsError);
+        }
       }
 
       setResult(data);
@@ -843,15 +858,18 @@ export default function LaunchPage() {
             <RocketIcon className="w-6 h-6 text-bg-primary" />
           </motion.div>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-              Anonymous Token Launcher
-              <motion.div
-                animate={{ rotate: [0, 15, -15, 0] }}
-                transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-              >
-                <SparklesIcon className="w-5 h-5 text-neon-cyan" />
-              </motion.div>
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+                Anonymous Token Launcher
+                <motion.div
+                  animate={{ rotate: [0, 15, -15, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                >
+                  <SparklesIcon className="w-5 h-5 text-neon-cyan" />
+                </motion.div>
+              </h1>
+              <LearnMoreLink section="anoncoin">Docs</LearnMoreLink>
+            </div>
             <p className="text-sm text-text-muted">
               Create tokens anonymously on Solana mainnet
             </p>

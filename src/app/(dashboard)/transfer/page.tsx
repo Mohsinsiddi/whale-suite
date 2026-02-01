@@ -14,6 +14,7 @@ import { useAuth } from "@/lib/privy/hooks";
 import { useNetwork } from "@/hooks/useNetwork";
 import { TransferType } from "@/lib/privacy-sdks";
 import { PointsEarned } from "@/components/leaderboard";
+import LearnMoreLink from "@/components/ui/LearnMoreLink";
 import {
   SHADOWWIRE_POOL_TOKENS,
   TOKEN_MINTS,
@@ -681,9 +682,12 @@ export default function TransferPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h1 className="text-xl font-bold text-text-primary">Ghost Send</h1>
-        <p className="text-sm text-text-secondary">Send funds privately via ShadowWire</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-text-primary">Ghost Send</h1>
+          <p className="text-sm text-text-secondary">Send funds privately via ShadowWire</p>
+        </div>
+        <LearnMoreLink section="ghost-send">How it works</LearnMoreLink>
       </div>
 
       {/* USD1 Featured Token Banner */}

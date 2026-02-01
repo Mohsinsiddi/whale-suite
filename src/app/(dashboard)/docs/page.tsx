@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Card, { CardHeader, CardTitle } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -269,9 +270,79 @@ function FeatureCard({
   );
 }
 
+// Valid section IDs for deep linking
+const VALID_SECTIONS = {
+  // Main tabs
+  overview: { tab: "overview" },
+  features: { tab: "features" },
+  rewards: { tab: "rewards" },
+  partners: { tab: "partners" },
+  business: { tab: "business" },
+  // Feature categories (will also set tab to "features")
+  privacy: { tab: "features", category: "privacy" },
+  confidential: { tab: "features", category: "confidential" },
+  trading: { tab: "features", category: "trading" },
+  predictions: { tab: "features", category: "predictions" },
+  analytics: { tab: "features", category: "analytics" },
+  launch: { tab: "features", category: "launch" },
+  // Aliases for convenience
+  "inco": { tab: "features", category: "confidential" },
+  "fhe": { tab: "features", category: "confidential" },
+  "channels": { tab: "features", category: "confidential" },
+  "swap": { tab: "features", category: "trading" },
+  "jupiter": { tab: "features", category: "trading" },
+  "darklake": { tab: "features", category: "trading" },
+  "pnp": { tab: "features", category: "predictions" },
+  "markets": { tab: "features", category: "predictions" },
+  "shadowwire": { tab: "features", category: "privacy" },
+  "ghost-send": { tab: "features", category: "privacy" },
+  "transfer": { tab: "features", category: "privacy" },
+  "anoncoin": { tab: "features", category: "launch" },
+  "token-launch": { tab: "features", category: "launch" },
+  "points": { tab: "rewards" },
+  "badges": { tab: "rewards" },
+  "stealth": { tab: "rewards" },
+  "sdk": { tab: "partners" },
+  "about": { tab: "business" },
+} as const;
+
 export default function DocsPage() {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState("overview");
   const [featureCategory, setFeatureCategory] = useState("privacy");
+
+  // Handle deep linking via URL params (?section=privacy)
+  const handleDeepLink = useCallback(() => {
+    const section = searchParams.get("section");
+    if (section && section in VALID_SECTIONS) {
+      const config = VALID_SECTIONS[section as keyof typeof VALID_SECTIONS];
+      setActiveTab(config.tab);
+      if ("category" in config && config.category) {
+        setFeatureCategory(config.category);
+      }
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    handleDeepLink();
+  }, [handleDeepLink]);
+
+  // Update URL when tab changes (for shareable links)
+  const handleTabChange = useCallback((tabId: string) => {
+    setActiveTab(tabId);
+    // Update URL without navigation
+    const url = new URL(window.location.href);
+    url.searchParams.set("section", tabId);
+    window.history.replaceState({}, "", url.toString());
+  }, []);
+
+  const handleCategoryChange = useCallback((categoryId: string) => {
+    setFeatureCategory(categoryId);
+    // Update URL without navigation
+    const url = new URL(window.location.href);
+    url.searchParams.set("section", categoryId);
+    window.history.replaceState({}, "", url.toString());
+  }, []);
 
   // Group actions by SDK
   const actionsByCategory = Object.entries(POINT_ACTIONS).reduce((acc, [action, config]) => {
@@ -303,7 +374,7 @@ export default function DocsPage() {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => handleTabChange(tab.id)}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
               activeTab === tab.id
                 ? "bg-neon-green/20 text-neon-green border border-neon-green/30"
@@ -409,7 +480,7 @@ export default function DocsPage() {
               {featureCategories.map((cat) => (
                 <button
                   key={cat.id}
-                  onClick={() => setFeatureCategory(cat.id)}
+                  onClick={() => handleCategoryChange(cat.id)}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                     featureCategory === cat.id
                       ? "bg-bg-primary text-neon-green shadow-sm"

@@ -19,6 +19,8 @@ import { JoinChannelModal } from '@/components/modals/JoinChannelModal';
 import { TransactionModal, SuccessModal } from '@/components/ui/Modal';
 import { BadgeSelectorModal } from '@/components/modals/BadgeSelectorModal';
 import NetworkSelectModal from '@/components/ui/NetworkSelectModal';
+import LearnMoreLink from '@/components/ui/LearnMoreLink';
+import { usePoints } from '@/hooks';
 
 type TabType = 'channels' | 'claim';
 
@@ -79,6 +81,7 @@ export default function ChannelsPage() {
     joinChannel,
     reset: resetJoin,
   } = useChannelJoin();
+  const { awardPoints } = usePoints();
 
   const [activeTab, setActiveTab] = useState<TabType>('channels');
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -344,6 +347,18 @@ export default function ChannelsPage() {
     const result = await joinChannel(channel.slug, channel.tier, badgeToUse);
 
     if (result.success) {
+      // Award points for channel join
+      try {
+        await awardPoints("channel_join", {
+          txSignature: result.txSignature,
+          channelSlug: channel.slug,
+          tier: channel.tier,
+          tierName: channel.tierName,
+        });
+      } catch (pointsError) {
+        console.warn("Failed to award points:", pointsError);
+      }
+
       await fetchChannels();
     }
   };
@@ -397,11 +412,13 @@ export default function ChannelsPage() {
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-3xl">🐋</span>
                 <h1 className="text-xl sm:text-2xl font-bold text-text-primary">Whale Channels</h1>
+                <LearnMoreLink section="confidential" className="hidden sm:inline-flex">How INCO FHE works</LearnMoreLink>
               </div>
               <p className="text-text-muted text-sm max-w-md">
                 Private tier-gated messaging powered by <span className="text-neon-cyan font-medium">INCO FHE</span>.
                 Your tier is encrypted on-chain - zero knowledge required.
               </p>
+              <LearnMoreLink section="confidential" className="sm:hidden mt-2">Learn about INCO FHE</LearnMoreLink>
             </div>
 
             {/* Network Toggle - Same as Header */}

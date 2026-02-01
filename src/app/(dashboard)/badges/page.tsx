@@ -23,6 +23,7 @@ import {
   Check,
   ArrowDownCircle,
 } from "lucide-react";
+import LearnMoreLink from "@/components/ui/LearnMoreLink";
 
 // Alias for Flame
 const Fire = Flame;
@@ -372,10 +373,13 @@ export default function BadgesPage() {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-text-primary flex items-center gap-2">
-            <Award className="w-6 h-6 text-neon-green" />
-            Badges & Achievements
-          </h1>
+          <div className="flex items-center gap-3 mb-1">
+            <h1 className="text-xl font-bold text-text-primary flex items-center gap-2">
+              <Award className="w-6 h-6 text-neon-green" />
+              Badges & Achievements
+            </h1>
+            <LearnMoreLink section="badges">How it works</LearnMoreLink>
+          </div>
           <p className="text-sm text-text-secondary">Unlock achievements and claim exclusive NFT badges</p>
         </div>
         {userBadgeTier !== "none" && (

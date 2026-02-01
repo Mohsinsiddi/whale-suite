@@ -8,7 +8,9 @@ import Tabs from "@/components/ui/Tabs";
 import Input, { SearchInput } from "@/components/ui/Input";
 import Modal, { SuccessModal, TransactionModal } from "@/components/ui/Modal";
 import { usePNP, MarketCategory, CreateMarketParams } from "@/hooks/usePNP";
+import { usePoints } from "@/hooks";
 import { PNPMarket } from "@/lib/privacy-sdks/pnp";
+import LearnMoreLink from "@/components/ui/LearnMoreLink";
 
 // Loading skeleton component
 function MarketSkeleton() {
@@ -67,6 +69,7 @@ export default function MarketsPage() {
     getMarketTokenBalances,
     redeemPositionV2,
   } = usePNP();
+  const { awardPoints } = usePoints();
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -340,6 +343,19 @@ export default function MarketsPage() {
         // All steps complete
         setTxSteps(prev => prev.map(s => ({ ...s, status: "completed" as const })));
 
+        // Award points for PNP bet
+        try {
+          await awardPoints("pnp_bet", {
+            txSignature: result.signature,
+            amount: parseFloat(tradeAmount),
+            marketType: selectedMarket.marketType,
+            side: tradeSide,
+            mode: tradeMode,
+          });
+        } catch (pointsError) {
+          console.warn("Failed to award points:", pointsError);
+        }
+
         // Close progress modal and show success
         setTimeout(() => {
           setTxProgressOpen(false);
@@ -507,7 +523,10 @@ export default function MarketsPage() {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-text-primary">Prediction Markets</h1>
+          <div className="flex items-center gap-3 mb-1">
+            <h1 className="text-xl font-bold text-text-primary">Prediction Markets</h1>
+            <LearnMoreLink section="pnp">How it works</LearnMoreLink>
+          </div>
           <p className="text-sm text-text-secondary">
             Anonymous betting via PNP Exchange
           </p>

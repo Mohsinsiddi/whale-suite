@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/privy/hooks";
 import { useNetwork } from "@/hooks/useNetwork";
 import { SWAP_TOKENS, type TokenMetadata } from "@/lib/tokens";
 import { PointsEarned } from "@/components/leaderboard";
+import LearnMoreLink from "@/components/ui/LearnMoreLink";
 
 interface Token {
   symbol: string;
@@ -398,14 +399,17 @@ export default function PrivateSwapPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <div className="flex items-center gap-3 mb-1">
-          <h1 className="text-xl font-bold text-text-primary">Private Swap</h1>
-          <Badge variant="default" size="sm">ZK-AMM</Badge>
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <h1 className="text-xl font-bold text-text-primary">Private Swap</h1>
+            <Badge variant="default" size="sm">ZK-AMM</Badge>
+          </div>
+          <p className="text-sm text-text-secondary">
+            MEV-resistant swaps powered by Darklake zero-knowledge proofs
+          </p>
         </div>
-        <p className="text-sm text-text-secondary">
-          MEV-resistant swaps powered by Darklake zero-knowledge proofs
-        </p>
+        <LearnMoreLink section="darklake">How ZK-AMM works</LearnMoreLink>
       </div>
 
       {/* Privacy Banner */}
