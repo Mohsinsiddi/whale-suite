@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       tiers: Object.values(BADGE_TIERS),
       userCurrentTier: userBadge,
@@ -145,6 +145,13 @@ export async function GET(request: NextRequest) {
         metadata: b.metadata,
       })),
     });
+
+    // Only cache static tier definitions (no wallet param) - 5 minutes
+    // User-specific badge data should not be cached
+    if (!wallet) {
+      response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    }
+    return response;
   } catch (error) {
     console.error('Badges error:', error);
     return NextResponse.json(

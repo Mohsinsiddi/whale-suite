@@ -19,10 +19,10 @@ export type NetworkType = "mainnet" | "devnet";
 export const FEATURE_NETWORK_SUPPORT = {
   // Mainnet-only features (production SDKs)
   "shadow-wire": { mainnet: true, devnet: false, label: "ShadowWire Transfers" },
-  "pnp-markets": { mainnet: true, devnet: true, label: "PNP Markets" },
+  "pnp-markets": { mainnet: true, devnet: false, label: "PNP Markets" },
   "jupiter-swap": { mainnet: true, devnet: false, label: "Jupiter Swap" },
   "privacy-cash": { mainnet: true, devnet: false, label: "Privacy Cash" },
-  "cross-chain": { mainnet: true, devnet: false, label: "Cross-Chain Swap" },
+  "cross-chain": { mainnet: false, devnet: false, label: "Cross-Chain Swap (Coming Soon)" },
   "whale-feed": { mainnet: true, devnet: true, label: "Whale Intelligence" },
   "darklake": { mainnet: true, devnet: false, label: "Darklake Private Swap" },
 

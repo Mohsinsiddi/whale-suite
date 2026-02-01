@@ -53,6 +53,8 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   // Channels section collapsed state - default to false (expanded)
   const [channelsExpanded, setChannelsExpanded] = useState(true);
+  // Network modal state for desktop
+  const [showNetworkModal, setShowNetworkModal] = useState(false);
 
   // Load collapsed state from localStorage on mount
   useEffect(() => {
@@ -223,7 +225,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         title: "Premium",
         items: [
           { href: "/badges", icon: <BadgeIcon />, label: "NFT Badges" },
-          { href: "/affiliate", icon: <AffiliateIcon />, label: "Affiliate" },
+          { href: "/affiliate", icon: <AffiliateIcon />, label: "Affiliate", badge: "Soon", badgeColor: "default" },
         ],
       },
       {
@@ -584,34 +586,89 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           )}
         </AnimatePresence>
 
-        {/* Version Badge */}
-        <div className="px-4 pb-4">
-          <div className={`flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] text-text-muted transition-all ${
-            network === 'mainnet'
-              ? 'bg-neon-green/5 border border-neon-green/20'
-              : 'bg-warning/5 border border-warning/20'
-          }`}>
-            <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+        {/* Network Toggle - Desktop */}
+        <div className={`px-4 pb-2 ${isCollapsed ? 'px-2' : ''}`}>
+          <button
+            onClick={() => setShowNetworkModal(true)}
+            className={`w-full flex items-center gap-2 rounded-lg text-xs font-medium transition-all hover:scale-[1.01] ${
+              isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+            } ${
+              network === 'mainnet'
+                ? 'bg-neon-green/10 text-neon-green border border-neon-green/30 hover:bg-neon-green/15 hover:border-neon-green/50'
+                : 'bg-warning/10 text-warning border border-warning/30 hover:bg-warning/15 hover:border-warning/50'
+            }`}
+          >
+            {/* Network indicator */}
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
               network === 'mainnet' ? 'bg-neon-green' : 'bg-warning'
-            }`} />
+            } ${rpcPing !== null && rpcPing >= 0 ? 'animate-pulse' : ''}`} />
+
             <AnimatePresence mode="wait">
               {!isCollapsed && (
+                <motion.div
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: "auto" }}
+                  exit={{ opacity: 0, width: 0 }}
+                  className="flex items-center justify-between flex-1 min-w-0"
+                >
+                  {/* Network name */}
+                  <span className="font-semibold">
+                    {network === 'mainnet' ? 'Mainnet' : 'Devnet'}
+                  </span>
+
+                  {/* Ping indicator */}
+                  <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] ${
+                    rpcPing === null
+                      ? 'bg-bg-tertiary text-text-muted'
+                      : rpcPing < 0
+                      ? 'bg-error/20 text-error'
+                      : rpcPing < 200
+                      ? 'bg-neon-green/20 text-neon-green'
+                      : rpcPing < 500
+                      ? 'bg-warning/20 text-warning'
+                      : 'bg-error/20 text-error'
+                  }`}>
+                    <SignalIcon className="w-2.5 h-2.5" />
+                    {rpcPing === null ? '...' : rpcPing < 0 ? 'err' : `${rpcPing}ms`}
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </button>
+        </div>
+
+        {/* Version Badge */}
+        <div className="px-4 pb-4">
+          <div className={`flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] text-text-muted transition-all bg-bg-tertiary/30 border border-border-primary`}>
+            <AnimatePresence mode="wait">
+              {!isCollapsed ? (
                 <motion.span
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className={`whitespace-nowrap ${
-                    network === 'mainnet' ? 'text-neon-green' : 'text-warning'
-                  }`}
+                  className="whitespace-nowrap text-text-muted"
                 >
-                  {network === 'mainnet' ? 'Mainnet' : 'Devnet'}
-                  <span className="text-text-muted/50 mx-1">|</span>
-                  v1.0.0
+                  Whale Suite v1.0.0
+                </motion.span>
+              ) : (
+                <motion.span
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-text-muted"
+                >
+                  v1
                 </motion.span>
               )}
             </AnimatePresence>
           </div>
         </div>
+
+        {/* Network Select Modal - Desktop */}
+        <NetworkSelectModal
+          isOpen={showNetworkModal}
+          onClose={() => setShowNetworkModal(false)}
+        />
       </motion.aside>
     </>
   );
@@ -1292,5 +1349,11 @@ const LockIcon = () => (
 const ChannelsIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
+  </svg>
+);
+
+const SignalIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.348 14.651a3.75 3.75 0 010-5.303m5.304 0a3.75 3.75 0 010 5.303m-7.425 2.122a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546" />
   </svg>
 );

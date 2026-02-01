@@ -69,13 +69,178 @@ const RocketIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const QuestionIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
 // Main Tabs
 const tabs = [
   { id: "overview", label: "Overview", icon: <BookIcon className="w-4 h-4" /> },
   { id: "features", label: "Features", icon: <RocketIcon className="w-4 h-4" /> },
   { id: "rewards", label: "Points & Rewards", icon: <StarIcon className="w-4 h-4" /> },
   { id: "partners", label: "SDK Partners", icon: <ChipIcon className="w-4 h-4" /> },
+  { id: "faq", label: "FAQ", icon: <QuestionIcon className="w-4 h-4" /> },
   { id: "business", label: "About", icon: <HeartIcon className="w-4 h-4" /> },
+];
+
+// FAQ Data
+const faqCategories = [
+  {
+    id: "general",
+    title: "General",
+    icon: "🏠",
+    questions: [
+      {
+        q: "What is Whale Suite?",
+        a: "Whale Suite is a privacy-first trading platform for Solana. It integrates multiple privacy SDKs (Light Protocol, ShadowWire, Darklake, etc.) into one unified interface, allowing you to shield balances, send private transfers, swap tokens anonymously, and more."
+      },
+      {
+        q: "Is Whale Suite free to use?",
+        a: "Yes! Whale Suite charges ZERO platform fees. You only pay the underlying SDK protocol fees (like Light Protocol network fees or Solana transaction fees). This is our commitment to making privacy accessible to everyone."
+      },
+      {
+        q: "Which networks are supported?",
+        a: "We support both Solana Mainnet and Devnet. Some features like Privacy Cash, Jupiter Swap, and Private Swap are Mainnet-only, while features like Dark Pool and Confidential Channels are currently Devnet-only (testing phase). You can switch networks using the network toggle in the sidebar."
+      },
+      {
+        q: "Do I need to create an account?",
+        a: "No traditional account needed. Simply connect your Solana wallet (Phantom, Solflare, etc.) via Privy and you're ready to go. Your wallet IS your account."
+      },
+    ]
+  },
+  {
+    id: "privacy",
+    title: "Privacy Tools",
+    icon: "🛡️",
+    questions: [
+      {
+        q: "How does Privacy Cash work?",
+        a: "Privacy Cash uses Light Protocol's ZK compression to shield your SOL balance. When you deposit, your SOL is converted to a private balance that's invisible on-chain. Only you can see your shielded balance - it appears as '0' to blockchain explorers."
+      },
+      {
+        q: "What is Ghost Send (ShadowWire)?",
+        a: "Ghost Send uses ShadowWire's Bulletproof ZK proofs to hide transfer amounts. When you send SOL, the recipient receives it but the exact amount is hidden on-chain. Perfect for private payments without revealing how much you're sending."
+      },
+      {
+        q: "What's the difference between Jupiter Swap and Private Swap?",
+        a: "Jupiter Swap gives you the best rates across all DEXs but transactions are public. Private Swap uses Darklake's ZK AMM to hide your swap amounts - slightly higher fees but maximum privacy. Use Jupiter for casual swaps, Private Swap when you don't want others to see your trading activity."
+      },
+      {
+        q: "Are my transactions truly private?",
+        a: "Yes, when using privacy tools. Privacy Cash shields your balance using ZK compression, Ghost Send hides transfer amounts with Bulletproof proofs, and Private Swap uses ZK proofs to hide swap amounts. Regular Jupiter swaps are public. Always check the 'Privacy Level' indicator on each feature."
+      },
+      {
+        q: "What is Dark Pool?",
+        a: "Dark Pool is our experimental private swap feature on Devnet. It's a testing ground for new ZK swap technologies before they go to Mainnet. Use it to preview upcoming privacy features and provide feedback."
+      },
+    ]
+  },
+  {
+    id: "confidential",
+    title: "Confidential Channels (INCO FHE)",
+    icon: "🔐",
+    questions: [
+      {
+        q: "What are Confidential Channels?",
+        a: "Confidential Channels are exclusive chat rooms accessible only to badge holders of specific tiers. The unique part? Your badge tier is verified using Fully Homomorphic Encryption (FHE) - meaning the system verifies you qualify WITHOUT ever knowing your exact badge tier or wallet address."
+      },
+      {
+        q: "How does FHE verification work?",
+        a: "When you mint a badge, an encrypted proof of your tier is created using INCO Lightning. When you request channel access, INCO's covalidator network verifies your eligibility by computing on the encrypted data - they never see your actual tier, just a yes/no result. It's like a bouncer checking your ID without seeing your name."
+      },
+      {
+        q: "What is an Anonymous Channel ID?",
+        a: "When you join a channel, you get a unique pseudonymous ID (like 'Brave-Dolphin-7842') instead of your wallet address. This lets you participate in discussions without revealing your identity. Your reputation builds on this anon ID across all channels."
+      },
+      {
+        q: "Why are Diamond and Legendary channels 'Coming Soon'?",
+        a: "Diamond Den and Legendary Lounge are Mainnet-exclusive premium channels. They require INCO FHE integration on Mainnet, which is still being deployed. Bronze, Silver, and Gold channels are available now on Devnet."
+      },
+      {
+        q: "What is Private Payments?",
+        a: "Private Payments is powered by Dark Pool on Devnet. It allows you to make payments with hidden amounts to other users. This feature uses the same ZK technology as Dark Pool swaps but for direct transfers."
+      },
+    ]
+  },
+  {
+    id: "badges",
+    title: "NFT Badges & Rewards",
+    icon: "🎖️",
+    questions: [
+      {
+        q: "What are NFT Badges?",
+        a: "NFT Badges are on-chain proof of your Whale Suite tier. They come in 5 levels: Bronze, Silver, Gold, Diamond, and Legendary. Each badge is a real NFT you can view on Solscan, trade on marketplaces, or show off in your wallet."
+      },
+      {
+        q: "What benefits do badges provide?",
+        a: "Badges give you: 1) Point multipliers (1.5x to 3x) for faster leaderboard climbing, 2) Access to tier-exclusive Confidential Channels, 3) Affiliate commission eligibility (10-25%), and 4) Future premium features access."
+      },
+      {
+        q: "How do points work?",
+        a: "You earn points for every privacy action: depositing to Privacy Cash (+10), sending Ghost transfers (+25), swapping (+5-15), joining channels (+20), etc. Points determine your leaderboard rank. Badge holders get multipliers on all points earned."
+      },
+      {
+        q: "What is Stealth Rating?",
+        a: "Stealth Rating (0-1000) measures how 'invisible' you are on-chain. It's calculated from your privacy actions: shielded balance ratio, private transfer count, swap privacy usage, etc. Higher rating = more anonymous = more whale-like behavior."
+      },
+      {
+        q: "How does the affiliate program work?",
+        a: "Badge holders can earn 10-25% commission on referred users' badge purchases. The program is coming to Mainnet - current Devnet users will get early access. Higher badge tiers = higher commission rates."
+      },
+    ]
+  },
+  {
+    id: "trading",
+    title: "Trading & Launch",
+    icon: "💱",
+    questions: [
+      {
+        q: "How do PNP Markets work?",
+        a: "PNP Markets are prediction markets where you bet on real-world outcomes. Buy YES or NO shares on events like 'SOL above $200 by end of month'. If you're right, you profit. PNP uses a constant-product market maker for fair pricing."
+      },
+      {
+        q: "What is the Token Launcher?",
+        a: "Token Launcher lets you create and launch tokens anonymously using the Anoncoin Protocol. Features include: gasless launches, automatic bonding curves, liquidity locking on Raydium, and hidden creator identity. Perfect for fair launches without doxxing yourself."
+      },
+      {
+        q: "What is Multi-Send / Batch Send?",
+        a: "Multi-Send lets you send tokens to many recipients in a single transaction. Instead of 100 separate transactions, you do one. Great for airdrops, payroll, or team distributions. Available in Ghost Send with privacy-preserved amounts."
+      },
+      {
+        q: "What's the $10K bounty on Token Launcher?",
+        a: "Several features have hackathon bounties from SDK sponsors. The $10K bounty means Anoncoin Protocol is offering prizes for best implementations. Similarly, Starpay offers $3.5K for Virtual Cards integration. These are hackathon incentives, not user rewards."
+      },
+    ]
+  },
+  {
+    id: "technical",
+    title: "Technical",
+    icon: "⚙️",
+    questions: [
+      {
+        q: "Which wallets are supported?",
+        a: "We support all major Solana wallets via Privy: Phantom, Solflare, Backpack, Glow, and more. You can also use email login with an embedded wallet if you don't have a Solana wallet yet."
+      },
+      {
+        q: "How many transaction popups will I see?",
+        a: "We minimize popups - most actions require only 1 approval. Some complex flows like claiming channel access need 2 (one for the transaction, one for decrypt permission). We show the expected popup count on each feature."
+      },
+      {
+        q: "Are the smart contracts audited?",
+        a: "We use official, audited SDKs from Light Protocol, ShadowWire, Jupiter, etc. Our own contracts are deployed on Devnet for testing. Full audits will be completed before Mainnet launch of Whale Suite specific contracts."
+      },
+      {
+        q: "What RPC do you use?",
+        a: "We use Helius as our primary RPC provider - they're a hackathon sponsor and provide reliable, fast infrastructure. You can see your connection ping in the network toggle."
+      },
+      {
+        q: "Can I export my data?",
+        a: "Your transaction history and points are stored off-chain in our database. On-chain data is always accessible via your wallet. We plan to add CSV export for transaction history in a future update."
+      },
+    ]
+  },
 ];
 
 // Feature Categories (nested tabs)
@@ -303,6 +468,9 @@ const VALID_SECTIONS = {
   "badges": { tab: "rewards" },
   "stealth": { tab: "rewards" },
   "sdk": { tab: "partners" },
+  "faq": { tab: "faq" },
+  "help": { tab: "faq" },
+  "questions": { tab: "faq" },
   "about": { tab: "business" },
 } as const;
 
@@ -1078,6 +1246,87 @@ export default function DocsPage() {
                 </Card>
               )
             )}
+          </motion.div>
+        )}
+
+        {activeTab === "faq" && (
+          <motion.div
+            key="faq"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-6"
+          >
+            {/* FAQ Header */}
+            <Card variant="glow" padding="lg">
+              <div className="text-center">
+                <QuestionIcon className="w-12 h-12 mx-auto text-neon-green mb-3" />
+                <h2 className="text-xl font-bold text-text-primary mb-2">Frequently Asked Questions</h2>
+                <p className="text-text-secondary max-w-lg mx-auto">
+                  Everything you need to know about Whale Suite, privacy tools, badges, and more.
+                </p>
+              </div>
+            </Card>
+
+            {/* FAQ Categories */}
+            <div className="space-y-4">
+              {faqCategories.map((category) => (
+                <Card key={category.id} variant="default" padding="lg">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="text-2xl">{category.icon}</span>
+                      {category.title}
+                    </CardTitle>
+                  </CardHeader>
+                  <div className="mt-4 space-y-2">
+                    {category.questions.map((qa, idx) => (
+                      <ExpandableSection key={idx} title={qa.q}>
+                        <p className="text-sm text-text-secondary leading-relaxed">{qa.a}</p>
+                      </ExpandableSection>
+                    ))}
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            {/* Still Have Questions */}
+            <Card variant="default" padding="lg" className="border-l-4 border-l-neon-cyan">
+              <div className="flex items-start gap-4">
+                <span className="text-3xl">💬</span>
+                <div>
+                  <h3 className="font-bold text-text-primary mb-2">Still Have Questions?</h3>
+                  <p className="text-sm text-text-secondary mb-3">
+                    Can&apos;t find what you&apos;re looking for? Our community is here to help.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <a
+                      href="https://twitter.com/whalesuite"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 text-sm font-medium bg-bg-tertiary rounded-lg text-text-secondary hover:text-neon-cyan transition-colors"
+                    >
+                      Twitter / X
+                    </a>
+                    <a
+                      href="https://discord.gg/whalesuite"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 text-sm font-medium bg-bg-tertiary rounded-lg text-text-secondary hover:text-neon-cyan transition-colors"
+                    >
+                      Discord
+                    </a>
+                    <a
+                      href="https://t.me/whalesuite"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 text-sm font-medium bg-bg-tertiary rounded-lg text-text-secondary hover:text-neon-cyan transition-colors"
+                    >
+                      Telegram
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </Card>
           </motion.div>
         )}
 

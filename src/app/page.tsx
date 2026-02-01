@@ -66,7 +66,6 @@ const SwapIcon = () => (
   </svg>
 );
 
-
 const BoltIcon = () => (
   <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
@@ -97,52 +96,101 @@ const LockIcon = () => (
   </svg>
 );
 
+const ChannelsIcon = () => (
+  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
+  </svg>
+);
+
+const CardIcon = () => (
+  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+  </svg>
+);
+
+const UsersIcon = () => (
+  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+  </svg>
+);
+
 const features = [
   {
     icon: <RocketIcon />,
     title: "Gasless Token Launch",
-    description: "Create tokens on Solana without paying gas fees. 100% anonymous via Anoncoin.",
+    description: "Create tokens on Solana without paying gas fees. 100% anonymous creator identity via Anoncoin Protocol.",
     tag: "Anoncoin",
     highlight: true,
+    bounty: "$10K",
   },
   {
     icon: <LockIcon />,
     title: "Private Swaps",
-    description: "Swap tokens with hidden amounts using Darklake's ZK-powered liquidity pools.",
+    description: "Swap tokens with hidden amounts using Darklake's ZK-powered liquidity pools. Your trade sizes stay secret.",
     tag: "Darklake",
     highlight: true,
   },
   {
     icon: <ShieldIcon />,
-    title: "Hidden Balance",
-    description: "Shield your SOL holdings from prying eyes with Privacy Cash. Your wealth stays private.",
-    tag: "ZK Proofs",
+    title: "Privacy Cash",
+    description: "Shield your SOL holdings from prying eyes with ZK compression. Your balance becomes invisible on-chain.",
+    tag: "Light Protocol",
+    bounty: "$2.5K",
   },
   {
     icon: <WalletIcon />,
-    title: "Private Transfers",
-    description: "Send funds via ShadowWire without revealing amounts or identity. True transfer privacy.",
-    tag: "Bulletproofs",
+    title: "Ghost Send",
+    description: "Send funds via ShadowWire without revealing amounts. Bulletproof ZK proofs keep transfers private.",
+    tag: "ShadowWire",
+  },
+  {
+    icon: <ChannelsIcon />,
+    title: "Confidential Channels",
+    description: "Join exclusive tier-based chat rooms. Badge verification uses FHE - your tier stays encrypted.",
+    tag: "INCO FHE",
+    highlight: true,
   },
   {
     icon: <SwapIcon />,
-    title: "Anonymous Predictions",
-    description: "Place predictions on PNP Exchange without exposing your wallet size.",
-    tag: "P2P Markets",
+    title: "Jupiter Integration",
+    description: "Access best swap rates across all Solana DEXs. Public swaps with maximum capital efficiency.",
+    tag: "Jupiter",
   },
   {
     icon: <ChartIcon />,
-    title: "Whale Intelligence",
-    description: "Track what other whales are doing while staying anonymous yourself.",
-    tag: "Helius",
+    title: "PNP Markets",
+    description: "Trade on prediction markets with privacy. Take YES/NO positions on real-world events.",
+    tag: "PNP Exchange",
+  },
+  {
+    icon: <CardIcon />,
+    title: "Virtual Cards",
+    description: "Anonymous virtual debit cards funded by crypto. Spend anywhere cards are accepted.",
+    tag: "Starpay",
+    bounty: "$3.5K",
+  },
+  {
+    icon: <UsersIcon />,
+    title: "Multi-Send",
+    description: "Send tokens to hundreds of recipients in one transaction. Perfect for airdrops and payroll.",
+    tag: "Batch",
   },
 ];
 
 const stats = [
-  { value: "5+", label: "Privacy SDKs" },
+  { value: "7+", label: "Privacy SDKs" },
   { value: "22", label: "Tokens Supported" },
-  { value: "100%", label: "Anonymous" },
-  { value: "Live", label: "Mainnet" },
+  { value: "0%", label: "Platform Fee" },
+  { value: "Live", label: "Mainnet Ready" },
+];
+
+// Badge tiers for pricing
+const badgeTiers = [
+  { name: "Bronze", price: "0.5", color: "from-amber-600 to-amber-400", multiplier: "1.5x" },
+  { name: "Silver", price: "2", color: "from-gray-400 to-gray-200", multiplier: "1.75x" },
+  { name: "Gold", price: "5", color: "from-yellow-500 to-yellow-300", multiplier: "2x", popular: true },
+  { name: "Diamond", price: "10", color: "from-cyan-400 to-blue-300", multiplier: "2.5x" },
+  { name: "Legendary", price: "25", color: "from-purple-500 to-pink-400", multiplier: "3x" },
 ];
 
 export default function LandingPage() {
@@ -218,8 +266,8 @@ export default function LandingPage() {
             transition={{ duration: 0.6, delay: 0.5 }}
             className="text-base md:text-lg text-text-secondary mb-10 max-w-xl mx-auto"
           >
-            Privacy-first trading tools for Solana whales. Hide your balance,
-            transfer privately, and trade without being watched.
+            Privacy-first trading platform for Solana. Shield balances, transfer privately,
+            swap anonymously, and join exclusive whale communities - all in one place.
           </motion.p>
 
           {/* CTA Buttons */}
@@ -233,7 +281,7 @@ export default function LandingPage() {
               href="/dashboard"
               className="group w-full sm:w-auto px-8 py-3 text-base font-semibold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-xl hover:shadow-glow-md hover:-translate-y-1 transition-all text-center flex items-center justify-center gap-2"
             >
-              Get Started Free
+              Launch App - It&apos;s Free
               <motion.span
                 animate={{ x: [0, 4, 0] }}
                 transition={{ duration: 1, repeat: Infinity }}
@@ -245,7 +293,7 @@ export default function LandingPage() {
               href="#features"
               className="w-full sm:w-auto px-8 py-3 text-base font-semibold border-2 border-neon-green/50 text-neon-green rounded-xl hover:bg-neon-green/10 hover:border-neon-green transition-all text-center"
             >
-              Learn More
+              Explore Features
             </a>
           </motion.div>
 
@@ -301,11 +349,11 @@ export default function LandingPage() {
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
               <span className="bg-gradient-to-r from-neon-green to-neon-cyan bg-clip-text text-transparent">
-                Privacy Where It Matters
+                Complete Privacy Toolkit
               </span>
             </h2>
             <p className="text-base text-text-secondary max-w-lg mx-auto">
-              Professional-grade tools for serious traders who value their privacy
+              9 privacy tools powered by 7+ SDKs. Everything you need to trade invisibly on Solana.
             </p>
           </motion.div>
 
@@ -316,7 +364,7 @@ export default function LandingPage() {
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.1 }}
+                transition={{ duration: 0.5, delay: i * 0.05 }}
                 whileHover={{ y: -8, scale: 1.02 }}
                 className={`group p-6 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border transition-all duration-300 relative overflow-hidden ${
                   feature.highlight
@@ -335,8 +383,15 @@ export default function LandingPage() {
                   </div>
                 )}
 
+                {/* Bounty badge */}
+                {feature.bounty && (
+                  <div className="absolute top-4 left-4 px-2 py-0.5 text-[9px] font-bold bg-warning/20 text-warning rounded-full border border-warning/30 uppercase tracking-wider">
+                    {feature.bounty}
+                  </div>
+                )}
+
                 {/* Highlight badge for new features */}
-                {feature.highlight && (
+                {feature.highlight && !feature.bounty && (
                   <div className="absolute top-4 left-4 px-2 py-0.5 text-[9px] font-bold bg-neon-cyan/20 text-neon-cyan rounded-full border border-neon-cyan/30 uppercase tracking-wider">
                     New
                   </div>
@@ -351,7 +406,7 @@ export default function LandingPage() {
 
                 <div className="relative">
                   <motion.div
-                    className={feature.highlight ? 'text-neon-green mb-5' : 'text-neon-green mb-5'}
+                    className="text-neon-green mb-5"
                     whileHover={{ scale: 1.1, rotate: 5 }}
                     transition={{ type: "spring", stiffness: 300 }}
                   >
@@ -370,9 +425,125 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Powered By - Bounty Sponsors Section */}
+      {/* INCO FHE Section - New */}
+      <section className="py-20 relative">
+        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 via-indigo-500/5 to-blue-500/5" />
+        <div className="max-w-6xl mx-auto px-4 relative">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-4 text-xs font-medium bg-purple-500/20 border border-purple-500/30 rounded-full text-purple-400">
+              <span className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" />
+              Powered by INCO Network
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              <span className="bg-gradient-to-r from-purple-400 via-indigo-400 to-blue-400 bg-clip-text text-transparent">
+                Fully Homomorphic Encryption
+              </span>
+            </h2>
+            <p className="text-base text-text-secondary max-w-2xl mx-auto">
+              The most advanced privacy technology in blockchain. Compute on encrypted data without ever decrypting it.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                icon: "🔐",
+                title: "Encrypted Verification",
+                description: "Your badge tier is verified on encrypted data. The system never sees your actual tier level - only a yes/no result."
+              },
+              {
+                icon: "🎭",
+                title: "Anonymous Identity",
+                description: "Get a unique pseudonymous ID for each channel. Participate without revealing your wallet or holdings."
+              },
+              {
+                icon: "💬",
+                title: "Exclusive Communities",
+                description: "Join tier-gated channels from Bronze to Legendary. Network with whales while maintaining privacy."
+              }
+            ].map((item, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="p-6 rounded-2xl bg-gradient-to-br from-purple-500/10 to-indigo-500/10 border border-purple-500/30 hover:border-purple-500/50 transition-all"
+              >
+                <span className="text-4xl mb-4 block">{item.icon}</span>
+                <h3 className="text-lg font-semibold text-text-primary mb-2">{item.title}</h3>
+                <p className="text-sm text-text-secondary">{item.description}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mt-8 p-4 rounded-xl bg-purple-500/10 border border-purple-500/30 text-center"
+          >
+            <p className="text-sm text-purple-300">
+              <strong>How it works:</strong> INCO&apos;s covalidator network performs verification on encrypted data using TFHE (Threshold Fully Homomorphic Encryption).
+              Your badge proof is encrypted client-side and verified without ever being decrypted.
+            </p>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* How It Works Section */}
       <section className="py-20 relative">
         <div className="absolute inset-0 bg-bg-secondary/30" />
+        <div className="max-w-6xl mx-auto px-4 relative">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              <span className="bg-gradient-to-r from-neon-green to-neon-cyan bg-clip-text text-transparent">
+                How It Works
+              </span>
+            </h2>
+            <p className="text-base text-text-secondary max-w-lg mx-auto">
+              Get started in minutes. No account needed - just connect your wallet.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-4 gap-6">
+            {[
+              { step: "1", title: "Connect Wallet", desc: "Link your Phantom, Solflare, or any Solana wallet via Privy." },
+              { step: "2", title: "Choose Network", desc: "Switch between Mainnet for production or Devnet for testing." },
+              { step: "3", title: "Shield & Trade", desc: "Use privacy tools to hide balances, swap privately, and more." },
+              { step: "4", title: "Earn Points", desc: "Every action earns points. Climb the leaderboard and unlock rewards." },
+            ].map((item, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="text-center"
+              >
+                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-br from-neon-green to-neon-cyan flex items-center justify-center text-bg-primary font-bold text-lg">
+                  {item.step}
+                </div>
+                <h3 className="font-semibold text-text-primary mb-2">{item.title}</h3>
+                <p className="text-sm text-text-muted">{item.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Powered By - SDK Partners Section */}
+      <section className="py-20 relative">
         <div className="max-w-6xl mx-auto px-4 relative">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -382,7 +553,7 @@ export default function LandingPage() {
           >
             <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-4 text-xs font-medium bg-neon-green/10 border border-neon-green/30 rounded-full text-neon-green">
               <span className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
-              Solana Privacy Hack 2026
+              Hackathon Sponsors & Partners
             </div>
             <h3 className="text-2xl md:text-3xl font-bold text-text-primary mb-2">
               Powered By Industry Leaders
@@ -392,8 +563,68 @@ export default function LandingPage() {
             </p>
           </motion.div>
 
-          {/* Featured Bounty Sponsors - Large Cards */}
+          {/* Featured Sponsors - Large Cards */}
           <div className="grid md:grid-cols-2 gap-5 mb-6">
+            {/* Light Protocol */}
+            <motion.a
+              href="https://lightprotocol.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              whileHover={{ scale: 1.02, y: -5 }}
+              className="group p-5 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border-2 border-yellow-500/40 hover:border-yellow-500/70 hover:shadow-[0_0_30px_rgba(234,179,8,0.2)] transition-all"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-14 h-14 rounded-xl bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+                  <BoltIcon />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <h4 className="text-lg font-bold text-text-primary group-hover:text-yellow-400 transition-colors">Light Protocol</h4>
+                    <span className="px-2 py-0.5 text-[9px] font-bold bg-yellow-500/20 text-yellow-400 rounded-full">MAIN SPONSOR</span>
+                    <span className="px-2 py-0.5 text-[9px] font-bold bg-warning/20 text-warning rounded-full">$2.5K BOUNTY</span>
+                  </div>
+                  <p className="text-xs text-text-secondary mb-2">ZK state compression for Solana. Powers Privacy Cash with compressed accounts and ZK proofs.</p>
+                  <div className="flex items-center gap-3 text-[10px] text-text-muted">
+                    <span className="flex items-center gap-1"><CheckBadge className="text-yellow-400" /> ZK Compression</span>
+                    <span className="flex items-center gap-1"><CheckBadge className="text-yellow-400" /> Privacy Cash</span>
+                  </div>
+                </div>
+              </div>
+            </motion.a>
+
+            {/* INCO Network */}
+            <motion.a
+              href="https://inco.network"
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              whileHover={{ scale: 1.02, y: -5 }}
+              className="group p-5 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border-2 border-purple-500/40 hover:border-purple-500/70 hover:shadow-[0_0_30px_rgba(168,85,247,0.2)] transition-all"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-14 h-14 rounded-xl bg-purple-500/20 flex items-center justify-center flex-shrink-0 text-3xl">
+                  🔐
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <h4 className="text-lg font-bold text-text-primary group-hover:text-purple-400 transition-colors">INCO Network</h4>
+                    <span className="px-2 py-0.5 text-[9px] font-bold bg-purple-500/20 text-purple-400 rounded-full">FHE</span>
+                    <span className="px-2 py-0.5 text-[9px] font-bold bg-warning/20 text-warning rounded-full">SPONSOR</span>
+                  </div>
+                  <p className="text-xs text-text-secondary mb-2">Fully Homomorphic Encryption for confidential computing. Powers encrypted badge verification.</p>
+                  <div className="flex items-center gap-3 text-[10px] text-text-muted">
+                    <span className="flex items-center gap-1"><CheckBadge className="text-purple-400" /> Encrypted Proofs</span>
+                    <span className="flex items-center gap-1"><CheckBadge className="text-purple-400" /> Channels</span>
+                  </div>
+                </div>
+              </div>
+            </motion.a>
+
             {/* Anoncoin */}
             <motion.a
               href="https://anoncoin.it"
@@ -402,6 +633,7 @@ export default function LandingPage() {
               initial={{ opacity: 0, x: -20 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
               whileHover={{ scale: 1.02, y: -5 }}
               className="group p-5 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border-2 border-neon-green/40 hover:border-neon-green/70 hover:shadow-glow-md transition-all"
             >
@@ -413,74 +645,12 @@ export default function LandingPage() {
                   <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                     <h4 className="text-lg font-bold text-text-primary group-hover:text-neon-green transition-colors">Anoncoin</h4>
                     <span className="px-2 py-0.5 text-[9px] font-bold bg-neon-cyan/20 text-neon-cyan rounded-full">GASLESS</span>
-                    <span className="px-2 py-0.5 text-[9px] font-bold bg-warning/20 text-warning rounded-full">BOUNTY</span>
+                    <span className="px-2 py-0.5 text-[9px] font-bold bg-warning/20 text-warning rounded-full">$10K BOUNTY</span>
                   </div>
                   <p className="text-xs text-text-secondary mb-2">Launch tokens without gas fees. 100% anonymous token creation on Solana mainnet.</p>
                   <div className="flex items-center gap-3 text-[10px] text-text-muted">
                     <span className="flex items-center gap-1"><CheckBadge className="text-neon-green" /> No Gas</span>
                     <span className="flex items-center gap-1"><CheckBadge className="text-neon-green" /> Anonymous</span>
-                    <span className="flex items-center gap-1"><CheckBadge className="text-neon-green" /> Mainnet</span>
-                  </div>
-                </div>
-              </div>
-            </motion.a>
-
-            {/* Privacy Cash */}
-            <motion.a
-              href="https://privacycash.io"
-              target="_blank"
-              rel="noopener noreferrer"
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              whileHover={{ scale: 1.02, y: -5 }}
-              className="group p-5 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border-2 border-purple-500/40 hover:border-purple-500/70 hover:shadow-[0_0_30px_rgba(168,85,247,0.2)] transition-all"
-            >
-              <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-xl bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                  <ShieldIcon />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                    <h4 className="text-lg font-bold text-text-primary group-hover:text-purple-400 transition-colors">Privacy Cash</h4>
-                    <span className="px-2 py-0.5 text-[9px] font-bold bg-purple-500/20 text-purple-400 rounded-full">ZK PROOFS</span>
-                    <span className="px-2 py-0.5 text-[9px] font-bold bg-warning/20 text-warning rounded-full">$2.5K BOUNTY</span>
-                  </div>
-                  <p className="text-xs text-text-secondary mb-2">Hide your SOL balance with zero-knowledge proofs. Complete financial privacy on Solana.</p>
-                  <div className="flex items-center gap-3 text-[10px] text-text-muted">
-                    <span className="flex items-center gap-1"><CheckBadge className="text-purple-400" /> Hidden Balance</span>
-                    <span className="flex items-center gap-1"><CheckBadge className="text-purple-400" /> ZK Proofs</span>
-                  </div>
-                </div>
-              </div>
-            </motion.a>
-
-            {/* ShadowWire / Radr Labs */}
-            <motion.a
-              href="https://radr.dev"
-              target="_blank"
-              rel="noopener noreferrer"
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              whileHover={{ scale: 1.02, y: -5 }}
-              className="group p-5 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border-2 border-blue-500/40 hover:border-blue-500/70 hover:shadow-[0_0_30px_rgba(59,130,246,0.2)] transition-all"
-            >
-              <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                  <WalletIcon />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                    <h4 className="text-lg font-bold text-text-primary group-hover:text-blue-400 transition-colors">ShadowWire</h4>
-                    <span className="px-2 py-0.5 text-[9px] font-bold bg-blue-500/20 text-blue-400 rounded-full">BULLETPROOFS</span>
-                    <span className="px-2 py-0.5 text-[9px] font-bold bg-warning/20 text-warning rounded-full">BOUNTY</span>
-                  </div>
-                  <p className="text-xs text-text-secondary mb-2">Private transfers with hidden amounts. Powered by Radr Labs bulletproof technology.</p>
-                  <div className="flex items-center gap-3 text-[10px] text-text-muted">
-                    <span className="flex items-center gap-1"><CheckBadge className="text-blue-400" /> Hidden Amounts</span>
-                    <span className="flex items-center gap-1"><CheckBadge className="text-blue-400" /> Radr Labs</span>
                   </div>
                 </div>
               </div>
@@ -500,9 +670,7 @@ export default function LandingPage() {
             >
               <div className="flex items-start gap-4">
                 <div className="w-14 h-14 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-8 h-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
-                  </svg>
+                  <CardIcon />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -513,181 +681,98 @@ export default function LandingPage() {
                   <p className="text-xs text-text-secondary mb-2">Anonymous virtual cards for crypto spending. Privacy-first payment infrastructure.</p>
                   <div className="flex items-center gap-3 text-[10px] text-text-muted">
                     <span className="flex items-center gap-1"><CheckBadge className="text-amber-400" /> Virtual Cards</span>
-                    <span className="flex items-center gap-1"><CheckBadge className="text-amber-400" /> ZK Swap</span>
+                    <span className="flex items-center gap-1"><CheckBadge className="text-amber-400" /> Anonymous</span>
                   </div>
                 </div>
               </div>
             </motion.a>
           </div>
 
-          {/* Other Bounty Sponsors - Grid */}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {/* PNP Exchange */}
-            <motion.a
-              href="https://pnp.exchange"
-              target="_blank"
-              rel="noopener noreferrer"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.15 }}
-              whileHover={{ scale: 1.03, y: -3 }}
-              className="group p-4 rounded-xl bg-bg-tertiary/50 border border-pink-500/30 hover:border-pink-500/60 transition-all"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-lg bg-pink-500/20 flex items-center justify-center">
-                  <ChartIcon />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1">
-                    <h4 className="font-semibold text-text-primary group-hover:text-pink-400 transition-colors text-sm">PNP Exchange</h4>
-                  </div>
-                  <p className="text-[9px] text-warning">BOUNTY</p>
-                </div>
-              </div>
-              <p className="text-[10px] text-text-secondary">Anonymous prediction markets</p>
-            </motion.a>
-
-            {/* Helius */}
-            <motion.a
-              href="https://helius.dev"
-              target="_blank"
-              rel="noopener noreferrer"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              whileHover={{ scale: 1.03, y: -3 }}
-              className="group p-4 rounded-xl bg-bg-tertiary/50 border border-orange-500/30 hover:border-orange-500/60 transition-all"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center">
-                  <BoltIcon />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-text-primary group-hover:text-orange-400 transition-colors text-sm">Helius</h4>
-                  <p className="text-[9px] text-warning">SPONSOR</p>
-                </div>
-              </div>
-              <p className="text-[10px] text-text-secondary">RPC & whale intelligence</p>
-            </motion.a>
-
-            {/* Light Protocol */}
-            <motion.a
-              href="https://lightprotocol.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.25 }}
-              whileHover={{ scale: 1.03, y: -3 }}
-              className="group p-4 rounded-xl bg-bg-tertiary/50 border border-yellow-500/30 hover:border-yellow-500/60 transition-all"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-                  <BoltIcon />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-text-primary group-hover:text-yellow-400 transition-colors text-sm">Light Protocol</h4>
-                  <p className="text-[9px] text-warning">MAIN SPONSOR</p>
-                </div>
-              </div>
-              <p className="text-[10px] text-text-secondary">ZK state compression</p>
-            </motion.a>
-
-            {/* Jupiter */}
-            <motion.a
-              href="https://jup.ag"
-              target="_blank"
-              rel="noopener noreferrer"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.3 }}
-              whileHover={{ scale: 1.03, y: -3 }}
-              className="group p-4 rounded-xl bg-bg-tertiary/50 border border-emerald-500/30 hover:border-emerald-500/60 transition-all"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                  <SwapIcon />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-text-primary group-hover:text-emerald-400 transition-colors text-sm">Jupiter</h4>
-                  <p className="text-[9px] text-text-muted">ECOSYSTEM</p>
-                </div>
-              </div>
-              <p className="text-[10px] text-text-secondary">Best swap rates on Solana</p>
-            </motion.a>
-          </div>
-
-          {/* Darklake - At end */}
-          <motion.a
-            href="https://darklake.fi"
-            target="_blank"
-            rel="noopener noreferrer"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.35 }}
-            whileHover={{ scale: 1.01, y: -5 }}
-            className="group block p-5 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border-2 border-neon-cyan/40 hover:border-neon-cyan/70 hover:shadow-[0_0_30px_rgba(0,212,255,0.2)] transition-all"
-          >
-            <div className="flex flex-col md:flex-row items-start gap-4">
-              <div className="w-14 h-14 rounded-xl bg-neon-cyan/20 flex items-center justify-center flex-shrink-0">
-                <LockIcon />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                  <h4 className="text-lg font-bold text-text-primary group-hover:text-neon-cyan transition-colors">Darklake</h4>
-                  <span className="px-2 py-0.5 text-[9px] font-bold bg-neon-cyan/20 text-neon-cyan rounded-full">ZK SWAPS</span>
-                  <span className="px-2 py-0.5 text-[9px] font-bold bg-warning/20 text-warning rounded-full">BOUNTY</span>
-                </div>
-                <p className="text-xs text-text-secondary mb-2">Private token swaps with hidden amounts. Zero-knowledge proofs keep your trade sizes confidential.</p>
-                <div className="flex items-center gap-3 text-[10px] text-text-muted">
-                  <span className="flex items-center gap-1"><CheckBadge className="text-neon-cyan" /> Hidden Amounts</span>
-                  <span className="flex items-center gap-1"><CheckBadge className="text-neon-cyan" /> ZK Proofs</span>
-                  <span className="flex items-center gap-1"><CheckBadge className="text-neon-cyan" /> Deep Liquidity</span>
-                </div>
-              </div>
-            </div>
-          </motion.a>
-        </div>
-      </section>
-
-      {/* Stats Banner */}
-      <section className="py-16 relative">
-        <div className="absolute inset-0 bg-bg-secondary/50" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,255,136,0.05),transparent_70%)]" />
-
-        <div className="max-w-6xl mx-auto px-4 relative">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+          {/* Other SDK Partners - Grid */}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {[
-              { value: "$1M+", label: "Trading Volume" },
-              { value: "500+", label: "Active Whales" },
-              { value: "10K+", label: "Transactions" },
-              { value: "99.9%", label: "Uptime" },
-            ].map((stat, i) => (
+              { name: "ShadowWire", desc: "Bulletproof transfers", color: "blue", tag: "RADR" },
+              { name: "Darklake", desc: "ZK private swaps", color: "cyan", tag: "BOUNTY" },
+              { name: "Jupiter", desc: "DEX aggregation", color: "emerald", tag: "ECOSYSTEM" },
+              { name: "PNP Exchange", desc: "Prediction markets", color: "pink", tag: "BOUNTY" },
+              { name: "Helius", desc: "RPC & webhooks", color: "orange", tag: "SPONSOR" },
+            ].map((sdk, i) => (
               <motion.div
                 key={i}
-                initial={{ opacity: 0, scale: 0.8 }}
-                whileInView={{ opacity: 1, scale: 1 }}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.1 }}
+                transition={{ delay: i * 0.05 }}
+                whileHover={{ scale: 1.03, y: -3 }}
+                className={`group p-4 rounded-xl bg-bg-tertiary/50 border border-${sdk.color}-500/30 hover:border-${sdk.color}-500/60 transition-all`}
               >
-                <div className="text-3xl md:text-4xl font-black bg-gradient-to-r from-neon-green to-neon-cyan bg-clip-text text-transparent mb-2">
-                  {stat.value}
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold text-text-primary text-sm">{sdk.name}</h4>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded ${sdk.tag === 'BOUNTY' ? 'bg-warning/20 text-warning' : 'bg-text-muted/20 text-text-muted'}`}>
+                    {sdk.tag}
+                  </span>
                 </div>
-                <div className="text-sm text-text-secondary">{stat.label}</div>
+                <p className="text-[10px] text-text-secondary">{sdk.desc}</p>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing Section */}
+      {/* Network Availability Section */}
+      <section className="py-16 relative">
+        <div className="absolute inset-0 bg-bg-secondary/50" />
+        <div className="max-w-4xl mx-auto px-4 relative">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-8"
+          >
+            <h3 className="text-xl font-bold text-text-primary mb-2">Network Availability</h3>
+            <p className="text-sm text-text-muted">Switch between networks based on your needs</p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Mainnet */}
+            <div className="p-6 rounded-2xl bg-neon-green/5 border border-neon-green/30">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-3 h-3 bg-neon-green rounded-full animate-pulse" />
+                <h4 className="font-bold text-neon-green">Mainnet (Production)</h4>
+              </div>
+              <ul className="space-y-2 text-sm text-text-secondary">
+                {["Privacy Cash (Light Protocol)", "Ghost Send (ShadowWire)", "Jupiter Swaps", "Private Swap (Darklake)", "Virtual Cards (Starpay)", "Token Launcher (Anoncoin)"].map((f, i) => (
+                  <li key={i} className="flex items-center gap-2">
+                    <CheckBadge className="text-neon-green" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Devnet */}
+            <div className="p-6 rounded-2xl bg-warning/5 border border-warning/30">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-3 h-3 bg-warning rounded-full animate-pulse" />
+                <h4 className="font-bold text-warning">Devnet (Testing)</h4>
+              </div>
+              <ul className="space-y-2 text-sm text-text-secondary">
+                {["Dark Pool (Beta swaps)", "Confidential Badge (INCO FHE)", "Private Payments", "Encrypted Channel Access", "All Mainnet features (test mode)"].map((f, i) => (
+                  <li key={i} className="flex items-center gap-2">
+                    <CheckBadge className="text-warning" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-text-muted mt-4">* Features in beta testing before mainnet launch</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section - Updated with all badge tiers */}
       <section id="pricing" className="py-20 md:py-32 relative">
-        <div className="max-w-5xl mx-auto px-4">
+        <div className="max-w-6xl mx-auto px-4">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -697,99 +782,128 @@ export default function LandingPage() {
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
               <span className="bg-gradient-to-r from-neon-green to-neon-cyan bg-clip-text text-transparent">
-                Choose Your Power Level
+                NFT Badge Tiers
               </span>
             </h2>
-            <p className="text-base text-text-secondary">From ghost to legendary whale</p>
+            <p className="text-base text-text-secondary max-w-lg mx-auto">
+              Mint a badge NFT to unlock point multipliers, exclusive channels, and affiliate commissions
+            </p>
+            <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-neon-green/10 border border-neon-green/30 rounded-full">
+              <span className="text-neon-green font-semibold">Platform is 100% FREE</span>
+              <span className="text-text-muted text-sm">• Badges are optional upgrades</span>
+            </div>
           </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-            {/* Free */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
-              whileHover={{ y: -10 }}
-              className="p-6 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border border-border-primary hover:border-neon-green/30 transition-all"
-            >
-              <div className="text-sm text-neon-green font-semibold uppercase tracking-wider mb-4">Free</div>
-              <div className="text-4xl font-black text-text-primary mb-2">$0</div>
-              <div className="text-sm text-text-muted mb-6">Forever</div>
-              <ul className="space-y-3 mb-6">
-                {["10 transactions/month", "Basic privacy features", "Privacy score tracking", "30-day free trial"].map((item, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm text-text-secondary">
-                    <span className="text-neon-green text-lg">✓</span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="/dashboard"
-                className="block w-full py-3 text-base font-semibold border-2 border-neon-green/50 text-neon-green rounded-xl hover:bg-neon-green/10 hover:border-neon-green transition-all text-center"
+          {/* Badge Tier Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+            {badgeTiers.map((tier, i) => (
+              <motion.div
+                key={tier.name}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.1 }}
+                whileHover={{ y: -10, scale: 1.05 }}
+                className={`relative p-4 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border transition-all ${
+                  tier.popular
+                    ? 'border-neon-green shadow-glow-sm'
+                    : 'border-border-primary hover:border-neon-green/30'
+                }`}
               >
-                Start Free
-              </Link>
-            </motion.div>
+                {tier.popular && (
+                  <div className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 text-[9px] font-bold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-full">
+                    POPULAR
+                  </div>
+                )}
+                <div className={`w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-br ${tier.color} flex items-center justify-center text-bg-primary font-bold text-lg shadow-lg`}>
+                  {tier.name[0]}
+                </div>
+                <h3 className="text-center font-bold text-text-primary mb-1">{tier.name}</h3>
+                <p className="text-center text-2xl font-black text-neon-green mb-1">{tier.price} SOL</p>
+                <p className="text-center text-xs text-neon-cyan font-semibold">{tier.multiplier} Points</p>
+                <div className="mt-3 pt-3 border-t border-border-primary">
+                  <ul className="space-y-1 text-[10px] text-text-muted">
+                    <li>✓ 1 Year Premium</li>
+                    <li>✓ Channel Access</li>
+                    <li>✓ NFT Badge</li>
+                  </ul>
+                </div>
+              </motion.div>
+            ))}
+          </div>
 
-            {/* Premium - Featured */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              whileHover={{ y: -10, scale: 1.02 }}
-              className="relative p-6 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border-2 border-neon-green shadow-glow-sm"
-            >
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 text-xs font-bold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-full">
-                MOST POPULAR
+          {/* Free Tier Highlight */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="max-w-2xl mx-auto p-6 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border border-border-primary"
+          >
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              <div className="flex-shrink-0">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-neon-green/20 to-neon-cyan/20 flex items-center justify-center text-3xl">
+                  🆓
+                </div>
               </div>
-              <div className="text-sm text-neon-green font-semibold uppercase tracking-wider mb-4">Premium</div>
-              <div className="text-4xl font-black text-text-primary mb-2">0.1 SOL</div>
-              <div className="text-sm text-text-muted mb-6">Per Month</div>
-              <ul className="space-y-3 mb-6">
-                {["Unlimited transactions", "All privacy features", "Whale intelligence feed", "Priority support", "Badge discount 50%"].map((item, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm text-text-secondary">
-                    <span className="text-neon-green text-lg">✓</span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
+              <div className="flex-1 text-center md:text-left">
+                <h3 className="text-lg font-bold text-text-primary mb-2">Start Free Forever</h3>
+                <p className="text-sm text-text-secondary mb-3">
+                  All core privacy features are completely free. No account needed, no subscription required.
+                  Just connect your wallet and start using Privacy Cash, Ghost Send, Jupiter Swaps, and more.
+                </p>
+                <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                  {["Privacy Cash", "Ghost Send", "Jupiter", "PNP Markets", "Whale Intel"].map((f) => (
+                    <span key={f} className="px-2 py-1 text-xs bg-neon-green/10 text-neon-green rounded-full">
+                      {f}
+                    </span>
+                  ))}
+                </div>
+              </div>
               <Link
                 href="/dashboard"
-                className="block w-full py-3 text-base font-semibold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-xl hover:shadow-glow-md transition-all text-center"
+                className="flex-shrink-0 px-6 py-3 text-sm font-semibold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-xl hover:shadow-glow-md transition-all"
               >
-                Go Premium
+                Get Started
               </Link>
-            </motion.div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
 
-            {/* Gold Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              whileHover={{ y: -10 }}
-              className="p-6 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border border-border-primary hover:border-neon-green/30 transition-all"
-            >
-              <div className="text-sm text-neon-green font-semibold uppercase tracking-wider mb-4">Gold Badge</div>
-              <div className="text-4xl font-black text-text-primary mb-2">5 SOL</div>
-              <div className="text-sm text-text-muted mb-6">One-time + 1 Year</div>
-              <ul className="space-y-3 mb-6">
-                {["Lifetime badge NFT", "1 year premium access", "Exclusive whale club", "Custom themes", "Priority features"].map((item, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm text-text-secondary">
-                    <span className="text-neon-green text-lg">✓</span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="/dashboard"
-                className="block w-full py-3 text-base font-semibold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-xl hover:shadow-glow-md transition-all text-center"
+      {/* Security Section */}
+      <section className="py-16 relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-bg-secondary/50 to-transparent" />
+        <div className="max-w-4xl mx-auto px-4 relative">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-8"
+          >
+            <h3 className="text-xl font-bold text-text-primary mb-2">Built for Security</h3>
+            <p className="text-sm text-text-muted">Your keys, your crypto. We never have custody.</p>
+          </motion.div>
+
+          <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { icon: "🔐", title: "Non-Custodial", desc: "All operations via your wallet" },
+              { icon: "✅", title: "Audited SDKs", desc: "Using verified protocols" },
+              { icon: "🌐", title: "Open Protocols", desc: "Transparent infrastructure" },
+              { icon: "⚡", title: "Helius RPC", desc: "Enterprise-grade reliability" },
+            ].map((item, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="p-4 rounded-xl bg-bg-tertiary/50 border border-border-primary text-center"
               >
-                Claim Badge
-              </Link>
-            </motion.div>
+                <span className="text-2xl mb-2 block">{item.icon}</span>
+                <h4 className="font-semibold text-text-primary text-sm mb-1">{item.title}</h4>
+                <p className="text-xs text-text-muted">{item.desc}</p>
+              </motion.div>
+            ))}
           </div>
         </div>
       </section>
@@ -807,25 +921,25 @@ export default function LandingPage() {
             transition={{ duration: 0.6 }}
           >
             <h2 className="text-3xl md:text-5xl font-black mb-6">
-              Ready to Become a{" "}
+              Ready to Become{" "}
               <motion.span
                 className="text-neon-green inline-block"
                 animate={{ textShadow: ["0 0 20px #00ff88", "0 0 50px #00ff88", "0 0 20px #00ff88"] }}
                 transition={{ duration: 2, repeat: Infinity }}
               >
-                Phantom
+                Invisible
               </motion.span>
               ?
             </h2>
             <p className="text-base md:text-lg text-text-secondary mb-10 max-w-lg mx-auto">
-              Join the elite traders who value privacy. Your movements should be yours alone.
+              Join thousands of whales who value their privacy. Your movements should be yours alone.
             </p>
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
               <Link
                 href="/dashboard"
                 className="inline-flex items-center gap-3 px-10 py-4 text-lg font-semibold bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary rounded-2xl hover:shadow-glow-lg transition-all"
               >
-                Launch App
+                Launch App - Free
                 <motion.span
                   animate={{ x: [0, 5, 0] }}
                   transition={{ duration: 1, repeat: Infinity }}
@@ -834,6 +948,9 @@ export default function LandingPage() {
                 </motion.span>
               </Link>
             </motion.div>
+            <p className="mt-6 text-sm text-text-muted">
+              No account needed • Connect any Solana wallet • Start in seconds
+            </p>
           </motion.div>
         </div>
       </section>

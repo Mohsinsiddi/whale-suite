@@ -56,11 +56,15 @@ export async function GET(request: NextRequest) {
         : 'locked',
     }));
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       channels: channelsWithAccess,
       userTier,
     });
+
+    // Cache for 1 minute - channel list doesn't change often
+    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
+    return response;
   } catch (error) {
     console.error('Failed to fetch channels:', error);
     return NextResponse.json(

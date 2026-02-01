@@ -6,7 +6,6 @@ import { useState } from "react";
 import { WalletAvatar } from "../ui/Avatar";
 import Dropdown, { DropdownItem, DropdownDivider } from "../ui/Dropdown";
 import { TierBadge } from "../ui/Badge";
-import NetworkSelectModal from "../ui/NetworkSelectModal";
 import WhaleLogo from "../ui/WhaleLogo";
 import { useAuth } from "@/lib/privy/hooks";
 import { useUser, useWallet, useUI } from "@/store";
@@ -20,14 +19,13 @@ interface HeaderProps {
 
 export default function Header({ variant = "landing", wallet }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [networkModalOpen, setNetworkModalOpen] = useState(false);
   const { logout, walletAddress, authenticated, login } = useAuth();
   const { userNumber, badgeTier, privacyScore } = useUser();
   const { hiddenBalance } = useWallet();
   const { toggleSidebar } = useUI();
 
-  // Use network context - rpcPing comes from provider
-  const { network, rpcPing, isFeatureAvailable } = useNetwork();
+  // Use network context
+  const { network, isFeatureAvailable } = useNetwork();
 
   // Fetch real SOL balance from blockchain
   const displayWalletAddr = wallet || walletAddress;
@@ -80,17 +78,6 @@ export default function Header({ variant = "landing", wallet }: HeaderProps) {
                 className="sm:hidden"
               />
             </Link>
-
-            {/* Network Toggle - Desktop only in app variant */}
-            {variant === "app" && (
-              <div className="hidden sm:block">
-                <NetworkToggle
-                  network={network}
-                  ping={rpcPing}
-                  onClick={() => setNetworkModalOpen(true)}
-                />
-              </div>
-            )}
           </div>
 
           {/* Nav Links - Desktop (Landing only) */}
@@ -191,82 +178,9 @@ export default function Header({ variant = "landing", wallet }: HeaderProps) {
         </div>
       )}
 
-      {/* Network Select Modal */}
-      <NetworkSelectModal
-        isOpen={networkModalOpen}
-        onClose={() => setNetworkModalOpen(false)}
-      />
     </header>
   );
 }
-
-// Network Toggle Component with Ping
-function NetworkToggle({
-  network,
-  ping,
-  onClick
-}: {
-  network: 'mainnet' | 'devnet';
-  ping: number | null;
-  onClick: () => void;
-}) {
-  const pingStatus = ping === null
-    ? 'loading'
-    : ping < 0
-    ? 'error'
-    : ping < 200
-    ? 'excellent'
-    : ping < 500
-    ? 'good'
-    : 'slow';
-
-  return (
-    <button
-      onClick={onClick}
-      className={`group flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-[1.02] ${
-        network === 'mainnet'
-          ? 'bg-neon-green/10 text-neon-green border border-neon-green/30 hover:bg-neon-green/15 hover:border-neon-green/50'
-          : 'bg-warning/10 text-warning border border-warning/30 hover:bg-warning/15 hover:border-warning/50'
-      }`}
-    >
-      {/* Network indicator */}
-      <span className={`w-2 h-2 rounded-full transition-all ${
-        network === 'mainnet' ? 'bg-neon-green' : 'bg-warning'
-      } ${ping !== null && ping >= 0 ? 'animate-pulse' : ''}`} />
-
-      {/* Network name */}
-      <span className="font-semibold">
-        {network === 'mainnet' ? 'Mainnet' : 'Devnet'}
-      </span>
-
-      {/* Ping indicator */}
-      <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] ${
-        pingStatus === 'loading'
-          ? 'bg-bg-tertiary text-text-muted'
-          : pingStatus === 'error'
-          ? 'bg-error/20 text-error'
-          : pingStatus === 'excellent'
-          ? 'bg-neon-green/20 text-neon-green'
-          : pingStatus === 'good'
-          ? 'bg-warning/20 text-warning'
-          : 'bg-error/20 text-error'
-      }`}>
-        <SignalIcon className="w-2.5 h-2.5" />
-        {pingStatus === 'loading' ? '...' : pingStatus === 'error' ? 'err' : `${ping}ms`}
-      </span>
-
-      {/* Chevron */}
-      <ChevronUpDownIcon className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
-    </button>
-  );
-}
-
-// Signal Icon for ping
-const SignalIcon = ({ className = "w-4 h-4" }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.348 14.651a3.75 3.75 0 010-5.303m5.304 0a3.75 3.75 0 010 5.303m-7.425 2.122a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546" />
-  </svg>
-);
 
 // Wallet/Balance Dropdown
 function WalletDropdown({
@@ -539,12 +453,6 @@ const EyeOffIcon = ({ className = "w-4 h-4" }) => (
 const ChevronDownIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-  </svg>
-);
-
-const ChevronUpDownIcon = ({ className = "w-4 h-4" }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
   </svg>
 );
 
