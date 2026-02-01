@@ -11,7 +11,7 @@ import { StealthRating } from '@/components/ui/Progress';
 import Tabs from '@/components/ui/Tabs';
 import VirtualCard3D from '@/components/cards/VirtualCard3D';
 import { ActivityTable, ActivityItem } from '@/components/activity/ActivityTable';
-import { PointsDisplay, StreakCounter, RankBadge, PointsBadge, StreakBadge } from '@/components/leaderboard';
+import { StreakCounter, RankBadge, PointsBadge, StreakBadge } from '@/components/leaderboard';
 import { useUserStats } from '@/hooks/useUserStats';
 import { useRequireAuth } from '@/hooks/useAuth';
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch';
@@ -112,12 +112,12 @@ function VirtualCardsDisplay() {
 
   if (cards.length === 0) {
     return (
-      <div className="text-center py-8">
-        <div className="w-16 h-16 rounded-full bg-bg-tertiary flex items-center justify-center mx-auto mb-4">
-          <CreditCard className="w-8 h-8 text-text-muted" />
+      <div className="text-center py-6 sm:py-8">
+        <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-bg-tertiary flex items-center justify-center mx-auto mb-3 sm:mb-4">
+          <CreditCard className="w-6 h-6 sm:w-8 sm:h-8 text-text-muted" />
         </div>
-        <h4 className="text-text-primary font-medium mb-2">No Cards Yet</h4>
-        <p className="text-text-muted text-sm mb-4">
+        <h4 className="text-text-primary font-medium mb-1 sm:mb-2 text-sm sm:text-base">No Cards Yet</h4>
+        <p className="text-text-muted text-xs sm:text-sm mb-3 sm:mb-4 px-4">
           Create virtual cards funded with crypto for anonymous payments
         </p>
         <Link href="/cards">
@@ -131,7 +131,7 @@ function VirtualCardsDisplay() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
       {cards.slice(0, 4).map((card) => (
         <VirtualCard3D
           key={card.id}
@@ -146,9 +146,9 @@ function VirtualCardsDisplay() {
       ))}
 
       <Link href="/cards" className="block">
-        <div className="h-[200px] rounded-2xl border-2 border-dashed border-border-primary hover:border-neon-green/50 flex flex-col items-center justify-center gap-3 transition-all hover:bg-neon-green/5 cursor-pointer group">
-          <div className="w-12 h-12 rounded-full bg-bg-tertiary flex items-center justify-center group-hover:bg-neon-green/20 transition-colors">
-            <Plus className="w-6 h-6 text-text-muted group-hover:text-neon-green" />
+        <div className="h-[160px] sm:h-[200px] rounded-xl sm:rounded-2xl border-2 border-dashed border-border-primary hover:border-neon-green/50 flex flex-col items-center justify-center gap-2 sm:gap-3 transition-all hover:bg-neon-green/5 cursor-pointer group">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-bg-tertiary flex items-center justify-center group-hover:bg-neon-green/20 transition-colors">
+            <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-text-muted group-hover:text-neon-green" />
           </div>
           <span className="text-sm text-text-muted group-hover:text-text-primary">
             Add New Card
@@ -351,11 +351,11 @@ export default function ProfilePage() {
   // If not authenticated, show connect prompt
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <Card variant="glow" className="max-w-md p-8 text-center">
-          <Wallet className="w-16 h-16 text-text-muted mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-text-primary mb-2">Connect Wallet</h2>
-          <p className="text-text-muted mb-6">
+      <div className="min-h-[60vh] flex items-center justify-center px-4">
+        <Card variant="glow" className="max-w-md w-full p-6 sm:p-8 text-center">
+          <Wallet className="w-12 h-12 sm:w-16 sm:h-16 text-text-muted mx-auto mb-3 sm:mb-4" />
+          <h2 className="text-lg sm:text-xl font-bold text-text-primary mb-2">Connect Wallet</h2>
+          <p className="text-sm sm:text-base text-text-muted mb-4 sm:mb-6">
             Connect your wallet to view your profile, track activity, and earn points!
           </p>
           <Button variant="primary" onClick={login}>
@@ -378,50 +378,52 @@ export default function ProfilePage() {
   const transferCount = (activityCounts.shadow_transfer?.count || 0) + (userStats?.privateTransfers || 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Page Header */}
-      <div className="flex items-start justify-between flex-wrap gap-4">
+      <div className="flex items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-bold text-text-primary">Profile</h1>
-          <p className="text-sm text-text-secondary">Your Whale Suite identity & stats</p>
+          <h1 className="text-lg sm:text-xl font-bold text-text-primary">Profile</h1>
+          <p className="text-xs sm:text-sm text-text-secondary">Your Whale Suite identity & stats</p>
         </div>
         <Button variant="ghost" size="sm" onClick={refreshStats} disabled={statsLoading}>
-          <RefreshCw className={`w-4 h-4 mr-2 ${statsLoading ? 'animate-spin' : ''}`} />
-          Refresh
+          <RefreshCw className={`w-4 h-4 ${statsLoading ? 'animate-spin' : ''}`} />
+          <span className="hidden sm:inline ml-2">Refresh</span>
         </Button>
       </div>
 
       {/* Identity Card */}
-      <Card variant="glow" padding="lg">
-        <div className="flex flex-col md:flex-row md:items-center gap-6">
-          {/* Avatar */}
-          <ProfileAvatar
-            address={walletAddress || ''}
-            imageUrl={profileSettings.avatarUrl}
-            size="2xl"
-            editable
-            onEditClick={() => setShowAvatarModal(true)}
-            badge={
-              user?.badgeTier && user.badgeTier !== 'none' ? (
-                <TierBadge tier={user.badgeTier as 'bronze' | 'silver' | 'gold' | 'diamond' | 'legendary'} size="sm" showLabel={false} />
-              ) : undefined
-            }
-          />
+      <Card variant="glow" padding="md" className="lg:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6">
+          {/* Avatar - Centered on mobile */}
+          <div className="flex justify-center sm:justify-start">
+            <ProfileAvatar
+              address={walletAddress || ''}
+              imageUrl={profileSettings.avatarUrl}
+              size="xl"
+              editable
+              onEditClick={() => setShowAvatarModal(true)}
+              badge={
+                user?.badgeTier && user.badgeTier !== 'none' ? (
+                  <TierBadge tier={user.badgeTier as 'bronze' | 'silver' | 'gold' | 'diamond' | 'legendary'} size="sm" showLabel={false} />
+                ) : undefined
+              }
+            />
+          </div>
 
           {/* Info */}
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2 flex-wrap">
-              <h2 className="text-2xl font-bold text-text-primary">
+          <div className="flex-1 text-center sm:text-left">
+            <div className="flex items-center justify-center sm:justify-start gap-2 mb-2 flex-wrap">
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-text-primary">
                 {user?.displayName || `Whale #${user?.userNumber || '---'}`}
               </h2>
               {user?.isPremium && <Badge variant="success" size="sm">Premium</Badge>}
-              <PointsBadge points={points} />
-              {streak > 0 && <StreakBadge streak={streak} />}
             </div>
-            <p className="text-sm text-text-muted font-mono mb-3 truncate">
+            <p className="text-xs sm:text-sm text-text-muted font-mono mb-3 truncate max-w-full">
               {walletAddress}
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap justify-center sm:justify-start gap-1.5 sm:gap-2">
+              <PointsBadge points={points} />
+              {streak > 0 && <StreakBadge streak={streak} />}
               <Badge size="sm" variant="cyan">Early Adopter</Badge>
               {(userStats?.privateTransfers || 0) > 10 && (
                 <Badge size="sm" variant="default">Privacy Champion</Badge>
@@ -432,8 +434,8 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Rank & Points */}
-          <div className="flex flex-col items-center gap-3">
+          {/* Rank & Points - Hidden on mobile (shown in mobile section above) */}
+          <div className="hidden lg:flex flex-col items-center gap-3">
             <RankBadge rank={rank} size="md" showDetails={false} />
             <StreakCounter streak={streak} size="sm" />
           </div>
@@ -445,77 +447,134 @@ export default function ProfilePage() {
 
       {/* Overview Tab */}
       {activeTab === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+          {/* Mobile: Show key info first */}
+          <div className="lg:hidden space-y-4">
+            {/* Stealth Rating - Mobile */}
+            <Card variant="default" padding="md">
+              <div className="flex items-center justify-between mb-3">
+                <CardTitle className="text-base">Stealth Rating</CardTitle>
+                <Link href="/docs" className="text-xs text-neon-cyan hover:underline">
+                  What&apos;s this?
+                </Link>
+              </div>
+              <StealthRating score={user?.privacyScore || 0} />
+              <div className="mt-3 p-2 rounded-lg bg-neon-green/5 border border-neon-green/20">
+                <p className="text-xs text-text-secondary">
+                  <Sparkles className="w-3 h-3 inline mr-1 text-neon-green" />
+                  Earn points for airdrops & NFT rewards!
+                </p>
+              </div>
+            </Card>
+
+            {/* Quick Actions - Mobile */}
+            <div className="flex gap-2">
+              <Link href="/channels" className="flex-1">
+                <Button variant="secondary" size="sm" fullWidth>
+                  <Shield className="w-4 h-4 mr-1" />
+                  Claim Badge
+                </Button>
+              </Link>
+              <Link href="/badges" className="flex-1">
+                <Button variant="ghost" size="sm" fullWidth>
+                  <Trophy className="w-4 h-4 mr-1" />
+                  Badges
+                </Button>
+              </Link>
+            </div>
+
+            {/* Leaderboard - Mobile */}
+            <Card variant="default" padding="sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <RankBadge rank={rank} size="sm" showDetails={false} />
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">#{rank} Global Rank</p>
+                    <p className="text-xs text-text-muted">{points.toLocaleString()} points</p>
+                  </div>
+                </div>
+                <Link href="/intelligence">
+                  <Button variant="ghost" size="xs">
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </Link>
+              </div>
+            </Card>
+          </div>
+
+          {/* Main Content */}
           <div className="lg:col-span-2 space-y-4">
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card variant="default" padding="sm">
-                <div className="flex items-center gap-2 text-xs text-text-muted mb-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+              <Card variant="default" padding="sm" className="p-2.5 sm:p-3">
+                <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-text-muted mb-0.5 sm:mb-1">
                   <Calendar className="w-3 h-3" />
-                  Member Since
+                  <span className="hidden xs:inline">Member Since</span>
+                  <span className="xs:hidden">Member</span>
                 </div>
-                <div className="text-lg font-bold text-text-primary">
+                <div className="text-sm sm:text-lg font-bold text-text-primary">
                   {user?.memberSince ? new Date(user.memberSince).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '---'}
                 </div>
               </Card>
 
-              <Card variant="default" padding="sm">
-                <div className="flex items-center gap-2 text-xs text-text-muted mb-1">
+              <Card variant="default" padding="sm" className="p-2.5 sm:p-3">
+                <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-text-muted mb-0.5 sm:mb-1">
                   <Activity className="w-3 h-3" />
                   Total Txs
                 </div>
-                <div className="text-lg font-bold text-text-primary">
+                <div className="text-sm sm:text-lg font-bold text-text-primary">
                   {userStats?.totalTransactions?.toLocaleString() || 0}
                 </div>
               </Card>
 
-              <Card variant="default" padding="sm">
-                <div className="flex items-center gap-2 text-xs text-text-muted mb-1">
+              <Card variant="default" padding="sm" className="p-2.5 sm:p-3">
+                <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-text-muted mb-0.5 sm:mb-1">
                   <Shield className="w-3 h-3" />
-                  Hidden Volume
+                  <span className="hidden xs:inline">Hidden Volume</span>
+                  <span className="xs:hidden">Volume</span>
                 </div>
-                <div className="text-lg font-bold text-text-primary">
+                <div className="text-sm sm:text-lg font-bold text-text-primary">
                   ${(Math.max(0, totalDeposited) * 150).toLocaleString()}
                 </div>
               </Card>
 
-              <Card variant="default" padding="sm">
-                <div className="flex items-center gap-2 text-xs text-text-muted mb-1">
+              <Card variant="default" padding="sm" className="p-2.5 sm:p-3">
+                <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-text-muted mb-0.5 sm:mb-1">
                   <Users className="w-3 h-3" />
                   Referrals
                 </div>
-                <div className="text-lg font-bold text-text-primary">
+                <div className="text-sm sm:text-lg font-bold text-text-primary">
                   {userStats?.referrals || 0}
                 </div>
               </Card>
             </div>
 
             {/* Points Summary */}
-            <Card variant="default" padding="md">
+            <Card variant="default" padding="sm" className="sm:p-4">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                   <Sparkles className="w-4 h-4 text-neon-green" />
                   Points & Rank
                 </CardTitle>
               </CardHeader>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 rounded-xl bg-bg-tertiary text-center">
-                  <PointsDisplay points={points} size="md" showIcon={false} />
-                  <p className="text-xs text-text-muted mt-1">Total Points</p>
+              <div className="grid grid-cols-4 gap-2 sm:gap-4">
+                <div className="p-2 sm:p-4 rounded-lg sm:rounded-xl bg-bg-tertiary text-center">
+                  <div className="text-lg sm:text-2xl font-bold text-neon-green">{points.toLocaleString()}</div>
+                  <p className="text-[10px] sm:text-xs text-text-muted mt-0.5 sm:mt-1">Total</p>
                 </div>
-                <div className="p-4 rounded-xl bg-bg-tertiary text-center">
-                  <div className="text-2xl font-bold text-neon-green">+{stats?.points.today || 0}</div>
-                  <p className="text-xs text-text-muted mt-1">Today</p>
+                <div className="p-2 sm:p-4 rounded-lg sm:rounded-xl bg-bg-tertiary text-center">
+                  <div className="text-lg sm:text-2xl font-bold text-neon-green">+{stats?.points.today || 0}</div>
+                  <p className="text-[10px] sm:text-xs text-text-muted mt-0.5 sm:mt-1">Today</p>
                 </div>
-                <div className="p-4 rounded-xl bg-bg-tertiary text-center">
-                  <div className="text-2xl font-bold text-text-primary">+{stats?.points.week || 0}</div>
-                  <p className="text-xs text-text-muted mt-1">This Week</p>
+                <div className="p-2 sm:p-4 rounded-lg sm:rounded-xl bg-bg-tertiary text-center">
+                  <div className="text-lg sm:text-2xl font-bold text-text-primary">+{stats?.points.week || 0}</div>
+                  <p className="text-[10px] sm:text-xs text-text-muted mt-0.5 sm:mt-1">Week</p>
                 </div>
-                <div className="p-4 rounded-xl bg-bg-tertiary text-center">
-                  <div className="flex items-center justify-center gap-1 text-2xl font-bold text-orange-400">
-                    <Flame className="w-5 h-5" />{streak}
+                <div className="p-2 sm:p-4 rounded-lg sm:rounded-xl bg-bg-tertiary text-center">
+                  <div className="flex items-center justify-center gap-0.5 sm:gap-1 text-lg sm:text-2xl font-bold text-orange-400">
+                    <Flame className="w-4 h-4 sm:w-5 sm:h-5" />{streak}
                   </div>
-                  <p className="text-xs text-text-muted mt-1">Day Streak</p>
+                  <p className="text-[10px] sm:text-xs text-text-muted mt-0.5 sm:mt-1">Streak</p>
                 </div>
               </div>
             </Card>
@@ -524,19 +583,19 @@ export default function ProfilePage() {
             {user?.badgeTier && user.badgeTier !== 'none' && (
               <Card variant="default" padding="md">
                 <CardHeader>
-                  <CardTitle>Your NFT Badge</CardTitle>
-                  <Button variant="ghost" size="xs">
+                  <CardTitle className="text-sm sm:text-base">Your NFT Badge</CardTitle>
+                  <Button variant="ghost" size="xs" className="hidden sm:flex">
                     <ExternalLink className="w-3 h-3 mr-1" />
                     View on Solscan
                   </Button>
                 </CardHeader>
 
-                <div className="flex flex-col md:flex-row gap-6">
-                  <div className={`w-full md:w-48 h-48 rounded-2xl bg-gradient-to-br ${badgeInfo.color} p-1 shadow-lg`}>
+                <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+                  <div className={`w-full sm:w-40 md:w-48 h-40 sm:h-48 rounded-2xl bg-gradient-to-br ${badgeInfo.color} p-1 shadow-lg mx-auto sm:mx-0`}>
                     <div className="w-full h-full rounded-xl bg-bg-primary flex items-center justify-center">
                       <div className="text-center">
-                        <div className="text-5xl mb-2">{badgeInfo.emoji}</div>
-                        <div className="text-sm font-bold" style={{ color: badgeInfo.color.includes('yellow') ? '#facc15' : '#00ff88' }}>
+                        <div className="text-4xl sm:text-5xl mb-2">{badgeInfo.emoji}</div>
+                        <div className="text-xs sm:text-sm font-bold" style={{ color: badgeInfo.color.includes('yellow') ? '#facc15' : '#00ff88' }}>
                           {badgeInfo.name}
                         </div>
                         <div className="text-xs text-text-muted">{user.displayName}</div>
@@ -544,34 +603,36 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  <div className="flex-1 space-y-3">
-                    <div>
-                      <div className="text-xs text-text-muted mb-1">Badge Tier</div>
-                      <div className="text-sm text-text-secondary capitalize">{user.badgeTier}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-text-muted mb-1">Point Multiplier</div>
-                      <div className="text-sm text-neon-green font-medium">
-                        {user.badgeTier === 'bronze' ? '1.25x' :
-                         user.badgeTier === 'silver' ? '1.5x' :
-                         user.badgeTier === 'gold' ? '1.75x' :
-                         user.badgeTier === 'diamond' ? '2.0x' :
-                         user.badgeTier === 'legendary' ? '2.5x' : '1.0x'}
+                  <div className="flex-1 space-y-2 sm:space-y-3 text-center sm:text-left">
+                    <div className="grid grid-cols-2 sm:grid-cols-1 gap-2">
+                      <div>
+                        <div className="text-xs text-text-muted mb-0.5 sm:mb-1">Badge Tier</div>
+                        <div className="text-sm text-text-secondary capitalize">{user.badgeTier}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-text-muted mb-0.5 sm:mb-1">Point Multiplier</div>
+                        <div className="text-sm text-neon-green font-medium">
+                          {user.badgeTier === 'bronze' ? '1.25x' :
+                           user.badgeTier === 'silver' ? '1.5x' :
+                           user.badgeTier === 'gold' ? '1.75x' :
+                           user.badgeTier === 'diamond' ? '2.0x' :
+                           user.badgeTier === 'legendary' ? '2.5x' : '1.0x'}
+                        </div>
                       </div>
                     </div>
                     {user.premiumExpiry && (
                       <div>
-                        <div className="text-xs text-text-muted mb-1">Premium Expires</div>
+                        <div className="text-xs text-text-muted mb-0.5 sm:mb-1">Premium Expires</div>
                         <div className="text-sm text-neon-green">
                           {new Date(user.premiumExpiry).toLocaleDateString()}
                         </div>
                       </div>
                     )}
-                    <div className="flex gap-2 pt-2">
+                    <div className="flex flex-wrap justify-center sm:justify-start gap-2 pt-2">
                       <Link href="/badges">
                         <Button variant="secondary" size="sm">Upgrade Badge</Button>
                       </Link>
-                      <Button variant="ghost" size="sm">View on Magic Eden</Button>
+                      <Button variant="ghost" size="sm" className="hidden sm:flex">View on Magic Eden</Button>
                     </div>
                   </div>
                 </div>
@@ -579,11 +640,11 @@ export default function ProfilePage() {
             )}
 
             {/* Achievements */}
-            <Card variant="default" padding="md">
+            <Card variant="default" padding="sm" className="sm:p-4">
               <CardHeader>
-                <CardTitle>Achievements</CardTitle>
+                <CardTitle className="text-sm sm:text-base">Achievements</CardTitle>
               </CardHeader>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-4 gap-2 sm:gap-3">
                 {[
                   { icon: '🔒', name: 'First Deposit', unlocked: depositCount >= 1 },
                   { icon: '👻', name: '100 Transfers', unlocked: transferCount >= 100 },
@@ -596,22 +657,22 @@ export default function ProfilePage() {
                 ].map((achievement, i) => (
                   <div
                     key={i}
-                    className={`p-3 rounded-xl text-center ${
+                    className={`p-2 sm:p-3 rounded-lg sm:rounded-xl text-center ${
                       achievement.unlocked
                         ? 'bg-neon-green/10 border border-neon-green/30'
                         : 'bg-bg-tertiary opacity-50'
                     }`}
                   >
-                    <div className="text-2xl mb-1">{achievement.icon}</div>
-                    <div className="text-xs font-medium text-text-secondary">{achievement.name}</div>
+                    <div className="text-lg sm:text-2xl mb-0.5 sm:mb-1">{achievement.icon}</div>
+                    <div className="text-[10px] sm:text-xs font-medium text-text-secondary leading-tight">{achievement.name}</div>
                   </div>
                 ))}
               </div>
             </Card>
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-4">
+          {/* Sidebar - Hidden on mobile (shown above) */}
+          <div className="hidden lg:block space-y-4">
             {/* Stealth Rating */}
             <Card variant="default" padding="md">
               <CardHeader>
@@ -637,6 +698,64 @@ export default function ProfilePage() {
                      user?.badgeTier === 'legendary' ? '+150%' : '+0%'}
                   </span>
                 </div>
+              </div>
+
+              {/* Info about Stealth Points */}
+              <div className="mt-4 p-3 rounded-lg bg-neon-green/5 border border-neon-green/20">
+                <div className="flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-neon-green flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-text-secondary leading-relaxed">
+                      <strong className="text-neon-green">Stealth Points</strong> track your privacy activity.
+                      Higher scores may be rewarded with <strong>exclusive airdrops</strong> or <strong>FREE NFTs</strong> in the future!
+                    </p>
+                    <p className="text-xs text-text-muted mt-1">
+                      TBD - Rewards announced if development continues.
+                    </p>
+                    <Link href="/docs" className="inline-flex items-center gap-1 text-xs text-neon-cyan hover:underline mt-2">
+                      <HelpCircle className="w-3 h-3" />
+                      Learn more in docs
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Badges & Premium Access */}
+            <Card variant="default" padding="md" className="border-neon-cyan/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-neon-cyan" />
+                  Badges & Premium
+                </CardTitle>
+              </CardHeader>
+              <div className="space-y-3">
+                <p className="text-xs text-text-secondary">
+                  Claim <strong className="text-neon-cyan">Confidential Badges</strong> to unlock premium features and boost your stealth rating.
+                </p>
+                <div className="space-y-2">
+                  <Link href="/channels">
+                    <Button variant="secondary" size="sm" fullWidth className="justify-between">
+                      <span className="flex items-center gap-2">
+                        <Lock className="w-3.5 h-3.5" />
+                        Claim Channel Badges
+                      </span>
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                  <Link href="/badges">
+                    <Button variant="ghost" size="sm" fullWidth className="justify-between">
+                      <span className="flex items-center gap-2">
+                        <Trophy className="w-3.5 h-3.5" />
+                        View All Badges
+                      </span>
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                </div>
+                <p className="text-xs text-text-muted">
+                  Badge holders get stealth boosts, premium access, and future airdrop eligibility.
+                </p>
               </div>
             </Card>
 
@@ -714,39 +833,44 @@ export default function ProfilePage() {
 
       {/* Activity Tab */}
       {activeTab === 'activity' && (
-        <Card variant="default" padding="md">
+        <Card variant="default" padding="sm" className="sm:p-4">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
               <Activity className="w-4 h-4" />
               Activity History
             </CardTitle>
             <Button variant="ghost" size="xs" onClick={fetchActivities} disabled={activitiesLoading}>
-              <RefreshCw className={`w-3 h-3 mr-1 ${activitiesLoading ? 'animate-spin' : ''}`} />
-              Refresh
+              <RefreshCw className={`w-3 h-3 ${activitiesLoading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline ml-1">Refresh</span>
             </Button>
           </CardHeader>
-          <ActivityTable
-            items={activities}
-            loading={activitiesLoading}
-            onRefresh={fetchActivities}
-            emptyMessage="No activity yet. Start using privacy features to earn points!"
-            maxItems={20}
-          />
+          <div className="overflow-x-auto -mx-3 sm:mx-0">
+            <div className="min-w-[320px] px-3 sm:px-0">
+              <ActivityTable
+                items={activities}
+                loading={activitiesLoading}
+                onRefresh={fetchActivities}
+                emptyMessage="No activity yet. Start using privacy features to earn points!"
+                maxItems={20}
+              />
+            </div>
+          </div>
         </Card>
       )}
 
       {/* Cards Tab */}
       {activeTab === 'cards' && (
-        <Card variant="default" padding="md">
+        <Card variant="default" padding="sm" className="sm:p-4">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-neon-cyan" />
+            <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+              <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-neon-cyan" />
               Your Virtual Cards
             </CardTitle>
             <Link href="/cards">
               <Button variant="ghost" size="xs">
-                Get New Card
-                <ChevronRight className="w-4 h-4 ml-1" />
+                <span className="hidden sm:inline">Get New Card</span>
+                <span className="sm:hidden">New</span>
+                <ChevronRight className="w-4 h-4 ml-0.5 sm:ml-1" />
               </Button>
             </Link>
           </CardHeader>
@@ -756,7 +880,7 @@ export default function ProfilePage() {
 
       {/* Settings Tab */}
       {activeTab === 'settings' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
           {/* Public Profile Settings */}
           <Card variant="default" padding="md">
             <CardHeader>
@@ -980,15 +1104,15 @@ export default function ProfilePage() {
 
       {/* Avatar Upload Modal (Coming Soon) */}
       {showAvatarModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <Card variant="glow" padding="lg" className="max-w-md w-full">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm">
+          <Card variant="glow" padding="md" className="max-w-md w-full rounded-t-2xl sm:rounded-2xl rounded-b-none sm:rounded-b-2xl">
             <CardHeader>
-              <CardTitle>Change Avatar</CardTitle>
+              <CardTitle className="text-base sm:text-lg">Change Avatar</CardTitle>
             </CardHeader>
-            <div className="text-center py-6">
-              <Camera className="w-16 h-16 text-text-muted mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-text-primary mb-2">Coming Soon!</h3>
-              <p className="text-sm text-text-muted mb-6">
+            <div className="text-center py-4 sm:py-6">
+              <Camera className="w-12 h-12 sm:w-16 sm:h-16 text-text-muted mx-auto mb-3 sm:mb-4" />
+              <h3 className="text-base sm:text-lg font-bold text-text-primary mb-2">Coming Soon!</h3>
+              <p className="text-xs sm:text-sm text-text-muted mb-4 sm:mb-6 px-2">
                 Custom avatar upload will be available in a future update. For now, your avatar is automatically generated from your wallet address.
               </p>
               <Button variant="primary" onClick={() => setShowAvatarModal(false)}>
