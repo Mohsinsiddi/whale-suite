@@ -54,7 +54,22 @@ interface SavedCardOrder {
   createdAt: string;
 }
 
+// Order details with status and error message
+interface OrderDetailInfo {
+  status: string;
+  amount?: number;
+  message?: string; // Error message for failed orders
+}
+
 const CARD_AMOUNTS = [5, 25, 50, 100, 250];
+
+// StarPay Support Links
+const STARPAY_SUPPORT = {
+  website: 'https://starpay.cards',
+  email: 'support@starpay.cards',
+  telegram: 'https://t.me/starpaysupport',
+  docs: 'https://www.starpay.cards/api-dashboard/docs',
+};
 
 // Feature Card
 function FeatureCard({ icon: Icon, title, description }: {
@@ -125,7 +140,7 @@ export default function CardsPage() {
 
   // Order history state
   const [savedOrders, setSavedOrders] = useState<SavedCardOrder[]>([]);
-  const [orderDetails, setOrderDetails] = useState<Map<string, { status: string; amount?: number }>>(new Map());
+  const [orderDetails, setOrderDetails] = useState<Map<string, OrderDetailInfo>>(new Map());
   const [loadingOrders, setLoadingOrders] = useState(false);
 
   // Get email from Privy
@@ -144,7 +159,7 @@ export default function CardsPage() {
         setSavedOrders(response.data.orders);
 
         // Fetch status for each order from StarPay API
-        const details = new Map<string, { status: string; amount?: number }>();
+        const details = new Map<string, OrderDetailInfo>();
         for (const order of response.data.orders.slice(0, 10)) {
           try {
             const status = await checkOrderStatus(order.orderId);
@@ -152,6 +167,7 @@ export default function CardsPage() {
               details.set(order.orderId, {
                 status: status.status,
                 amount: status.amountUSD || order.amount,
+                message: status.message, // Include error message
               });
             }
           } catch {
@@ -220,9 +236,9 @@ export default function CardsPage() {
     }
   }, [selectedAmount, customAmount, getPrice]);
 
-  // Close modal on success
+  // Close modal on success (completed = card issued in StarPay API)
   useEffect(() => {
-    if (orderStatus?.status === 'issued') {
+    if (orderStatus?.status === 'completed') {
       toast.success('Card Issued!', `Your card details have been sent to ${email}`);
       setTimeout(() => {
         setShowPaymentModal(false);
@@ -372,10 +388,30 @@ export default function CardsPage() {
     </div>
   ) : null;
 
+  // Warning banner about amounts
+  const WarningBanner = (
+    <div className="mb-6 p-4 rounded-xl bg-warning/10 border border-warning/30">
+      <div className="flex items-start gap-3">
+        <AlertCircle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <p className="text-warning font-medium text-sm">Mainnet Beta - Use Small Amounts</p>
+          <p className="text-text-muted text-xs mt-1">
+            This feature is in beta. Start with small amounts ($5-$25) to test. Any losses are your responsibility.
+            By using this feature you agree to our{' '}
+            <a href="/terms" target="_blank" className="text-warning underline hover:no-underline">Terms & Conditions</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen p-4 md:p-6 lg:p-8">
       {/* Auth Banner */}
       {AuthBanner}
+
+      {/* Warning Banner */}
+      {WarningBanner}
 
       {/* Header */}
       <div className="mb-8">
@@ -570,11 +606,27 @@ export default function CardsPage() {
             <ActivityTable
               items={savedOrders.map((order): ActivityItem => {
                 const details = orderDetails.get(order.orderId);
+                const isFailed = details?.status === 'failed';
+
+                // Parse error message for failed orders
+                let failureReason = '';
+                if (isFailed && details?.message) {
+                  try {
+                    // Extract error code from the message
+                    const match = details.message.match(/errorCode['":\s]+([A-Z_]+)/);
+                    failureReason = match ? match[1].replace(/_/g, ' ') : 'Order failed';
+                  } catch {
+                    failureReason = 'Order failed';
+                  }
+                }
+
                 return {
                   id: order._id,
                   type: 'cards',
                   action: `${order.cardType === 'visa' ? 'Visa' : 'Mastercard'} Card`,
-                  description: `Order #${order.orderId.slice(0, 8)}`,
+                  description: isFailed
+                    ? `Order #${order.orderId.slice(0, 8)} • ${failureReason}`
+                    : `Order #${order.orderId.slice(0, 8)}`,
                   amount: details?.amount || order.amount,
                   status: (details?.status || 'pending') as ActivityItem['status'],
                   timestamp: order.createdAt,
@@ -595,6 +647,50 @@ export default function CardsPage() {
               emptyMessage="No card orders yet. Create your first card above!"
               maxItems={5}
             />
+
+            {/* Support Info for Failed Orders */}
+            {savedOrders.some(o => orderDetails.get(o.orderId)?.status === 'failed') && (
+              <div className="mt-4 p-4 rounded-xl bg-error/5 border border-error/20">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-error flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">Order Failed?</p>
+                    <p className="text-xs text-text-muted mt-1 mb-3">
+                      If your payment was sent but the order failed, contact StarPay support with your Order ID for assistance.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <a
+                        href={STARPAY_SUPPORT.telegram}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0088cc]/10 text-[#0088cc] text-xs font-medium hover:bg-[#0088cc]/20 transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                        </svg>
+                        Telegram Support
+                      </a>
+                      <a
+                        href={`mailto:${STARPAY_SUPPORT.email}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-text-muted/10 text-text-secondary text-xs font-medium hover:bg-text-muted/20 transition-colors"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        Email Support
+                      </a>
+                      <a
+                        href={STARPAY_SUPPORT.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-text-muted/10 text-text-secondary text-xs font-medium hover:bg-text-muted/20 transition-colors"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Website
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </Card>
         </div>
       )}
@@ -759,14 +855,14 @@ export default function CardsPage() {
                 <div className="flex items-center gap-2">
                   <Badge
                     variant={
-                      orderStatus?.status === 'issued' ? 'success' :
+                      orderStatus?.status === 'completed' ? 'success' :
                       orderStatus?.status === 'processing' ? 'info' :
                       orderStatus?.status === 'failed' || orderStatus?.status === 'expired' ? 'error' :
                       'warning'
                     }
                     size="sm"
                   >
-                    {orderStatus?.status || currentOrder.status}
+                    {orderStatus?.status === 'completed' ? 'issued' : (orderStatus?.status || currentOrder.status)}
                   </Badge>
                   {isPolling && <RefreshCw className="w-3 h-3 text-neon-green animate-spin" />}
                 </div>
@@ -779,7 +875,7 @@ export default function CardsPage() {
                 )}
               </div>
 
-              {orderStatus?.status === 'issued' && (
+              {orderStatus?.status === 'completed' && (
                 <div className="mt-3 flex items-center gap-2 text-success text-sm">
                   <CheckCircle2 className="w-4 h-4" />
                   Card issued! Details sent to {email}

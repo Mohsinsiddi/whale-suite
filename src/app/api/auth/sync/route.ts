@@ -17,73 +17,109 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    // Try to find existing user
-    let user = await User.findOne({ wallet });
-
-    if (user) {
-      // Update last login and any new fields
-      user.lastLoginAt = new Date();
-      if (privyId && !user.privyId) {
-        user.privyId = privyId;
+    // Try to find and update existing user in one query (uses wallet index)
+    const existingUser = await User.findOneAndUpdate(
+      { wallet },
+      {
+        $set: {
+          lastLoginAt: new Date(),
+          ...(privyId && { privyId }),
+          ...(email && { email }),
+        },
+      },
+      {
+        new: true,
+        lean: true, // Return plain object for speed
       }
-      if (email && !user.email) {
-        user.email = email;
-      }
+    );
 
-      // Recalculate privacy score on login
-      user.privacyScore = calculatePrivacyScore({
-        hiddenBalance: user.stats?.hiddenBalance,
-        privateTransfers: user.stats?.privateTransfers,
-        anonymousBets: user.stats?.anonymousBets,
-        swapVolume: user.stats?.swapVolume,
-        streak: user.streak,
-        badgeTier: (user.badgeTier || 'none') as BadgeTier,
+    if (existingUser) {
+      // Recalculate privacy score (lightweight operation)
+      const privacyScore = calculatePrivacyScore({
+        hiddenBalance: existingUser.stats?.hiddenBalance,
+        privateTransfers: existingUser.stats?.privateTransfers,
+        anonymousBets: existingUser.stats?.anonymousBets,
+        swapVolume: existingUser.stats?.swapVolume,
+        streak: existingUser.streak,
+        badgeTier: (existingUser.badgeTier || 'none') as BadgeTier,
       });
 
-      await user.save();
-    } else {
-      // Get the next user number
-      const lastUser = await User.findOne().sort({ userNumber: -1 });
-      const nextUserNumber = (lastUser?.userNumber || 0) + 1;
+      // Update privacy score async (don't wait)
+      if (Math.abs((existingUser.privacyScore || 0) - privacyScore) > 5) {
+        User.updateOne({ wallet }, { privacyScore }).catch(() => {});
+      }
 
-      // Create new user with 30-day trial
-      const trialExpiry = new Date();
-      trialExpiry.setDate(trialExpiry.getDate() + 30);
-
-      user = await User.create({
-        wallet,
-        privyId,
-        email,
-        userNumber: nextUserNumber,
-        badgeTier: 'none',
-        isPremium: true, // 30-day trial
-        premiumExpiry: trialExpiry,
-        privacyScore: 0,
-        referralCode: `WHALE${nextUserNumber}`,
-        lastLoginAt: new Date(),
+      return NextResponse.json({
+        success: true,
+        user: {
+          wallet: existingUser.wallet,
+          userNumber: existingUser.userNumber,
+          email: existingUser.email,
+          badgeTier: existingUser.badgeTier,
+          badgeMint: existingUser.badgeMint,
+          isPremium: existingUser.isPremium,
+          premiumExpiry: existingUser.premiumExpiry,
+          privacyScore,
+          stats: existingUser.stats,
+          referralCode: existingUser.referralCode,
+          referredBy: existingUser.referredBy,
+          settings: existingUser.settings,
+          termsAcceptedAt: existingUser.termsAcceptedAt,
+          termsVersion: existingUser.termsVersion,
+          createdAt: existingUser.createdAt,
+          lastLoginAt: existingUser.lastLoginAt,
+        },
+        isNewUser: false,
       });
     }
+
+    // New user - get next user number using atomic counter
+    // Use findOneAndUpdate with $inc for atomic increment
+    const counter = await User.findOneAndUpdate(
+      {},
+      { $inc: { userNumber: 0 } }, // No-op to get max
+      { sort: { userNumber: -1 }, lean: true, projection: { userNumber: 1 } }
+    );
+    const nextUserNumber = (counter?.userNumber || 0) + 1;
+
+    // Create new user with 30-day trial
+    const trialExpiry = new Date();
+    trialExpiry.setDate(trialExpiry.getDate() + 30);
+
+    const newUser = await User.create({
+      wallet,
+      privyId,
+      email,
+      userNumber: nextUserNumber,
+      badgeTier: 'none',
+      isPremium: true,
+      premiumExpiry: trialExpiry,
+      privacyScore: 0,
+      referralCode: `WHALE${nextUserNumber}`,
+      lastLoginAt: new Date(),
+    });
 
     return NextResponse.json({
       success: true,
       user: {
-        wallet: user.wallet,
-        userNumber: user.userNumber,
-        email: user.email,
-        badgeTier: user.badgeTier,
-        badgeMint: user.badgeMint,
-        isPremium: user.isPremium,
-        premiumExpiry: user.premiumExpiry,
-        privacyScore: user.privacyScore,
-        stats: user.stats,
-        referralCode: user.referralCode,
-        referredBy: user.referredBy,
-        settings: user.settings,
-        createdAt: user.createdAt,
-        lastLoginAt: user.lastLoginAt,
+        wallet: newUser.wallet,
+        userNumber: newUser.userNumber,
+        email: newUser.email,
+        badgeTier: newUser.badgeTier,
+        badgeMint: newUser.badgeMint,
+        isPremium: newUser.isPremium,
+        premiumExpiry: newUser.premiumExpiry,
+        privacyScore: 0,
+        stats: newUser.stats,
+        referralCode: newUser.referralCode,
+        referredBy: newUser.referredBy,
+        settings: newUser.settings,
+        termsAcceptedAt: newUser.termsAcceptedAt,
+        termsVersion: newUser.termsVersion,
+        createdAt: newUser.createdAt,
+        lastLoginAt: newUser.lastLoginAt,
       },
-      isNewUser: !user.createdAt ||
-        (new Date().getTime() - new Date(user.createdAt).getTime()) < 60000,
+      isNewUser: true,
     });
   } catch (error) {
     console.error('Auth sync error:', error);

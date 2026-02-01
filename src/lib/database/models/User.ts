@@ -54,6 +54,9 @@ export interface IUser extends Document {
   streak: number;
   lastActiveDate?: Date;
   rank?: number;
+  // Legal
+  termsAcceptedAt?: Date;
+  termsVersion?: string;
   // Timestamps
   createdAt: Date;
   updatedAt: Date;
@@ -145,6 +148,9 @@ const UserSchema = new Schema<IUser>({
   streak: { type: Number, default: 0 },
   lastActiveDate: { type: Date },
   rank: { type: Number },
+  // Legal
+  termsAcceptedAt: { type: Date },
+  termsVersion: { type: String },
   // Timestamps
   lastLoginAt: { type: Date, default: Date.now },
 }, {
@@ -152,13 +158,14 @@ const UserSchema = new Schema<IUser>({
 });
 
 // Compound indexes for fast queries
+UserSchema.index({ userNumber: -1 }); // Fast lookup for next user number
 UserSchema.index({ points: -1, streak: -1 }); // Leaderboard sorting (matches API sort)
 UserSchema.index({ points: -1, createdAt: -1 }); // Leaderboard with time tiebreaker
 UserSchema.index({ badgeTier: 1, points: -1 }); // Badge filtering + leaderboard
 UserSchema.index({ privyId: 1 }, { sparse: true }); // Privy lookup (sparse for null values)
 UserSchema.index({ lastActiveDate: 1, points: -1 }); // Period-based leaderboard queries
 UserSchema.index({ 'profile.isPublic': 1, points: -1 }); // Public profiles leaderboard
-// Note: referralCode already has index via unique: true in schema
+// Note: wallet & referralCode already have indexes via unique: true in schema
 UserSchema.index({ privacyScore: -1 }); // Privacy score ranking
 UserSchema.index({ streak: -1, points: -1 }); // Streak leaderboard
 

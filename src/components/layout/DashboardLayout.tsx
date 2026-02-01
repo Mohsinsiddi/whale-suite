@@ -1,13 +1,15 @@
 "use client";
 
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
+import TermsAcceptanceModal from "@/components/modals/TermsAcceptanceModal";
 import { useAuth } from "@/lib/privy/hooks";
 import { useWalletChange } from "@/hooks/useWalletChange";
 import { useUserStats } from "@/hooks/useUserStats";
-import { useUI } from "@/store";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { useStore, useUI, useUser } from "@/store";
 
 // Sync with sidebar's values
 const COLLAPSED_KEY = "whale-sidebar-collapsed";
@@ -21,10 +23,14 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { ready, walletAddress, isLoading } = useAuth();
   const { sidebarOpen, setSidebarOpen } = useUI();
+  const { termsAcceptedAt, hasSynced } = useUser();
+  const { post } = useAuthenticatedFetch();
 
   // Track sidebar collapsed state for main content margin
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [termsLoading, setTermsLoading] = useState(false);
 
   // Listen for sidebar state changes
   useEffect(() => {
@@ -62,6 +68,41 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   // Fetch user stats and sync to store (keeps Sidebar privacy score updated)
   useUserStats();
+
+  // Show terms modal for authenticated users who haven't accepted
+  // Only decide AFTER sync has completed (hasSynced = true)
+  useEffect(() => {
+    // Don't do anything until sync is complete
+    if (!ready || !walletAddress || !hasSynced) {
+      return;
+    }
+
+    // Sync is complete - now check if terms are accepted
+    if (termsAcceptedAt) {
+      setShowTermsModal(false);
+    } else {
+      setShowTermsModal(true);
+    }
+  }, [ready, walletAddress, termsAcceptedAt, hasSynced]);
+
+  // Handle terms acceptance
+  const handleAcceptTerms = useCallback(async () => {
+    if (!walletAddress) return;
+
+    setTermsLoading(true);
+    try {
+      const result = await post<{ success: boolean; termsAcceptedAt: string }>(`/api/users/${walletAddress}/accept-terms`, {});
+      if (result?.data?.success) {
+        // Update store
+        useStore.getState().setTermsAccepted(new Date(), '1.0.0');
+        setShowTermsModal(false);
+      }
+    } catch (error) {
+      console.error('Failed to accept terms:', error);
+    } finally {
+      setTermsLoading(false);
+    }
+  }, [walletAddress, post]);
 
   // Calculate sidebar width
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
@@ -178,6 +219,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {children}
         </div>
       </main>
+
+      {/* Terms Acceptance Modal - shows once for new users */}
+      <TermsAcceptanceModal
+        isOpen={showTermsModal}
+        onAccept={handleAcceptTerms}
+        isLoading={termsLoading}
+      />
     </div>
   );
 }

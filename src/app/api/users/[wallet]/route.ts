@@ -59,6 +59,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         referralCode: user.referralCode,
         referredBy: user.referredBy,
         settings: user.settings,
+        termsAcceptedAt: user.termsAcceptedAt,
+        termsVersion: user.termsVersion,
         createdAt: user.createdAt,
         lastLoginAt: user.lastLoginAt,
       },
