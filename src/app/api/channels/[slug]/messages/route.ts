@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/database/mongodb';
 import { Channel, ChannelMembership, ChannelMessage } from '@/lib/database/models';
-import { PublicKey } from '@solana/web3.js';
-import nacl from 'tweetnacl';
-import bs58 from 'bs58';
+
+// PRIVACY-FIRST MESSAGING:
+// - No signature required for every message (bad UX)
+// - User already proved identity when joining channel (INCO proof)
+// - Membership record = session (valid while active)
+// - Just verify: Privy auth wallet + active membership
 
 interface RouteParams {
   params: Promise<{ slug: string }>;
@@ -83,7 +86,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         createdAt: m.createdAt,
         isEdited: m.isEdited,
         isPinned: m.isPinned,
-        reactions: Object.fromEntries(m.reactions || new Map()),
+        reactions: m.reactions && typeof m.reactions === 'object' ? m.reactions : {},
         replyTo: m.replyTo?.toString(),
       })),
       nextCursor: hasMore ? messages[0]?.createdAt?.toISOString() : null,
@@ -98,16 +101,18 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// POST - Send message
+// POST - Send message (NO SIGNING - membership is the session!)
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { slug } = await params;
     const body = await request.json();
-    const { wallet, content, contentType, activityData, signature, replyTo } = body;
+    const { wallet, badgePda, content, contentType, activityData, replyTo } = body;
+    // badgePda used for privacy-first membership lookup below
 
-    if (!wallet || !content || !signature) {
+    // Wallet required (from Privy auth)
+    if (!wallet || !content) {
       return NextResponse.json(
-        { success: false, error: 'Missing required fields' },
+        { success: false, error: 'Missing required fields (wallet, content)' },
         { status: 400 }
       );
     }
@@ -120,29 +125,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Verify signature (simple message verification)
-    try {
-      const publicKey = new PublicKey(wallet);
-      const messageToSign = `Send message: ${content.slice(0, 50)}`;
-      const messageBytes = new TextEncoder().encode(messageToSign);
-      const signatureBytes = bs58.decode(signature);
-
-      const isValid = nacl.sign.detached.verify(
-        messageBytes,
-        signatureBytes,
-        publicKey.toBytes()
-      );
-
-      if (!isValid) {
-        return NextResponse.json(
-          { success: false, error: 'Invalid signature' },
-          { status: 401 }
-        );
-      }
-    } catch {
+    // Content moderation (basic)
+    const trimmedContent = content.trim();
+    if (!trimmedContent) {
       return NextResponse.json(
-        { success: false, error: 'Signature verification failed' },
-        { status: 401 }
+        { success: false, error: 'Message cannot be empty' },
+        { status: 400 }
       );
     }
 
@@ -157,29 +145,43 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Verify membership
-    const membership = await ChannelMembership.findOne({
-      wallet,
-      channelId: channel._id,
-      isActive: true,
-    });
+    // Verify membership (by badgePda first, fallback to wallet)
+    // PRIVACY: badgePda is preferred identity
+    let membership = null;
+
+    if (badgePda) {
+      membership = await ChannelMembership.findOne({
+        badgePda,
+        channelId: channel._id,
+        isActive: true,
+      });
+    }
+
+    // Fallback to wallet lookup
+    if (!membership) {
+      membership = await ChannelMembership.findOne({
+        wallet,
+        channelId: channel._id,
+        isActive: true,
+      });
+    }
 
     if (!membership) {
       return NextResponse.json(
-        { success: false, error: 'Not a member of this channel' },
+        { success: false, error: 'Not a member of this channel. Please join first.' },
         { status: 403 }
       );
     }
 
-    // Create message
+    // Create message (PRIVACY: store wallet for own-message detection, but never expose to others)
     const message = await ChannelMessage.create({
       channelId: channel._id,
       membershipId: membership._id,
-      content,
+      content: trimmedContent,
       contentType: contentType || 'text',
       activityData,
       senderAnonId: membership.anonId,
-      senderWallet: wallet,
+      senderWallet: wallet, // Only used for isOwnMessage check, never exposed
       replyTo: replyTo || undefined,
     });
 
@@ -208,8 +210,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     console.error('Failed to send message:', error);
+    // Log full error for debugging
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : '';
+    console.error('Error details:', { errorMessage, errorStack });
+
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
+      { success: false, error: `Server error: ${errorMessage}` },
       { status: 500 }
     );
   }

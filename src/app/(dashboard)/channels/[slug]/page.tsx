@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/privy/hooks';
 import { useConfidentialBadge } from '@/hooks/useConfidentialBadge';
 import Link from 'next/link';
+import { AnonAvatar } from '@/components/ui/AnonAvatar';
 
 type ActivityType = 'swap' | 'transfer' | 'deposit' | 'withdraw' | 'bet' | 'badge_claim';
 
@@ -54,7 +55,7 @@ export default function ChannelChatPage() {
   const params = useParams();
   const router = useRouter();
   const slug = params.slug as string;
-  const { wallet, walletAddress } = useAuth();
+  const { walletAddress } = useAuth();
   useConfidentialBadge(); // Hook for badge context
 
   const [channel, setChannel] = useState<Channel | null>(null);
@@ -120,10 +121,18 @@ export default function ChannelChatPage() {
     fetchChannel();
   }, [fetchChannel]);
 
-  // Setup polling
+  // Setup polling (15 second interval - not too aggressive)
   useEffect(() => {
     if (membership) {
-      pollingRef.current = setInterval(pollMessages, 5000);
+      // Initial fetch after 2 seconds
+      const initialTimeout = setTimeout(pollMessages, 2000);
+      // Then poll every 15 seconds
+      pollingRef.current = setInterval(pollMessages, 15000);
+
+      return () => {
+        clearTimeout(initialTimeout);
+        if (pollingRef.current) clearInterval(pollingRef.current);
+      };
     }
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
@@ -135,25 +144,16 @@ export default function ChannelChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Send message
+  // Send message (NO SIGNING - membership is the session!)
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wallet || !walletAddress || !newMessage.trim() || sending) return;
+    if (!walletAddress || !newMessage.trim() || sending) return;
 
     setSending(true);
     const content = newMessage.trim();
     setNewMessage('');
 
     try {
-      // Sign message
-      let signature = '';
-      if (wallet && 'signMessage' in wallet) {
-        const messageToSign = `Send message: ${content.slice(0, 50)}`;
-        const messageBytes = new TextEncoder().encode(messageToSign);
-        const signedBytes = await (wallet as unknown as { signMessage: (msg: Uint8Array) => Promise<Uint8Array> }).signMessage(messageBytes);
-        signature = Buffer.from(signedBytes).toString('base64');
-      }
-
       const res = await fetch(`/api/channels/${slug}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -161,7 +161,6 @@ export default function ChannelChatPage() {
           wallet: walletAddress,
           content,
           contentType: 'text',
-          signature,
         }),
       });
 
@@ -170,33 +169,29 @@ export default function ChannelChatPage() {
       if (data.success) {
         setMessages(prev => [...prev, {
           ...data.message,
-          isOwnMessage: true, // PRIVACY: This is our own message
+          isOwnMessage: true,
           reactions: {},
         }]);
+      } else {
+        // Restore message and show error
+        setNewMessage(content);
+        console.error('Failed to send:', data.error);
       }
     } catch (error) {
       console.error('Failed to send message:', error);
-      setNewMessage(content); // Restore message on error
+      setNewMessage(content);
     } finally {
       setSending(false);
     }
   };
 
-  // Handle sharing activity
+  // Handle sharing activity (NO SIGNING - membership is the session!)
   const handleShareActivity = async (activityData: Message['activityData']) => {
-    if (!wallet || !walletAddress || sending) return;
+    if (!walletAddress || sending) return;
 
     setSending(true);
 
     try {
-      let signature = '';
-      if (wallet && 'signMessage' in wallet) {
-        const messageToSign = `Share activity: ${activityData?.type}`;
-        const messageBytes = new TextEncoder().encode(messageToSign);
-        const signedBytes = await (wallet as unknown as { signMessage: (msg: Uint8Array) => Promise<Uint8Array> }).signMessage(messageBytes);
-        signature = Buffer.from(signedBytes).toString('base64');
-      }
-
       const res = await fetch(`/api/channels/${slug}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -205,7 +200,6 @@ export default function ChannelChatPage() {
           content: activityData?.description || `Shared a ${activityData?.type}`,
           contentType: 'activity',
           activityData,
-          signature,
         }),
       });
 
@@ -214,7 +208,7 @@ export default function ChannelChatPage() {
       if (data.success) {
         setMessages(prev => [...prev, {
           ...data.message,
-          isOwnMessage: true, // PRIVACY: This is our own message
+          isOwnMessage: true,
           reactions: {},
         }]);
       }
@@ -289,9 +283,14 @@ export default function ChannelChatPage() {
             <span className="text-2xl">{channel.icon}</span>
             <div>
               <h1 className="text-lg font-bold text-text-primary">{channel.name}</h1>
-              <p className="text-xs text-text-muted">
-                {channel.memberCount} members • You are {membership.anonId}
-              </p>
+              <div className="flex items-center gap-2 text-xs text-text-muted">
+                <span>{channel.memberCount} members</span>
+                <span>•</span>
+                <div className="flex items-center gap-1">
+                  <AnonAvatar anonId={membership.anonId} size="xs" />
+                  <span className="text-neon-green">{membership.anonId}</span>
+                </div>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -348,7 +347,8 @@ export default function ChannelChatPage() {
           </div>
         ) : (
           messages.map((msg, index) => {
-            const isOwn = msg.isOwnMessage; // PRIVACY: Use isOwnMessage flag instead of comparing wallets
+            // Check if own message - compare with membership anonId as fallback
+            const isOwn = msg.isOwnMessage || msg.senderAnonId === membership?.anonId;
             const showAvatar = index === 0 || messages[index - 1]?.senderAnonId !== msg.senderAnonId;
 
             return (
@@ -356,24 +356,19 @@ export default function ChannelChatPage() {
                 key={msg.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`flex gap-3 ${isOwn ? 'flex-row-reverse' : ''}`}
+                className={`flex gap-3 ${isOwn ? 'justify-end' : 'justify-start'}`}
               >
-                {/* Avatar */}
-                {showAvatar ? (
-                  <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold ${
-                    isOwn ? 'bg-neon-green text-bg-primary' : 'bg-bg-tertiary text-text-primary'
-                  }`}>
-                    {msg.senderAnonId.slice(-2)}
-                  </div>
-                ) : (
-                  <div className="w-8" />
+                {/* Avatar - left for others */}
+                {!isOwn && showAvatar && (
+                  <AnonAvatar anonId={msg.senderAnonId} size="sm" />
                 )}
+                {!isOwn && !showAvatar && <div className="w-8" />}
 
                 {/* Message Content */}
-                <div className={`max-w-[70%] ${isOwn ? 'items-end' : 'items-start'}`}>
+                <div className={`max-w-[70%] flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
                   {showAvatar && (
                     <p className={`text-xs text-text-muted mb-1 ${isOwn ? 'text-right' : ''}`}>
-                      {msg.senderAnonId}
+                      {isOwn ? 'You' : msg.senderAnonId}
                     </p>
                   )}
 
@@ -434,6 +429,12 @@ export default function ChannelChatPage() {
                     {msg.isEdited && ' (edited)'}
                   </p>
                 </div>
+
+                {/* Avatar - right for own messages */}
+                {isOwn && showAvatar && (
+                  <AnonAvatar anonId={msg.senderAnonId} size="sm" />
+                )}
+                {isOwn && !showAvatar && <div className="w-8" />}
               </motion.div>
             );
           })
@@ -470,6 +471,8 @@ export default function ChannelChatPage() {
       {/* Message Input */}
       <form onSubmit={handleSendMessage} className="flex-shrink-0 p-4 border-t border-border-primary bg-bg-secondary">
         <div className="flex items-center gap-3">
+          {/* Your avatar */}
+          <AnonAvatar anonId={membership.anonId} size="sm" />
           <input
             type="text"
             value={newMessage}

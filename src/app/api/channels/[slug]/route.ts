@@ -88,10 +88,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         contentType: m.contentType,
         activityData: m.activityData,
         senderAnonId: m.senderAnonId,
+        isOwnMessage: wallet ? m.senderWallet === wallet : false, // PRIVACY: Compare server-side
         createdAt: m.createdAt,
         isEdited: m.isEdited,
         isPinned: m.isPinned,
-        reactions: Object.fromEntries(m.reactions || new Map()),
+        reactions: m.reactions && typeof m.reactions === 'object' ? m.reactions : {},
       })),
       pinnedMessages: pinnedMessages.map(m => ({
         id: m._id.toString(),
@@ -104,8 +105,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     console.error('Failed to fetch channel:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
+      { success: false, error: `Server error: ${errorMessage}` },
       { status: 500 }
     );
   }
