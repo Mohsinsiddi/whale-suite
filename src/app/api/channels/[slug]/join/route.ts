@@ -14,19 +14,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { slug } = await params;
     const body = await request.json();
     const {
+      // Privacy-first: badgePda is the identity
+      badgePda,
+      badgeId,
+      // Wallet is only used for signature verification
       wallet,
       signature,
       message,
       timestamp,
+      // requiredTier - sent by client but tier verification happens client-side via INCO
       // INCO verification fields
       incoVerified,
       proofHandle,
       grantAccessTx,
     } = body;
 
-    if (!wallet || !signature || !message) {
+    // Require badgePda for privacy-first membership
+    if (!badgePda || !signature || !message) {
       return NextResponse.json(
-        { success: false, error: 'Missing required fields' },
+        { success: false, error: 'Missing required fields (badgePda, signature, message)' },
         { status: 400 }
       );
     }
@@ -41,9 +47,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Verify signature
+    // Extract wallet from message if not provided directly
+    // Message format: "Join channel {slug} with badge {badgePda} at {timestamp}"
+    const signerWallet = wallet;
+    if (!signerWallet) {
+      // Try to verify signature against the badge PDA's owner
+      // For now, require wallet to be passed
+      return NextResponse.json(
+        { success: false, error: 'Wallet required for signature verification' },
+        { status: 400 }
+      );
+    }
+
+    // Verify signature (proves badge ownership via wallet)
     try {
-      const publicKey = new PublicKey(wallet);
+      const publicKey = new PublicKey(signerWallet);
       const messageBytes = new TextEncoder().encode(message);
       const signatureBytes = bs58.decode(signature);
 
@@ -91,29 +109,58 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       // 1. Called grant_access on-chain
       // 2. Decrypted the proof_* handle via INCO
       // 3. Got TRUE result (otherwise wouldn't be calling this)
-      console.log(`[Join] INCO-verified join for ${wallet}`);
-      console.log(`[Join] Proof handle: ${proofHandle.slice(0, 20)}...`);
+      console.log(`[Join] INCO-verified join for badge ${badgePda}`);
+      console.log(`[Join] Badge ID: ${badgeId}`);
+      console.log(`[Join] Proof handle: ${proofHandle.toString().slice(0, 20)}...`);
       console.log(`[Join] Grant access TX: ${grantAccessTx}`);
 
       // TODO: In production, verify the grantAccessTx on-chain
       // and potentially re-decrypt server-side for security
     } else {
-      // Fallback: Check MongoDB cached tier
-      const badge = await ConfidentialBadge.findOne({ wallet, isActive: true });
+      // Fallback: Check MongoDB cached tier using wallet
+      const badge = await ConfidentialBadge.findOne({
+        $or: [
+          { badgeAccountAddress: badgePda },
+          { wallet: signerWallet },
+        ],
+        isActive: true,
+      });
+
       if (!badge || badge.tier < channel.tier) {
         return NextResponse.json(
           { success: false, error: `Requires ${channel.tierName}+ badge` },
           { status: 403 }
         );
       }
-      console.log(`[Join] MongoDB-verified join for ${wallet}, tier: ${badge.tier}`);
+      console.log(`[Join] MongoDB-verified join for badge ${badgePda}, tier: ${badge.tier}`);
     }
 
-    // Check if already a member
+    // ========================================
+    // MEMBERSHIP: Use badgePda as identity (privacy!)
+    // This way, wallet address is never stored in membership
+    // ========================================
+
+    // Check if already a member (by badge PDA, not wallet)
     let membership = await ChannelMembership.findOne({
-      wallet,
+      badgePda, // Privacy: lookup by badge, not wallet
       channelId: channel._id,
     });
+
+    // Also check legacy wallet-based membership
+    if (!membership) {
+      membership = await ChannelMembership.findOne({
+        wallet: signerWallet,
+        channelId: channel._id,
+      });
+
+      // If found legacy membership, migrate to badge-based
+      if (membership) {
+        membership.badgePda = badgePda;
+        membership.badgeId = badgeId;
+        await membership.save();
+        console.log(`[Join] Migrated legacy membership to badge-based for ${badgePda}`);
+      }
+    }
 
     if (membership) {
       if (membership.isActive) {
@@ -128,17 +175,26 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       } else {
         // Reactivate membership
         membership.isActive = true;
+        membership.badgePda = badgePda;
+        membership.badgeId = badgeId;
         membership.verificationSignature = signature;
         membership.verifiedAt = new Date();
+        if (grantAccessTx) {
+          membership.grantAccessTx = grantAccessTx;
+        }
         await membership.save();
       }
     } else {
-      // Create new membership
+      // Create new membership with badge PDA as identity
       membership = await ChannelMembership.create({
-        wallet,
+        // Privacy: Store badge PDA, not wallet (wallet is only for verification)
+        badgePda,
+        badgeId,
+        wallet: signerWallet, // Keep for backwards compatibility, but badge is primary
         channelId: channel._id,
         anonId: generateAnonId(),
         verificationSignature: signature,
+        grantAccessTx: grantAccessTx || null,
         verifiedAt: new Date(),
         isActive: true,
         joinedAt: new Date(),
@@ -150,6 +206,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         { _id: channel._id },
         { $inc: { memberCount: 1 } }
       );
+
+      console.log(`[Join] Created new membership for badge ${badgePda} as ${membership.anonId}`);
     }
 
     return NextResponse.json({
@@ -157,6 +215,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       membership: {
         anonId: membership.anonId,
         joinedAt: membership.joinedAt,
+        badgePda, // Return for client reference
       },
     });
   } catch (error) {

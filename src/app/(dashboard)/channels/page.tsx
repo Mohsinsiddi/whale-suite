@@ -6,19 +6,18 @@ import { useAuth } from '@/lib/privy/hooks';
 import { useNetwork } from '@/hooks/useNetwork';
 import { useConfidentialBadge, TIER_INFO, TIER_PRICES } from '@/hooks/useConfidentialBadge';
 import { useClaimBadge } from '@/hooks/useClaimBadge';
-import { useChannelJoin } from '@/hooks/useChannelJoin';
+import { useChannelJoin, findAllUserBadges, UserBadge } from '@/hooks/useChannelJoin';
 import { useRouter } from 'next/navigation';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 import { PublicKey, Connection } from '@solana/web3.js';
 import {
-  fetchBadgeAccount,
-  deriveBadgePda,
   deriveConfigPda,
   fetchConfigAccount,
   ConfigAccountData,
 } from '@/lib/contract/badge-sdk';
 import { JoinChannelModal } from '@/components/modals/JoinChannelModal';
 import { TransactionModal, SuccessModal } from '@/components/ui/Modal';
+import { BadgeSelectorModal } from '@/components/modals/BadgeSelectorModal';
 
 type TabType = 'channels' | 'claim';
 
@@ -89,6 +88,12 @@ export default function ChannelsPage() {
   const [selectedTier, setSelectedTier] = useState<number>(1);
   const [showJoinModal, setShowJoinModal] = useState(false);
 
+  // Multi-badge support
+  const [userBadges, setUserBadges] = useState<UserBadge[]>([]);
+  const [selectedBadge, setSelectedBadge] = useState<UserBadge | null>(null);
+  const [showBadgeSelector, setShowBadgeSelector] = useState(false);
+  const [badgesLoading, setBadgesLoading] = useState(false);
+
   // Claim/upgrade badge modal state
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [showClaimSuccessModal, setShowClaimSuccessModal] = useState(false);
@@ -139,9 +144,11 @@ export default function ChannelsPage() {
     }
   }, [walletAddress, refetchBadge]);
 
-  // Fetch on-chain badge data
+  // Fetch on-chain badge data using multi-badge scan
   const fetchOnChainData = useCallback(async () => {
     if (!walletAddress) return;
+
+    setBadgesLoading(true);
 
     try {
       const connection = new Connection(
@@ -152,47 +159,50 @@ export default function ChannelsPage() {
       const userPubkey = new PublicKey(walletAddress);
       const [configPda] = deriveConfigPda();
 
-      // Use MongoDB badgeAccountAddress if available, otherwise derive with badgeId=0
-      let badgePda: PublicKey;
-      if (badge?.badgeAccountAddress) {
-        badgePda = new PublicKey(badge.badgeAccountAddress);
-        console.log('[Channels] Using MongoDB badge PDA:', badgePda.toBase58());
-      } else {
-        [badgePda] = deriveBadgePda(userPubkey);
-        console.log('[Channels] Deriving badge PDA (badgeId=0):', badgePda.toBase58());
-      }
-
-      console.log('[Channels] Checking badge for wallet:', walletAddress);
-
-      const [badgeData, configData] = await Promise.all([
-        fetchBadgeAccount(connection, badgePda),
+      // Fetch config and all user badges in parallel
+      const [configData, badges] = await Promise.all([
         fetchConfigAccount(connection, configPda),
+        findAllUserBadges(connection, userPubkey),
       ]);
 
-      console.log('[Channels] On-chain badge data:', badgeData);
       console.log('[Channels] Config data:', configData);
+      console.log('[Channels] Found badges:', badges.length);
 
       if (configData) setConfig(configData);
 
-      if (badgeData && badgeData.isActive) {
-        // Try to determine tier from the proof handles or use MongoDB data
-        // Since tier is encrypted, we use MongoDB as source of truth for tier
-        // But we know badge exists on-chain
-        const tierNum = badge?.tier || 1;
+      // Store all badges
+      setUserBadges(badges);
 
+      if (badges.length > 0) {
+        // Use the first badge as default (or the one matching MongoDB)
+        let primaryBadge = badges[0];
+
+        // Try to match with MongoDB badge if available
+        if (badge?.badgeAccountAddress) {
+          const matchingBadge = badges.find(b => b.pda.toBase58() === badge.badgeAccountAddress);
+          if (matchingBadge) {
+            primaryBadge = matchingBadge;
+          }
+        }
+
+        // Set as selected badge for joining channels
+        setSelectedBadge(primaryBadge);
+
+        // Set on-chain badge data for display
+        const tierNum = badge?.tier || 1;
         const onChainData = {
-          pda: badgePda.toBase58(),
-          badgeId: badgeData.badgeId,
+          pda: primaryBadge.pda.toBase58(),
+          badgeId: primaryBadge.badgeId,
           tier: tierNum,
           tierName: TIER_INFO[tierNum as keyof typeof TIER_INFO]?.name || 'Unknown',
-          owner: badgeData.owner.toBase58(),
-          isActive: badgeData.isActive,
+          owner: primaryBadge.data.owner.toBase58(),
+          isActive: primaryBadge.data.isActive,
           proofs: {
-            bronze: badgeData.proofBronze,
-            silver: badgeData.proofSilver,
-            gold: badgeData.proofGold,
-            diamond: badgeData.proofDiamond,
-            legendary: badgeData.proofLegendary,
+            bronze: primaryBadge.data.proofBronze,
+            silver: primaryBadge.data.proofSilver,
+            gold: primaryBadge.data.proofGold,
+            diamond: primaryBadge.data.proofDiamond,
+            legendary: primaryBadge.data.proofLegendary,
           },
         };
 
@@ -203,9 +213,11 @@ export default function ChannelsPage() {
           await syncBadgeToMongo(onChainData.pda, tierNum, onChainData.proofs);
         }
       } else {
-        // Badge doesn't exist on-chain or is inactive
-        console.log('[Channels] No active badge found on-chain');
+        // No badges found on-chain
+        console.log('[Channels] No active badges found on-chain');
         setOnChainBadge(null);
+        setSelectedBadge(null);
+        setUserBadges([]);
 
         // If MongoDB has a badge record but on-chain doesn't exist, clean up MongoDB
         if (badge?.hasClaimed) {
@@ -224,25 +236,13 @@ export default function ChannelsPage() {
       }
     } catch (error) {
       console.error('Failed to fetch on-chain data:', error);
-      // On error fetching on-chain data (e.g., account doesn't exist), set to null
       setOnChainBadge(null);
-
-      // If MongoDB has a badge record but on-chain doesn't exist, clean up MongoDB
-      if (badge?.hasClaimed) {
-        console.log('[Channels] On-chain fetch failed, cleaning up stale MongoDB badge record');
-        try {
-          await fetch('/api/badges/confidential', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ wallet: walletAddress }),
-          });
-          await refetchBadge();
-        } catch (err) {
-          console.error('Failed to clean up MongoDB badge:', err);
-        }
-      }
+      setSelectedBadge(null);
+      setUserBadges([]);
+    } finally {
+      setBadgesLoading(false);
     }
-  }, [walletAddress, badge?.tier, badge?.hasClaimed, syncBadgeToMongo, refetchBadge]);
+  }, [walletAddress, badge?.tier, badge?.hasClaimed, badge?.badgeAccountAddress, syncBadgeToMongo, refetchBadge]);
 
   // Fetch channels
   const fetchChannels = useCallback(async () => {
@@ -363,16 +363,43 @@ export default function ChannelsPage() {
     // If locked (tier too low), don't allow
     if (channel.userAccess === 'locked') return;
 
-    // Open modal and start INCO join flow
+    // If user has multiple badges, show badge selector
+    if (userBadges.length > 1) {
+      setJoiningChannel(channel);
+      setShowBadgeSelector(true);
+      return;
+    }
+
+    // If user has exactly one badge, use it
+    if (userBadges.length === 1) {
+      await startJoinFlow(channel, userBadges[0]);
+      return;
+    }
+
+    // No badges - shouldn't happen since channels are locked
+    console.error('[Channels] No badges available for joining');
+  };
+
+  // Start the actual join flow with selected badge
+  const startJoinFlow = async (channel: Channel, badgeToUse: UserBadge) => {
     setJoiningChannel(channel);
+    setSelectedBadge(badgeToUse);
+    setShowBadgeSelector(false);
     setShowJoinModal(true);
     resetJoin();
 
-    // Start the join process
-    const result = await joinChannel(channel.slug, channel.tier);
+    // Start the join process with selected badge
+    const result = await joinChannel(channel.slug, channel.tier, badgeToUse);
 
     if (result.success) {
       await fetchChannels();
+    }
+  };
+
+  // Handle badge selection from modal
+  const handleBadgeSelect = (badge: UserBadge) => {
+    if (joiningChannel) {
+      startJoinFlow(joiningChannel, badge);
     }
   };
 
@@ -438,29 +465,37 @@ export default function ChannelsPage() {
       {process.env.NODE_ENV === 'development' && (
         <div className="mb-4 p-3 rounded-lg bg-bg-primary border border-border-secondary text-xs font-mono">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-text-muted">🔍 Debug Info:</div>
-            {hasBadge && (
-              <button
-                onClick={async () => {
-                  if (!confirm('Close badge and delete from MongoDB? This will allow you to test the full claim flow again.')) return;
-                  // Get badgeId from on-chain badge data
-                  const badgeId = onChainBadge?.badgeId ?? BigInt(0);
-                  console.log('[Debug] Closing badge with ID:', badgeId.toString());
-                  const result = await closeBadge(badgeId);
-                  if (result.success) {
-                    alert(`Badge closed! TX: ${result.txSignature?.slice(0, 20)}...`);
-                    await refetchBadge();
-                    window.location.reload();
-                  } else {
-                    alert(`Failed: ${result.error}`);
-                  }
-                }}
-                disabled={claimLoading}
-                className="px-3 py-1 rounded bg-error/20 text-error border border-error/30 hover:bg-error/30 transition-colors disabled:opacity-50"
-              >
-                {claimLoading ? 'Closing...' : '🗑️ Close Badge'}
-              </button>
-            )}
+            <div className="text-text-muted">
+              🔍 Debug Info {badgesLoading && <span className="text-neon-cyan animate-pulse">(scanning...)</span>}
+            </div>
+            <div className="flex items-center gap-2">
+              {userBadges.length > 0 && (
+                <span className="px-2 py-0.5 rounded text-[10px] bg-neon-green/10 text-neon-green border border-neon-green/30">
+                  {userBadges.length} badge{userBadges.length > 1 ? 's' : ''}
+                </span>
+              )}
+              {hasBadge && (
+                <button
+                  onClick={async () => {
+                    if (!confirm('Close badge and delete from MongoDB? This will allow you to test the full claim flow again.')) return;
+                    const badgeId = onChainBadge?.badgeId ?? BigInt(0);
+                    console.log('[Debug] Closing badge with ID:', badgeId.toString());
+                    const result = await closeBadge(badgeId);
+                    if (result.success) {
+                      alert(`Badge closed! TX: ${result.txSignature?.slice(0, 20)}...`);
+                      await refetchBadge();
+                      window.location.reload();
+                    } else {
+                      alert(`Failed: ${result.error}`);
+                    }
+                  }}
+                  disabled={claimLoading}
+                  className="px-3 py-1 rounded bg-error/20 text-error border border-error/30 hover:bg-error/30 transition-colors disabled:opacity-50"
+                >
+                  {claimLoading ? 'Closing...' : '🗑️ Close Badge'}
+                </button>
+              )}
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -470,20 +505,42 @@ export default function ChannelsPage() {
               </span>
             </div>
             <div>
-              <span className="text-text-muted">On-chain badge:</span>{' '}
-              <span className={onChainBadge?.isActive ? 'text-neon-green' : 'text-error'}>
-                {onChainBadge?.isActive ? `Active (PDA: ${onChainBadge.pda.slice(0, 8)}...)` : 'None'}
+              <span className="text-text-muted">On-chain badges:</span>{' '}
+              <span className={userBadges.length > 0 ? 'text-neon-green' : 'text-error'}>
+                {userBadges.length > 0 ? `${userBadges.length} found` : 'None'}
               </span>
             </div>
             <div>
-              <span className="text-text-muted">hasBadge:</span>{' '}
-              <span className={hasBadge ? 'text-neon-green' : 'text-error'}>{String(hasBadge)}</span>
+              <span className="text-text-muted">Selected badge:</span>{' '}
+              <span className={selectedBadge ? 'text-neon-cyan' : 'text-text-muted'}>
+                {selectedBadge ? `#${selectedBadge.badgeId} (${selectedBadge.pda.toBase58().slice(0, 8)}...)` : 'None'}
+              </span>
             </div>
             <div>
               <span className="text-text-muted">userTier:</span>{' '}
               <span className="text-neon-cyan">{userTier}</span>
             </div>
           </div>
+          {/* Show all badges */}
+          {userBadges.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-border-secondary">
+              <span className="text-text-muted">All badges:</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {userBadges.map((b) => (
+                  <span
+                    key={b.pda.toBase58()}
+                    className={`px-2 py-0.5 rounded text-[10px] ${
+                      selectedBadge?.pda.equals(b.pda)
+                        ? 'bg-neon-green/20 text-neon-green border border-neon-green/40'
+                        : 'bg-bg-tertiary text-text-muted border border-border-secondary'
+                    }`}
+                  >
+                    #{b.badgeId.toString()} ({b.pda.toBase58().slice(0, 6)}...)
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -911,6 +968,19 @@ export default function ChannelsPage() {
             View Channels
           </button>
         }
+      />
+
+      {/* Badge Selector Modal (for multi-badge users) */}
+      <BadgeSelectorModal
+        isOpen={showBadgeSelector}
+        onClose={() => {
+          setShowBadgeSelector(false);
+          setJoiningChannel(null);
+        }}
+        badges={userBadges}
+        channelName={joiningChannel?.name || ''}
+        requiredTier={joiningChannel?.tier || 1}
+        onSelect={handleBadgeSelect}
       />
     </div>
   );

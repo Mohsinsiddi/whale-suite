@@ -5,12 +5,17 @@ export interface IChannelMembership extends Document {
   wallet: string;
   channelId: Types.ObjectId;
 
+  // Privacy-first: Badge as identity (wallet is only for legacy/fallback)
+  badgePda?: string;
+  badgeId?: string;
+
   // Anonymous identity
   anonId: string;
 
   // Verification
   verifiedAt: Date;
   verificationSignature: string;
+  grantAccessTx?: string; // INCO grant access transaction
 
   // Status
   isActive: boolean;
@@ -38,6 +43,16 @@ const ChannelMembershipSchema = new Schema<IChannelMembership>({
     required: true,
     index: true,
   },
+  // Privacy-first: Badge as identity
+  badgePda: {
+    type: String,
+    index: true,
+    sparse: true, // Allow null for legacy memberships
+  },
+  badgeId: {
+    type: String,
+    sparse: true,
+  },
   anonId: {
     type: String,
     required: true,
@@ -50,6 +65,10 @@ const ChannelMembershipSchema = new Schema<IChannelMembership>({
   verificationSignature: {
     type: String,
     required: true,
+  },
+  grantAccessTx: {
+    type: String,
+    sparse: true, // INCO grant access transaction
   },
   isActive: {
     type: Boolean,
@@ -79,9 +98,13 @@ const ChannelMembershipSchema = new Schema<IChannelMembership>({
 // Unique constraint on wallet + channel
 ChannelMembershipSchema.index({ wallet: 1, channelId: 1 }, { unique: true });
 
+// Privacy-first: Badge + channel unique (for badge-based identity)
+ChannelMembershipSchema.index({ badgePda: 1, channelId: 1 }, { unique: true, sparse: true });
+
 // Compound indexes for fast queries
 ChannelMembershipSchema.index({ channelId: 1, isActive: 1 });
 ChannelMembershipSchema.index({ wallet: 1, isActive: 1 });
+ChannelMembershipSchema.index({ badgePda: 1, isActive: 1 });
 ChannelMembershipSchema.index({ channelId: 1, lastSeenAt: -1 });
 
 // Helper to generate anonymous ID
