@@ -5,9 +5,10 @@ import { AuthSlice, createAuthSlice } from './slices/auth';
 import { UserSlice, createUserSlice } from './slices/user';
 import { WalletSlice, createWalletSlice } from './slices/wallet';
 import { UISlice, createUISlice } from './slices/ui';
+import { RPCSlice, createRPCSlice } from './slices/rpc';
 
 // Combined store type
-export type StoreState = AuthSlice & UserSlice & WalletSlice & UISlice;
+export type StoreState = AuthSlice & UserSlice & WalletSlice & UISlice & RPCSlice;
 
 // Create the store with all slices
 export const useStore = create<StoreState>()(
@@ -19,6 +20,7 @@ export const useStore = create<StoreState>()(
           ...createUserSlice(set, get, api),
           ...createWalletSlice(set, get, api),
           ...createUISlice(set, get, api),
+          ...createRPCSlice(set, get, api),
         }),
         {
           name: 'whale-suite-storage',
@@ -26,6 +28,11 @@ export const useStore = create<StoreState>()(
             // Only persist non-sensitive, non-volatile state
             settings: state.settings,
             sidebarOpen: state.sidebarOpen,
+            // RPC settings (persist user preferences)
+            activeEndpointId: state.activeEndpointId,
+            selectionStrategy: state.selectionStrategy,
+            customEndpoints: state.customEndpoints,
+            apiKeys: state.apiKeys,
           }),
         }
       )
@@ -116,6 +123,33 @@ export const useUI = () =>
     }))
   );
 
+export const useRPC = () =>
+  useStore(
+    useShallow((state) => ({
+      endpoints: state.endpoints,
+      activeEndpointId: state.activeEndpointId,
+      selectionStrategy: state.selectionStrategy,
+      customEndpoints: state.customEndpoints,
+      apiKeys: state.apiKeys,
+      isTestingPings: state.isTestingPings,
+      lastPingTest: state.lastPingTest,
+      getActiveEndpoint: state.getActiveEndpoint,
+      getEndpointsForNetwork: state.getEndpointsForNetwork,
+      getBestEndpoint: state.getBestEndpoint,
+      setActiveEndpoint: state.setActiveEndpoint,
+      setSelectionStrategy: state.setSelectionStrategy,
+      setApiKey: state.setApiKey,
+      addCustomEndpoint: state.addCustomEndpoint,
+      removeCustomEndpoint: state.removeCustomEndpoint,
+      updateEndpointPing: state.updateEndpointPing,
+      testAllPings: state.testAllPings,
+      selectBestEndpoint: state.selectBestEndpoint,
+      rotateEndpoint: state.rotateEndpoint,
+      resetToDefaults: state.resetToDefaults,
+    }))
+  );
+
 // Export types
 export type { BadgeTier, UserStats, UserSettings } from './slices/user';
 export type { Notification } from './slices/ui';
+export type { RPCProvider, NetworkType, RPCEndpoint, RPCSelectionStrategy } from './slices/rpc';
