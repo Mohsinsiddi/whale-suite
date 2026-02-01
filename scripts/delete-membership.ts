@@ -23,24 +23,30 @@ async function deleteMembership() {
 
   await mongoose.connect(MONGODB_URI);
 
+  const db = mongoose.connection.db;
+  if (!db) {
+    console.log('❌ Database connection not established');
+    process.exit(1);
+  }
+
   // Find channel
-  const channel = await mongoose.connection.db.collection('channels').findOne({ slug: channelSlug });
+  const channel = await db.collection('channels').findOne({ slug: channelSlug });
   if (!channel) {
     console.log('❌ Channel not found:', channelSlug);
     process.exit(1);
   }
 
   // Delete membership
-  const result = await mongoose.connection.db.collection('channelmemberships').deleteOne({
+  const result = await db.collection('channelmemberships').deleteOne({
     wallet,
     channelId: channel._id,
   });
 
   if (result.deletedCount > 0) {
     console.log('✅ Membership deleted!');
-    
+
     // Decrement member count
-    await mongoose.connection.db.collection('channels').updateOne(
+    await db.collection('channels').updateOne(
       { _id: channel._id },
       { $inc: { memberCount: -1 } }
     );

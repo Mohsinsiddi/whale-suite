@@ -10,6 +10,7 @@ export type PointAction =
   | 'standard_transfer'
   | 'jupiter_swap'
   | 'private_swap'
+  | 'darklake_swap'
   | 'card_order'
   | 'daily_login'
   | 'referral'
@@ -18,7 +19,11 @@ export type PointAction =
   | 'badge_gold'
   | 'badge_diamond'
   | 'badge_legendary'
-  | 'pnp_bet';
+  | 'pnp_bet'
+  | 'pnp_create_market'
+  | 'channel_join'
+  | 'channel_participate'
+  | 'token_launch';
 
 export interface PointsResult {
   action: PointAction;
@@ -141,6 +146,7 @@ export function usePoints() {
       standard_transfer: 'Transfer',
       jupiter_swap: 'Swap',
       private_swap: 'Private Swap',
+      darklake_swap: 'DarkLake Swap',
       card_order: 'Virtual Card',
       daily_login: 'Daily Login',
       referral: 'Referral',
@@ -150,6 +156,10 @@ export function usePoints() {
       badge_diamond: 'Diamond Badge',
       badge_legendary: 'Legendary Badge',
       pnp_bet: 'Anonymous Bet',
+      pnp_create_market: 'Create Market',
+      channel_join: 'Channel Join',
+      channel_participate: 'Channel Activity',
+      token_launch: 'Token Launch',
     };
     return labels[action] || action;
   };

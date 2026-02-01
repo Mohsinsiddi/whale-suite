@@ -439,15 +439,59 @@ export default function ChannelsPage() {
         </div>
       </div>
 
-      {/* Devnet Notice Banner */}
-      {network === 'devnet' && (
-        <div className="mb-4 p-3 sm:p-4 rounded-xl bg-gradient-to-r from-warning/10 via-warning/5 to-transparent border border-warning/30">
+      {/* Network Education Banners */}
+      {network === 'mainnet' ? (
+        /* Mainnet Banner - Guide to switch to Devnet for badges */
+        <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-neon-cyan/10 via-neon-green/5 to-transparent border border-neon-cyan/30">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              <div className="w-10 h-10 rounded-full bg-neon-cyan/20 flex items-center justify-center text-xl flex-shrink-0">
+                🔄
+              </div>
+              <div>
+                <p className="font-semibold text-neon-cyan text-sm mb-1">Badge System Available on Devnet</p>
+                <p className="text-text-muted text-xs leading-relaxed">
+                  The badge NFT system is currently on <span className="text-warning font-medium">Solana Devnet</span>.
+                  Switch to Devnet to claim your badge and unlock exclusive channels.
+                </p>
+                <div className="mt-3 p-3 rounded-lg bg-bg-tertiary/50 border border-border-secondary">
+                  <p className="text-xs font-medium text-text-primary mb-2">📱 How to switch in Phantom:</p>
+                  <ol className="text-xs text-text-muted space-y-1">
+                    <li>1. Open Phantom → Click gear icon (Settings)</li>
+                    <li>2. Scroll down → Developer Settings</li>
+                    <li>3. Enable &quot;Testnet Mode&quot;</li>
+                    <li>4. Select &quot;Devnet&quot; network</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => setNetworkModalOpen(true)}
+                className="px-4 py-2 rounded-lg bg-neon-cyan text-bg-primary text-sm font-medium hover:bg-neon-cyan/90 transition-colors whitespace-nowrap"
+              >
+                Switch to Devnet
+              </button>
+              <a
+                href="https://faucet.solana.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 rounded-lg bg-bg-tertiary text-text-secondary text-sm font-medium hover:bg-bg-elevated transition-colors text-center"
+              >
+                Get Free Devnet SOL
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Devnet Banner */
+        <div className="mb-4 p-3 sm:p-4 rounded-xl bg-gradient-to-r from-neon-green/10 via-neon-green/5 to-transparent border border-neon-green/30">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-xl">⚠️</span>
+              <span className="text-xl">✅</span>
               <div>
-                <p className="font-semibold text-warning text-sm">Devnet Mode</p>
-                <p className="text-text-muted text-xs">Using Solana Devnet for testing</p>
+                <p className="font-semibold text-neon-green text-sm">Devnet Active - Badges Available!</p>
+                <p className="text-text-muted text-xs">Claim your badge below to access channels</p>
               </div>
             </div>
             <div className="sm:ml-auto flex flex-wrap gap-2">
@@ -455,7 +499,7 @@ export default function ChannelsPage() {
                 href="https://faucet.solana.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-3 py-1.5 rounded-lg bg-warning/20 text-warning text-xs font-medium hover:bg-warning/30 transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-neon-green/20 text-neon-green text-xs font-medium hover:bg-neon-green/30 transition-colors"
               >
                 Get Devnet SOL →
               </a>
@@ -468,7 +512,7 @@ export default function ChannelsPage() {
             </div>
           </div>
           <p className="mt-2 text-xs text-text-muted">
-            💡 <span className="font-medium">Tip:</span> Enable testnet mode in your wallet (Phantom → Settings → Developer Settings → Testnet Mode)
+            💡 <span className="font-medium">Tip:</span> Make sure &quot;Testnet Mode&quot; is enabled in Phantom (Settings → Developer Settings)
           </p>
         </div>
       )}
@@ -597,160 +641,153 @@ export default function ChannelsPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Available Channels */}
-                <div className="bg-bg-tertiary rounded-xl border border-border-primary overflow-hidden">
-                  <div className="px-4 py-3 border-b border-border-secondary bg-bg-secondary/50">
-                    <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                      <span className="text-neon-green">●</span> Available Channels
-                    </h3>
-                  </div>
+                {/* Your Channels - Joined */}
+                {channels.filter(c => c.tier <= 3 && c.userAccess === 'joined').length > 0 && (
+                  <div className="bg-bg-tertiary rounded-xl border border-neon-green/30 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-neon-green/20 bg-neon-green/5">
+                      <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                        <span className="text-neon-green">✓</span> Your Channels
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-neon-green/20 text-neon-green">
+                          {channels.filter(c => c.tier <= 3 && c.userAccess === 'joined').length}
+                        </span>
+                      </h3>
+                    </div>
 
-                  {/* Mobile Card View */}
-                  <div className="sm:hidden divide-y divide-border-secondary">
-                    {channels.filter(c => c.tier <= 3).map((channel) => {
-                      const isLocked = channel.userAccess === 'locked' && userTier < channel.tier;
-                      const isJoined = channel.userAccess === 'joined';
-                      const canAccess = userTier >= channel.tier;
-
-                      return (
+                    <div className="divide-y divide-border-secondary">
+                      {channels.filter(c => c.tier <= 3 && c.userAccess === 'joined').map((channel) => (
                         <div
                           key={channel.id}
-                          onClick={() => !isLocked && handleJoinChannel(channel)}
-                          className={`p-4 transition-colors ${
-                            isLocked ? 'opacity-50' : 'active:bg-bg-elevated'
-                          }`}
+                          onClick={() => handleJoinChannel(channel)}
+                          className="p-4 hover:bg-bg-elevated cursor-pointer transition-colors"
                         >
-                          <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
                               <span className="text-2xl">{channel.icon}</span>
                               <div>
                                 <p className="font-medium text-text-primary">{channel.name}</p>
-                                <p className="text-xs text-text-muted">{TIER_INFO[channel.tier as keyof typeof TIER_INFO]?.name}+ • {channel.memberCount} members</p>
+                                <p className="text-xs text-text-muted">{channel.memberCount} members • {channel.messageCount} messages</p>
                               </div>
                             </div>
-                            {isJoined ? (
-                              <span className="px-3 py-1.5 rounded-lg text-xs bg-neon-green/10 text-neon-green border border-neon-green/30">Enter</span>
-                            ) : canAccess ? (
-                              <span className="px-3 py-1.5 rounded-lg text-xs bg-neon-cyan/10 text-neon-cyan">Join</span>
-                            ) : (
-                              <span className="px-3 py-1.5 rounded-lg text-xs bg-bg-primary text-text-muted">
-                                <LockIcon className="w-3 h-3 inline mr-1" />Locked
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Desktop Table View */}
-                  <table className="w-full hidden sm:table">
-                    <thead>
-                      <tr className="border-b border-border-secondary">
-                        <th className="text-left px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Channel</th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Tier</th>
-                        <th className="text-center px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Members</th>
-                        <th className="text-center px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Messages</th>
-                        <th className="text-right px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border-secondary">
-                      {channels.filter(c => c.tier <= 3).map((channel) => {
-                        const isLocked = channel.userAccess === 'locked' && userTier < channel.tier;
-                        const isJoined = channel.userAccess === 'joined';
-                        const canAccess = userTier >= channel.tier;
-
-                        return (
-                          <tr
-                            key={channel.id}
-                            onClick={() => !isLocked && handleJoinChannel(channel)}
-                            className={`transition-colors ${
-                              isLocked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-bg-elevated cursor-pointer'
-                            }`}
-                          >
-                            <td className="px-4 py-4">
-                              <div className="flex items-center gap-3">
-                                <span className="text-2xl">{channel.icon}</span>
-                                <div>
-                                  <p className="font-medium text-text-primary">{channel.name}</p>
-                                  <p className="text-xs text-text-muted line-clamp-1 max-w-[200px]">{channel.description}</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-4">
-                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
-                                canAccess ? 'bg-neon-green/10 text-neon-green' : 'bg-bg-primary text-text-muted'
-                              }`}>
-                                {TIER_INFO[channel.tier as keyof typeof TIER_INFO]?.icon} {channel.tierName}+
-                              </span>
-                            </td>
-                            <td className="px-4 py-4 text-center">
-                              <span className="text-sm text-text-secondary">{channel.memberCount}</span>
-                            </td>
-                            <td className="px-4 py-4 text-center">
-                              <span className="text-sm text-text-secondary">{channel.messageCount}</span>
-                            </td>
-                            <td className="px-4 py-4 text-right">
-                              {joiningChannel?.id === channel.id ? (
-                                <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-neon-cyan/10 text-neon-cyan">
-                                  <LoadingSpinner className="w-3 h-3" /> Joining...
-                                </span>
-                              ) : isJoined ? (
-                                <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-neon-green/10 text-neon-green border border-neon-green/30">
-                                  <CheckIcon className="w-3 h-3" /> Enter
-                                </span>
-                              ) : canAccess ? (
-                                <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-neon-cyan/10 text-neon-cyan">Join</span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-bg-primary text-text-muted">
-                                  <LockIcon className="w-3 h-3" /> Locked
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Coming Soon Channels */}
-                <div className="bg-bg-tertiary/50 rounded-xl border border-border-secondary overflow-hidden">
-                  <div className="px-4 py-3 border-b border-border-secondary bg-gradient-to-r from-purple-500/10 to-transparent">
-                    <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                      <span className="text-warning">⏳</span> Coming Soon on Mainnet
-                      <span className="px-2 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-400">Premium</span>
-                    </h3>
-                  </div>
-
-                  <div className="divide-y divide-border-secondary">
-                    {channels.filter(c => c.tier >= 4).map((channel) => (
-                      <div key={channel.id} className="p-4 opacity-60">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="text-2xl grayscale">{channel.icon}</span>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <p className="font-medium text-text-primary">{channel.name}</p>
-                                <span className="px-2 py-0.5 rounded text-[10px] bg-warning/20 text-warning">Mainnet Only</span>
-                              </div>
-                              <p className="text-xs text-text-muted">{channel.description}</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-bg-primary text-text-muted">
-                              <LockIcon className="w-3 h-3" /> Coming Soon
+                            <span className="px-4 py-2 rounded-lg text-xs bg-neon-green/10 text-neon-green border border-neon-green/30 font-medium">
+                              Enter →
                             </span>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Available Channels - Can Join */}
+                {channels.filter(c => c.tier <= 3 && c.userAccess !== 'joined').length > 0 && (
+                  <div className="bg-bg-tertiary rounded-xl border border-border-primary overflow-hidden">
+                    <div className="px-4 py-3 border-b border-border-secondary bg-bg-secondary/50">
+                      <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                        <span className="text-neon-cyan">○</span> Available Channels
+                      </h3>
+                    </div>
+
+                    <div className="divide-y divide-border-secondary">
+                      {channels.filter(c => c.tier <= 3 && c.userAccess !== 'joined').map((channel) => {
+                        const isLocked = channel.userAccess === 'locked' && userTier < channel.tier;
+                        const canAccess = userTier >= channel.tier;
+
+                        return (
+                          <div
+                            key={channel.id}
+                            onClick={() => !isLocked && handleJoinChannel(channel)}
+                            className={`p-4 transition-colors ${
+                              isLocked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-bg-elevated cursor-pointer'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className="text-2xl">{channel.icon}</span>
+                                <div>
+                                  <div className="flex items-center gap-2 mb-0.5">
+                                    <p className="font-medium text-text-primary">{channel.name}</p>
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                                      canAccess ? 'bg-neon-green/10 text-neon-green' : 'bg-bg-primary text-text-muted'
+                                    }`}>
+                                      {TIER_INFO[channel.tier as keyof typeof TIER_INFO]?.icon} {channel.tierName}+
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-text-muted">{channel.memberCount} members</p>
+                                </div>
+                              </div>
+                              {joiningChannel?.id === channel.id ? (
+                                <span className="px-4 py-2 rounded-lg text-xs bg-neon-cyan/10 text-neon-cyan">
+                                  <LoadingSpinner className="w-3 h-3 inline mr-1" /> Joining...
+                                </span>
+                              ) : canAccess ? (
+                                <span className="px-4 py-2 rounded-lg text-xs bg-neon-cyan/10 text-neon-cyan font-medium">
+                                  Join →
+                                </span>
+                              ) : (
+                                <span className="px-4 py-2 rounded-lg text-xs bg-bg-primary text-text-muted">
+                                  <LockIcon className="w-3 h-3 inline mr-1" /> Upgrade to {channel.tierName}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Coming Soon Channels - Diamond & Legendary */}
+                <div className="bg-bg-tertiary/50 rounded-xl border border-purple-500/20 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-purple-500/10 bg-gradient-to-r from-purple-500/10 via-purple-500/5 to-transparent">
+                    <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                      <span className="text-purple-400">✨</span> Coming Soon
+                      <span className="px-2 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-400">Mainnet</span>
+                    </h3>
                   </div>
 
-                  <div className="p-4 bg-gradient-to-r from-purple-500/5 to-transparent border-t border-border-secondary">
+                  <div className="divide-y divide-border-secondary/50">
+                    {/* Diamond Den */}
+                    <div className="p-4 opacity-60">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">💎</span>
+                          <div>
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <p className="font-medium text-text-primary">Diamond Den</p>
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#B9F2FF]/10 text-[#B9F2FF]">Diamond+</span>
+                            </div>
+                            <p className="text-xs text-text-muted">Elite whale discussions & alpha sharing</p>
+                          </div>
+                        </div>
+                        <span className="px-3 py-1.5 rounded-lg text-xs bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                          Coming Soon
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Legendary Council */}
+                    <div className="p-4 opacity-60">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">👑</span>
+                          <div>
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <p className="font-medium text-text-primary">Legendary Council</p>
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#FF00FF]/10 text-[#FF00FF]">Legendary</span>
+                            </div>
+                            <p className="text-xs text-text-muted">Exclusive governance & protocol decisions</p>
+                          </div>
+                        </div>
+                        <span className="px-3 py-1.5 rounded-lg text-xs bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                          Coming Soon
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-gradient-to-r from-purple-500/5 to-transparent border-t border-purple-500/10">
                     <p className="text-xs text-text-muted text-center">
-                      💎 Diamond and 👑 Legendary channels will be available on Mainnet launch.
-                      <span className="text-purple-400 font-medium"> Early adopters get priority access!</span>
+                      💎 Diamond & 👑 Legendary available at Mainnet launch • <span className="text-purple-400">Early adopters get priority!</span>
                     </p>
                   </div>
                 </div>

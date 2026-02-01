@@ -34,6 +34,7 @@ interface NavGroup {
 
 // Persist collapsed state
 const COLLAPSED_KEY = "whale-sidebar-collapsed";
+const CHANNELS_COLLAPSED_KEY = "whale-channels-collapsed";
 
 // Sidebar widths
 const SIDEBAR_EXPANDED = 280; // Wider for better readability
@@ -50,6 +51,8 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
   // Collapsed state for desktop toggle - default to false (expanded)
   const [isCollapsed, setIsCollapsed] = useState(false);
+  // Channels section collapsed state - default to false (expanded)
+  const [channelsExpanded, setChannelsExpanded] = useState(true);
 
   // Load collapsed state from localStorage on mount
   useEffect(() => {
@@ -57,6 +60,19 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     if (stored === "true") {
       setIsCollapsed(true);
     }
+    const channelsStored = localStorage.getItem(CHANNELS_COLLAPSED_KEY);
+    if (channelsStored === "false") {
+      setChannelsExpanded(false);
+    }
+  }, []);
+
+  // Toggle channels section
+  const toggleChannelsSection = useCallback(() => {
+    setChannelsExpanded((prev) => {
+      const newValue = !prev;
+      localStorage.setItem(CHANNELS_COLLAPSED_KEY, String(newValue));
+      return newValue;
+    });
   }, []);
 
   // Toggle collapsed state and dispatch event for DashboardLayout
@@ -75,50 +91,90 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     ? `${wallet.slice(0, 4)}...${wallet.slice(-4)}`
     : "...";
 
-  // Generate channel items based on badge status
-  const getChannelItems = useCallback((): NavItem[] => {
-    // If badge not claimed, show channels page (with claim tab)
-    if (!confidentialBadge?.hasClaimed) {
-      return [
-        { href: "/channels", icon: <ChannelsIcon />, label: "Whale Channels", badge: "New", badgeColor: "cyan" },
-      ];
-    }
+  // State for joined channels from API
+  const [joinedChannels, setJoinedChannels] = useState<string[]>([]);
 
-    // Show channels based on tier
-    const userTier = confidentialBadge.tier || 0;
-    const channels: NavItem[] = [];
+  // Fetch joined channels
+  useEffect(() => {
+    if (!walletAddress) return;
 
-    // Channel definitions
+    const fetchJoined = async () => {
+      try {
+        const res = await fetch(`/api/channels?wallet=${walletAddress}`);
+        if (res.ok) {
+          const data = await res.json();
+          const joined = data.channels
+            ?.filter((c: { userAccess: string }) => c.userAccess === 'joined')
+            ?.map((c: { slug: string }) => c.slug) || [];
+          setJoinedChannels(joined);
+        }
+      } catch {
+        // Silently fail
+      }
+    };
+    fetchJoined();
+  }, [walletAddress]);
+
+  // Generate channel items based on badge status and joined channels
+  const getChannelItems = useCallback((): { hub: NavItem; joined: NavItem[]; comingSoon: NavItem[] } => {
+    // Hub link - always shown
+    const hub: NavItem = {
+      href: "/channels",
+      icon: <ChannelsIcon />,
+      label: "All Channels",
+      badge: !confidentialBadge?.hasClaimed ? "Join" : undefined,
+      badgeColor: "cyan"
+    };
+
+    // Joined channels
+    const joined: NavItem[] = [];
+
+    // Channel definitions (only show tier 1-3, 4-5 are mainnet only)
     const channelDefs = [
-      { tier: 1, href: "/channels/bronze-lounge", icon: "🥉", label: "Bronze Lounge" },
-      { tier: 2, href: "/channels/silver-circle", icon: "🥈", label: "Silver Circle" },
-      { tier: 3, href: "/channels/gold-vault", icon: "🥇", label: "Gold Vault" },
-      { tier: 4, href: "/channels/diamond-den", icon: "💎", label: "Diamond Den" },
-      { tier: 5, href: "/channels/legendary-council", icon: "👑", label: "Legendary Council" },
+      { tier: 1, slug: "bronze-lounge", href: "/channels/bronze-lounge", icon: "🥉", label: "Bronze Lounge" },
+      { tier: 2, slug: "silver-circle", href: "/channels/silver-circle", icon: "🥈", label: "Silver Circle" },
+      { tier: 3, slug: "gold-vault", href: "/channels/gold-vault", icon: "🥇", label: "Gold Vault" },
     ];
 
-    for (const ch of channelDefs) {
-      if (userTier >= ch.tier) {
-        channels.push({
-          href: ch.href,
-          icon: <span className="text-sm">{ch.icon}</span>,
-          label: ch.label,
-        });
-      } else {
-        channels.push({
-          href: ch.href,
-          icon: <span className="text-sm opacity-50">{ch.icon}</span>,
-          label: ch.label,
-          badge: "🔒",
-          badgeColor: "warning",
-        });
+    // Only show JOINED channels
+    if (confidentialBadge?.hasClaimed) {
+      for (const ch of channelDefs) {
+        if (joinedChannels.includes(ch.slug)) {
+          joined.push({
+            href: ch.href,
+            icon: <span className="text-sm">{ch.icon}</span>,
+            label: ch.label,
+          });
+        }
       }
     }
 
-    return channels;
-  }, [confidentialBadge]);
+    // Coming Soon items (Diamond and Legendary - always disabled)
+    const comingSoon: NavItem[] = [
+      {
+        href: "#",
+        icon: <span className="text-sm opacity-40">💎</span>,
+        label: "Diamond Den",
+        badge: "Soon",
+        badgeColor: "default",
+      },
+      {
+        href: "#",
+        icon: <span className="text-sm opacity-40">👑</span>,
+        label: "Legendary",
+        badge: "Soon",
+        badgeColor: "default",
+      },
+    ];
+
+    return { hub, joined, comingSoon };
+  }, [confidentialBadge, joinedChannels]);
+
+  // Get channel data
+  const channelData = useMemo(() => getChannelItems(), [getChannelItems]);
 
   // Sort items within each group: available first, then unavailable
+  // Note: Channels group is rendered separately with collapsible logic
   const navGroups = useMemo(() => {
     const baseNavGroups: NavGroup[] = [
       {
@@ -137,10 +193,6 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           { href: "/private-payments", icon: <LockIcon />, label: "Private Payments", badge: "INCO", badgeColor: "cyan", featureKey: 'private-payments' as FeatureKey },
           { href: "/dark-pool", icon: <DarkPoolIcon />, label: "Dark Pool", badge: "Beta", badgeColor: "warning", featureKey: 'dark-pool' },
         ],
-      },
-      {
-        title: "Channels",
-        items: getChannelItems(),
       },
       {
         title: "Predictions",
@@ -193,7 +245,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       }),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [network, getChannelItems]);
+  }, [network]);
 
   const bottomItems = [
     { href: "/profile", icon: <ProfileIcon />, label: "Profile" },
@@ -245,6 +297,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         {/* Mobile Nav Content */}
         <MobileSidebarContent
           navGroups={navGroups}
+          channelData={channelData}
           bottomItems={bottomItems}
           pathname={pathname}
           userNumber={userNumber}
@@ -297,53 +350,150 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         {/* Navigation */}
         <nav className="flex-1 px-3 py-2 overflow-y-auto overflow-x-visible scrollbar-thin scrollbar-thumb-border-primary scrollbar-track-transparent">
           {navGroups.map((group, groupIndex) => (
-            <div key={group.title} className={groupIndex > 0 ? "mt-4" : ""}>
-              {/* Section Label */}
-              <AnimatePresence mode="wait">
-                {!isCollapsed ? (
-                  <motion.div
-                    key="label"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="px-3 mb-2"
-                  >
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted/70">
-                      {group.title}
-                    </span>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="divider"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="px-3 mb-2"
-                  >
-                    <div className="h-px bg-border-secondary/30" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
+            <div key={group.title}>
+              {/* Render normal group */}
+              <div className={groupIndex > 0 ? "mt-4" : ""}>
+                {/* Section Label */}
+                <AnimatePresence mode="wait">
+                  {!isCollapsed ? (
+                    <motion.div
+                      key="label"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="px-3 mb-2"
+                    >
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted/70">
+                        {group.title}
+                      </span>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="divider"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="px-3 mb-2"
+                    >
+                      <div className="h-px bg-border-secondary/30" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-              {/* Section Items */}
-              <div className="space-y-0.5">
-                {group.items.map((item) => {
-                  const isAvailable = item.featureKey ? isFeatureAvailable(item.featureKey) : true;
-                  return (
-                    <DesktopSidebarLink
-                      key={item.href}
-                      href={item.href}
-                      icon={item.icon}
-                      label={item.label}
-                      badge={item.badge}
-                      badgeColor={item.badgeColor}
-                      isActive={pathname === item.href}
-                      isDisabled={!isAvailable}
-                      isCollapsed={isCollapsed}
-                    />
-                  );
-                })}
+                {/* Section Items */}
+                <div className="space-y-0.5">
+                  {group.items.map((item) => {
+                    const isAvailable = item.featureKey ? isFeatureAvailable(item.featureKey) : true;
+                    return (
+                      <DesktopSidebarLink
+                        key={item.href}
+                        href={item.href}
+                        icon={item.icon}
+                        label={item.label}
+                        badge={item.badge}
+                        badgeColor={item.badgeColor}
+                        isActive={pathname === item.href}
+                        isDisabled={!isAvailable}
+                        isCollapsed={isCollapsed}
+                      />
+                    );
+                  })}
+                </div>
               </div>
+
+              {/* Insert Channels section after Privacy Tools */}
+              {group.title === "Privacy Tools" && (
+                <div className="mt-4">
+                  {/* Collapsible Channels Header */}
+                  <AnimatePresence mode="wait">
+                    {!isCollapsed ? (
+                      <motion.div
+                        key="channels-label"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="px-3 mb-2"
+                      >
+                        <button
+                          onClick={toggleChannelsSection}
+                          className="flex items-center justify-between w-full group"
+                        >
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted/70 group-hover:text-neon-green transition-colors">
+                            Channels
+                          </span>
+                          <motion.div
+                            animate={{ rotate: channelsExpanded ? 0 : -90 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <ChevronDownIcon className="w-3 h-3 text-text-muted/50 group-hover:text-neon-green transition-colors" />
+                          </motion.div>
+                        </button>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="channels-divider"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="px-3 mb-2"
+                      >
+                        <div className="h-px bg-border-secondary/30" />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Channel Items */}
+                  <AnimatePresence>
+                    {(channelsExpanded || isCollapsed) && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="space-y-0.5 overflow-hidden"
+                      >
+                        {/* Hub Link */}
+                        <DesktopSidebarLink
+                          href={channelData.hub.href}
+                          icon={channelData.hub.icon}
+                          label={channelData.hub.label}
+                          badge={channelData.hub.badge}
+                          badgeColor={channelData.hub.badgeColor}
+                          isActive={pathname === channelData.hub.href}
+                          isCollapsed={isCollapsed}
+                        />
+
+                        {/* Joined Channels */}
+                        {channelData.joined.map((item) => (
+                          <DesktopSidebarLink
+                            key={item.href}
+                            href={item.href}
+                            icon={item.icon}
+                            label={item.label}
+                            isActive={pathname === item.href}
+                            isCollapsed={isCollapsed}
+                          />
+                        ))}
+
+                        {/* Coming Soon Channels */}
+                        {channelData.comingSoon.map((item) => (
+                          <DesktopSidebarLink
+                            key={item.label}
+                            href={item.href}
+                            icon={item.icon}
+                            label={item.label}
+                            badge={item.badge}
+                            badgeColor={item.badgeColor}
+                            isActive={false}
+                            isDisabled={true}
+                            isCollapsed={isCollapsed}
+                          />
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
             </div>
           ))}
 
@@ -552,6 +702,7 @@ function UserCardWithTooltip({
 
 function MobileSidebarContent({
   navGroups,
+  channelData,
   bottomItems,
   pathname,
   userNumber,
@@ -567,6 +718,7 @@ function MobileSidebarContent({
   hiddenBalance,
 }: {
   navGroups: NavGroup[];
+  channelData: { hub: NavItem; joined: NavItem[]; comingSoon: NavItem[] };
   bottomItems: { href: string; icon: ReactNode; label: string }[];
   pathname: string;
   userNumber: number | null;
@@ -582,6 +734,7 @@ function MobileSidebarContent({
   hiddenBalance: number;
 }) {
   const [showNetworkModal, setShowNetworkModal] = useState(false);
+  const [mobileChannelsExpanded, setMobileChannelsExpanded] = useState(true);
 
   const pingStatus = rpcPing === null
     ? 'loading'
@@ -670,31 +823,108 @@ function MobileSidebarContent({
       {/* Navigation */}
       <nav className="flex-1 px-3 py-2 overflow-y-auto">
         {navGroups.map((group, groupIndex) => (
-          <div key={group.title} className={groupIndex > 0 ? "mt-4" : ""}>
-            <div className="px-3 mb-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted/70">
-                {group.title}
-              </span>
+          <div key={group.title}>
+            <div className={groupIndex > 0 ? "mt-4" : ""}>
+              <div className="px-3 mb-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted/70">
+                  {group.title}
+                </span>
+              </div>
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const isAvailable = item.featureKey ? isFeatureAvailable(item.featureKey) : true;
+                  return (
+                    <MobileSidebarLink
+                      key={item.href}
+                      href={item.href}
+                      icon={item.icon}
+                      label={item.label}
+                      badge={item.badge}
+                      badgeColor={item.badgeColor}
+                      isActive={pathname === item.href}
+                      isDisabled={!isAvailable}
+                      network={network}
+                      onClick={onClose}
+                    />
+                  );
+                })}
+              </div>
             </div>
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const isAvailable = item.featureKey ? isFeatureAvailable(item.featureKey) : true;
-                return (
-                  <MobileSidebarLink
-                    key={item.href}
-                    href={item.href}
-                    icon={item.icon}
-                    label={item.label}
-                    badge={item.badge}
-                    badgeColor={item.badgeColor}
-                    isActive={pathname === item.href}
-                    isDisabled={!isAvailable}
-                    network={network}
-                    onClick={onClose}
-                  />
-                );
-              })}
-            </div>
+
+            {/* Insert Channels section after Privacy Tools */}
+            {group.title === "Privacy Tools" && (
+              <div className="mt-4">
+                {/* Collapsible Channels Header */}
+                <div className="px-3 mb-2">
+                  <button
+                    onClick={() => setMobileChannelsExpanded(!mobileChannelsExpanded)}
+                    className="flex items-center justify-between w-full group"
+                  >
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted/70 group-hover:text-neon-green transition-colors">
+                      Channels
+                    </span>
+                    <motion.div
+                      animate={{ rotate: mobileChannelsExpanded ? 0 : -90 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <ChevronDownIcon className="w-3 h-3 text-text-muted/50 group-hover:text-neon-green transition-colors" />
+                    </motion.div>
+                  </button>
+                </div>
+
+                {/* Channel Items */}
+                <AnimatePresence>
+                  {mobileChannelsExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-0.5 overflow-hidden"
+                    >
+                      {/* Hub Link */}
+                      <MobileSidebarLink
+                        href={channelData.hub.href}
+                        icon={channelData.hub.icon}
+                        label={channelData.hub.label}
+                        badge={channelData.hub.badge}
+                        badgeColor={channelData.hub.badgeColor}
+                        isActive={pathname === channelData.hub.href}
+                        onClick={onClose}
+                      />
+
+                      {/* Joined Channels */}
+                      {channelData.joined.map((item) => (
+                        <MobileSidebarLink
+                          key={item.href}
+                          href={item.href}
+                          icon={item.icon}
+                          label={item.label}
+                          isActive={pathname === item.href}
+                          onClick={onClose}
+                        />
+                      ))}
+
+                      {/* Coming Soon Channels */}
+                      {channelData.comingSoon.map((item) => (
+                        <MobileSidebarLink
+                          key={item.label}
+                          href={item.href}
+                          icon={item.icon}
+                          label={item.label}
+                          badge={item.badge}
+                          badgeColor={item.badgeColor}
+                          isActive={false}
+                          isDisabled={true}
+                          network={network}
+                          onClick={onClose}
+                        />
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </div>
         ))}
 
@@ -945,6 +1175,12 @@ const ChevronRightIcon = ({ className = "w-4 h-4" }) => (
 const ChevronLeftIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+  </svg>
+);
+
+const ChevronDownIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
   </svg>
 );
 
