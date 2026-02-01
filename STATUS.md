@@ -1,0 +1,670 @@
+# 🐋 WHALE SUITE - PROJECT STATUS
+
+> Last Updated: 2026-01-30
+> Status: 🟡 IN PROGRESS
+
+---
+
+## 📊 OVERALL PROGRESS
+
+```
+Foundation    [██████████] 100%
+Pages         [█████████░] 90%
+Components    [█████████░] 90%
+API Routes    [████████░░] 80%
+SDK Integrations [██████████] 100% (All bounty SDKs complete!)
+Database      [██████████] 100%
+Smart Contract [░░░░░░░░░░] 0%
+─────────────────────────────
+TOTAL         [████████░░] 85%
+```
+
+---
+
+## 🏗️ FOUNDATION STATUS
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Next.js 14 Setup | ✅ Done | App Router, TypeScript |
+| Tailwind CSS | ✅ Done | + theme.css |
+| shadcn/ui | ✅ Done | Component library |
+| Privy Auth | ✅ Done | Solana wallets working |
+| MongoDB Connection | ✅ Done | Mongoose ODM |
+| Zustand Store | ✅ Done | State management |
+| Docker Setup | ✅ Done | MongoDB running |
+| Environment Variables | ✅ Done | .env.local configured |
+
+---
+
+## 📄 PAGES STATUS
+
+### Public Pages (No Auth)
+
+| Route | Page | Status | Priority | Notes |
+|-------|------|--------|----------|-------|
+| `/` | Landing | ✅ Done | P0 | Hero, features, CTA |
+| `/docs` | Documentation | 🔴 Not Started | P2 | MDX support |
+| `/docs/[...slug]` | Doc Pages | 🔴 Not Started | P2 | Dynamic routes |
+| `/connect` | Connect Wallet | ✅ Done | P0 | Privy integration |
+
+### Protected Pages (Auth Required)
+
+| Route | Page | Status | Priority | Notes |
+|-------|------|--------|----------|-------|
+| `/onboarding` | Onboarding | 🔴 Not Started | P0 | First-time setup |
+| `/dashboard` | Dashboard | ✅ Done | P0 | Command center |
+| `/vaults` | Shadow Vaults | ✅ Done | P0 | List all vaults |
+| `/vaults/[id]` | Vault Detail | 🔴 Not Started | P1 | Single vault view |
+| `/transfer` | Ghost Send | ✅ Done | P1 | SOL transfers |
+| `/swap` | Swap | ✅ Done | P1 | Jupiter Swap API v1 with optimistic updates |
+| `/private-swap` | Private Swap | ✅ Done | P0 | Darklake ZK-AMM with Groth16 proofs ($10k bounty) |
+| `/privacy` | Privacy Cash | ✅ Done | P0 | Shield/Unshield SOL |
+| `/markets` | Markets | ✅ Done | P2 | PNP prediction markets |
+| `/intelligence` | Whale Intel | ✅ Done | P1 | Whale feed & signals |
+| `/portfolio` | Portfolio | ✅ Done | P1 | P&L tracking |
+| `/badges` | Badges | ✅ Done | P1 | NFT marketplace |
+| `/affiliate` | Affiliate | ✅ Done | P2 | Referral dashboard |
+| `/profile` | Profile | ✅ Done | P2 | User profile |
+| `/settings` | Settings | ✅ Done | P2 | User settings |
+
+**Priority Legend:** P0 = Must have | P1 = Should have | P2 = Nice to have
+
+---
+
+## 🧩 COMPONENTS STATUS
+
+### Layout Components
+
+| Component | Status | File |
+|-----------|--------|------|
+| Navbar | 🔴 Not Started | `components/layout/navbar.tsx` |
+| Sidebar | 🔴 Not Started | `components/layout/sidebar.tsx` |
+| MobileMenu | 🔴 Not Started | `components/layout/mobile-menu.tsx` |
+| Footer | 🔴 Not Started | `components/layout/footer.tsx` |
+| DashboardLayout | 🔴 Not Started | `app/(dashboard)/layout.tsx` |
+
+### Dashboard Components
+
+| Component | Status | File |
+|-----------|--------|------|
+| StealthRatingCard | 🔴 Not Started | `components/dashboard/stealth-rating.tsx` |
+| BalanceOverview | 🔴 Not Started | `components/dashboard/balance-overview.tsx` |
+| VaultList | 🔴 Not Started | `components/dashboard/vault-list.tsx` |
+| QuickActions | 🔴 Not Started | `components/dashboard/quick-actions.tsx` |
+| WhaleFeedPreview | 🔴 Not Started | `components/dashboard/whale-feed-preview.tsx` |
+| PnLCard | 🔴 Not Started | `components/dashboard/pnl-card.tsx` |
+
+### Vault Components
+
+| Component | Status | File |
+|-----------|--------|------|
+| VaultCard | 🔴 Not Started | `components/vaults/vault-card.tsx` |
+| CreateVaultModal | 🔴 Not Started | `components/vaults/create-vault-modal.tsx` |
+| VaultDetail | 🔴 Not Started | `components/vaults/vault-detail.tsx` |
+| VaultTransactions | 🔴 Not Started | `components/vaults/vault-transactions.tsx` |
+
+### Transfer Components
+
+| Component | Status | File |
+|-----------|--------|------|
+| TransferForm | 🔴 Not Started | `components/transfer/transfer-form.tsx` |
+| VaultSelector | 🔴 Not Started | `components/transfer/vault-selector.tsx` |
+| RecipientInput | 🔴 Not Started | `components/transfer/recipient-input.tsx` |
+| TransferTypeSelector | 🔴 Not Started | `components/transfer/type-selector.tsx` |
+
+### Swap Components
+
+| Component | Status | File |
+|-----------|--------|------|
+| SwapInterface | 🔴 Not Started | `components/swap/swap-interface.tsx` |
+| TokenSelector | 🔴 Not Started | `components/swap/token-selector.tsx` |
+| RouteDisplay | 🔴 Not Started | `components/swap/route-display.tsx` |
+| SlippageSettings | 🔴 Not Started | `components/swap/slippage-settings.tsx` |
+
+### Intelligence Components
+
+| Component | Status | File |
+|-----------|--------|------|
+| WhaleFeed | 🔴 Not Started | `components/intelligence/whale-feed.tsx` |
+| WhaleCard | 🔴 Not Started | `components/intelligence/whale-card.tsx` |
+| TokenAccumulation | 🔴 Not Started | `components/intelligence/token-accumulation.tsx` |
+| SignalCard | 🔴 Not Started | `components/intelligence/signal-card.tsx` |
+| Watchlist | 🔴 Not Started | `components/intelligence/watchlist.tsx` |
+
+### Portfolio Components
+
+| Component | Status | File |
+|-----------|--------|------|
+| PortfolioChart | 🔴 Not Started | `components/portfolio/portfolio-chart.tsx` |
+| HoldingsTable | 🔴 Not Started | `components/portfolio/holdings-table.tsx` |
+| PnLSummary | 🔴 Not Started | `components/portfolio/pnl-summary.tsx` |
+| VaultComparison | 🔴 Not Started | `components/portfolio/vault-comparison.tsx` |
+
+### Badge Components
+
+| Component | Status | File |
+|-----------|--------|------|
+| BadgeMarketplace | 🔴 Not Started | `components/badges/badge-marketplace.tsx` |
+| BadgeCard | 🔴 Not Started | `components/badges/badge-card.tsx` |
+| RequirementsChecker | 🔴 Not Started | `components/badges/requirements-checker.tsx` |
+| PurchaseModal | 🔴 Not Started | `components/badges/purchase-modal.tsx` |
+
+### Affiliate Components
+
+| Component | Status | File |
+|-----------|--------|------|
+| EarningsOverview | 🔴 Not Started | `components/affiliate/earnings-overview.tsx` |
+| ReferralLink | 🔴 Not Started | `components/affiliate/referral-link.tsx` |
+| ReferralList | 🔴 Not Started | `components/affiliate/referral-list.tsx` |
+| Leaderboard | 🔴 Not Started | `components/affiliate/leaderboard.tsx` |
+
+### Modal Components
+
+| Component | Status | File |
+|-----------|--------|------|
+| TransactionProgress | 🔴 Not Started | `components/modals/transaction-progress.tsx` |
+| SuccessModal | 🔴 Not Started | `components/modals/success-modal.tsx` |
+| ErrorModal | 🔴 Not Started | `components/modals/error-modal.tsx` |
+| ConfirmModal | 🔴 Not Started | `components/modals/confirm-modal.tsx` |
+
+### UI Components (shadcn/ui)
+
+| Component | Status | File |
+|-----------|--------|------|
+| Button | 🔴 Not Started | `components/ui/button.tsx` |
+| Card | 🔴 Not Started | `components/ui/card.tsx` |
+| Input | 🔴 Not Started | `components/ui/input.tsx` |
+| Modal/Dialog | 🔴 Not Started | `components/ui/dialog.tsx` |
+| Dropdown | 🔴 Not Started | `components/ui/dropdown.tsx` |
+| Tabs | 🔴 Not Started | `components/ui/tabs.tsx` |
+| Progress | 🔴 Not Started | `components/ui/progress.tsx` |
+| Tooltip | 🔴 Not Started | `components/ui/tooltip.tsx` |
+| Badge | 🔴 Not Started | `components/ui/badge.tsx` |
+| Avatar | 🔴 Not Started | `components/ui/avatar.tsx` |
+| Sheet | 🔴 Not Started | `components/ui/sheet.tsx` |
+| Skeleton | 🔴 Not Started | `components/ui/skeleton.tsx` |
+
+---
+
+## 🛣️ API ROUTES STATUS
+
+### Auth Routes
+
+| Route | Method | Status | File |
+|-------|--------|--------|------|
+| `/api/auth/verify` | POST | 🔴 Not Started | `app/api/auth/verify/route.ts` |
+| `/api/auth/session` | GET | 🔴 Not Started | `app/api/auth/session/route.ts` |
+| `/api/auth/logout` | POST | 🔴 Not Started | `app/api/auth/logout/route.ts` |
+
+### User Routes
+
+| Route | Method | Status | File |
+|-------|--------|--------|------|
+| `/api/users` | GET, POST | 🔴 Not Started | `app/api/users/route.ts` |
+| `/api/users/[id]` | GET, PATCH | 🔴 Not Started | `app/api/users/[id]/route.ts` |
+| `/api/users/[id]/stats` | GET, POST | 🔴 Not Started | `app/api/users/[id]/stats/route.ts` |
+
+### Vault Routes
+
+| Route | Method | Status | File |
+|-------|--------|--------|------|
+| `/api/vaults` | GET, POST | 🔴 Not Started | `app/api/vaults/route.ts` |
+| `/api/vaults/[id]` | GET, PATCH, DELETE | 🔴 Not Started | `app/api/vaults/[id]/route.ts` |
+| `/api/vaults/[id]/balance` | GET | 🔴 Not Started | `app/api/vaults/[id]/balance/route.ts` |
+
+### Transaction Routes
+
+| Route | Method | Status | File |
+|-------|--------|--------|------|
+| `/api/transactions` | GET, POST | 🔴 Not Started | `app/api/transactions/route.ts` |
+| `/api/transactions/[id]` | GET | 🔴 Not Started | `app/api/transactions/[id]/route.ts` |
+
+### Whale Feed Routes
+
+| Route | Method | Status | File |
+|-------|--------|--------|------|
+| `/api/whale-feed` | GET | 🔴 Not Started | `app/api/whale-feed/route.ts` |
+| `/api/whale-feed/webhook` | POST | 🔴 Not Started | `app/api/whale-feed/webhook/route.ts` |
+| `/api/whale-feed/signals` | GET | 🔴 Not Started | `app/api/whale-feed/signals/route.ts` |
+
+### Portfolio Routes
+
+| Route | Method | Status | File |
+|-------|--------|--------|------|
+| `/api/portfolio` | GET | 🔴 Not Started | `app/api/portfolio/route.ts` |
+| `/api/portfolio/chart` | GET | 🔴 Not Started | `app/api/portfolio/chart/route.ts` |
+| `/api/portfolio/snapshot` | POST | 🔴 Not Started | `app/api/portfolio/snapshot/route.ts` |
+
+### Badge Routes
+
+| Route | Method | Status | File |
+|-------|--------|--------|------|
+| `/api/badges` | GET | 🔴 Not Started | `app/api/badges/route.ts` |
+| `/api/badges/verify` | POST | 🔴 Not Started | `app/api/badges/verify/route.ts` |
+| `/api/badges/purchase` | POST | 🔴 Not Started | `app/api/badges/purchase/route.ts` |
+
+### Referral Routes
+
+| Route | Method | Status | File |
+|-------|--------|--------|------|
+| `/api/referrals` | GET, POST | 🔴 Not Started | `app/api/referrals/route.ts` |
+| `/api/referrals/earnings` | GET | 🔴 Not Started | `app/api/referrals/earnings/route.ts` |
+| `/api/referrals/payout` | POST | 🔴 Not Started | `app/api/referrals/payout/route.ts` |
+
+### Darklake Orders Routes
+
+| Route | Method | Status | File |
+|-------|--------|--------|------|
+| `/api/darklake-orders` | GET | ✅ Done | `app/api/darklake-orders/route.ts` | Fetch pending/all orders |
+| `/api/darklake-orders` | POST | ✅ Done | `app/api/darklake-orders/route.ts` | Save new pending order |
+| `/api/darklake-orders` | PATCH | ✅ Done | `app/api/darklake-orders/route.ts` | Update order status |
+
+---
+
+## 🗄️ DATABASE SCHEMA STATUS
+
+| Collection | Status | Model File | Notes |
+|------------|--------|------------|-------|
+| users | 🔴 Not Started | `lib/db/models/User.ts` | Main user data |
+| vaults | 🔴 Not Started | `lib/db/models/Vault.ts` | Shadow vaults (embedded wallets) |
+| transactions | 🔴 Not Started | `lib/db/models/Transaction.ts` | All tx history |
+| portfolio_snapshots | 🔴 Not Started | `lib/db/models/PortfolioSnapshot.ts` | For charts |
+| whale_activity | 🔴 Not Started | `lib/db/models/WhaleActivity.ts` | Whale feed |
+| token_accumulation | 🔴 Not Started | `lib/db/models/TokenAccumulation.ts` | Signals |
+| badges | 🔴 Not Started | `lib/db/models/Badge.ts` | NFT badges |
+| referrals | 🔴 Not Started | `lib/db/models/Referral.ts` | Affiliate |
+| whale_watchlist | 🔴 Not Started | `lib/db/models/WhaleWatchlist.ts` | User watchlist |
+| sessions | 🔴 Not Started | `lib/db/models/Session.ts` | Auth sessions |
+
+---
+
+## 🔌 SDK INTEGRATIONS STATUS
+
+| SDK | Package | Status | File | Notes |
+|-----|---------|--------|------|-------|
+| Privy | `@privy-io/react-auth` | ✅ Done | `lib/privy/config.ts` | Auth + Solana wallets |
+| Helius | `helius-sdk` | ✅ Done | `lib/privacy-sdks/helius.ts` | RPC + Whale feed + Balances + Token Metadata |
+| Jupiter | Swap API v1 | ✅ Done | `lib/privacy-sdks/jupiter.ts` | Swaps with dynamic decimals + optimistic updates |
+| Privacy Cash | Custom | ✅ Done | `lib/privacy-sdks/privacy-cash.ts` | Deposit/Withdraw shielded pool ($15k bounty) |
+| Transfer | Custom | ✅ Done | `lib/privacy-sdks/transfer.ts` | SOL transfers |
+| ShadowWire | `@radr/shadowwire` | ✅ Done | `lib/privacy-sdks/shadow-wire.ts` | Bulletproof ZK private transfers ($15k bounty) |
+| PNP Exchange | `pnp-sdk` | ✅ Done | `lib/privacy-sdks/pnp.ts` | Prediction markets ($2.5k bounty) - Buy/Sell/Create/Redeem |
+| Darklake | `@darklakefi/ts-sdk-on-chain` | ✅ Done | `lib/privacy-sdks/darklake.ts` | ZK-AMM private swaps with Groth16 proofs ($10k bounty) |
+| Light Protocol | `@lightprotocol/stateless.js` | ⬜ Pending | - | Alternative ZK private transfers |
+
+---
+
+## 📦 ZUSTAND STORE STATUS
+
+| Slice | Status | File |
+|-------|--------|------|
+| authSlice | ✅ Done | `store/slices/auth.ts` |
+| userSlice | ✅ Done | `store/slices/user.ts` |
+| walletSlice | ✅ Done | `store/slices/wallet.ts` - Balance refresh trigger |
+| uiSlice | ✅ Done | `store/slices/ui.ts` |
+| Store Index | ✅ Done | `store/index.ts` - Combined store with selectors |
+
+---
+
+## ⛓️ SMART CONTRACT STATUS
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Anchor Project Setup | 🔴 Not Started | programs/whale-suite |
+| User Registration | 🔴 Not Started | register instruction |
+| Badge Minting | 🔴 Not Started | purchase_badge instruction |
+| Subscription | 🔴 Not Started | extend_subscription instruction |
+| Tests | 🔴 Not Started | tests/whale-suite.ts |
+| Devnet Deploy | 🔴 Not Started | - |
+| Mainnet Deploy | 🔴 Not Started | - |
+
+---
+
+## 🎨 DESIGN ASSETS STATUS
+
+| Asset | Status | Notes |
+|-------|--------|-------|
+| Theme CSS | 🔴 Not Started | styles/theme.css |
+| Logo | 🔴 Not Started | public/logo.svg |
+| Badge Images | 🔴 Not Started | public/badges/*.png |
+| Icons | 🔴 Not Started | Lucide icons |
+| Fonts | 🔴 Not Started | Inter + JetBrains Mono |
+
+---
+
+## 📝 FEATURE UPDATES LOG
+
+Track any changes made during development here.
+
+| Date | Feature | Change | Reason |
+|------|---------|--------|--------|
+| 2026-01-26 | Shadow Vaults | Changed from PDA to Privy Embedded Wallets | PDAs can't sign, SDKs need signatures |
+| 2026-01-26 | Privacy Cash | Replaced Elusiv with `privacycash` package | Elusiv deprecated Jan 2025 |
+| 2026-01-26 | ShadowWire | No npm, need GitHub clone | Package not on npm |
+| 2026-01-26 | PNP Exchange | Marked as NOT anonymous | PNP is regular prediction market |
+| 2026-01-27 | Jupiter Swap | Switched from Ultra API to Swap v1 API | Ultra API returning quote errors |
+| 2026-01-27 | Token Decimals | Fetch decimals from blockchain | Different tokens have different decimals (6 vs 9) |
+| 2026-01-27 | Balance Updates | Added optimistic updates + RPC fetch | Helius API has indexing delay |
+| 2026-01-27 | Header Sync | Added balance refresh trigger to Zustand | Header uses separate hook from swap page |
+| 2026-01-27 | ShadowWire SDK | Full integration with @radr/shadowwire | $15k Radr Labs bounty - Bulletproof ZK transfers |
+| 2026-01-27 | Enhanced Modals | TransactionModal with ZK proof indicators | Better UX for ZK proof generation (30-45s) |
+| 2026-01-27 | Privacy Cash UX | Enhanced modals + operation type tracking | Fixed success message showing wrong operation |
+| 2026-01-27 | Fee Reserve | Reduced to 0.05 SOL for deposits | Allow more SOL to be deposited |
+| 2026-01-27 | PNP Exchange | Full SDK integration with pnp-sdk v0.2.8 | $2.5k bounty - prediction markets with anonymous betting |
+| 2026-01-27 | Enhanced Sidebar | Section grouping with bounty badges | Overview, Privacy Tools, Predictions, Intelligence, Premium |
+| 2026-01-27 | Dashboard | Connected with all privacy pools + whale feed + PNP preview | Real data from ShadowWire, Privacy Cash, PNP, Helius |
+| 2026-01-27 | Loading States | Added skeleton loading to DashboardLayout | Better UX while auth initializing |
+| 2026-01-27 | PNP Buy/Sell | Manual instruction building for buy/sell | SDK bug passed wrong token program, fixed with manual tx |
+| 2026-01-27 | PNP Token Balances | Display YES/NO token balances in trade modal | Users can see holdings before trading |
+| 2026-01-27 | PNP Redeem | Added redeem functionality for resolved markets | Claim USDC for winning positions |
+| 2026-01-27 | PNP Create Market | V2 AMM + P2P market creation with progress modal | Full market creation flow with transaction progress |
+| 2026-01-27 | PNP P2P Markets | Fixed P2P market fetching | Now fetches both V2 and P2P markets from SDK |
+| 2026-01-27 | Transaction Progress | Enhanced progress modals for all PNP actions | Buy, Sell, Create, Redeem all show step progress |
+| 2026-01-30 | Darklake ZK-AMM | Full integration with @darklakefi/ts-sdk-on-chain | $10k bounty - Private swaps with Groth16 ZK proofs |
+| 2026-01-30 | Darklake Two-Step Flow | Commit → Settle with ZK proofs | MEV-resistant blind slippage pools |
+| 2026-01-30 | Darklake Order Persistence | MongoDB storage for pending orders | Resume orders if page closes, order history |
+| 2026-01-30 | Darklake Circuit Files | Postinstall copies settle.wasm, settle_final.zkey | Required for client-side ZK proof generation |
+| 2026-01-30 | Private Swap UI | Full page with SOL/WSOL/USDC/USDT support | Order history, pending order recovery, fee breakdown |
+| | | | |
+
+---
+
+## 🐛 KNOWN ISSUES
+
+| Issue | Status | Priority | Notes |
+|-------|--------|----------|-------|
+| None yet | - | - | - |
+
+---
+
+## 🚀 DEPLOYMENT STATUS
+
+| Environment | Status | URL |
+|-------------|--------|-----|
+| Local Dev | 🔴 Not Started | http://localhost:3000 |
+| Devnet | 🔴 Not Started | - |
+| Mainnet | 🔴 Not Started | - |
+
+---
+
+## 📋 NEXT STEPS
+
+1. [x] Initialize Next.js project
+2. [x] Setup Tailwind + theme
+3. [x] Install shadcn/ui
+4. [x] Configure Privy (Solana wallets working)
+5. [x] Setup MongoDB + models
+6. [x] Create layout components
+7. [x] Build connect page
+8. [x] Build dashboard layout
+9. [x] Add real balance fetching (Helius)
+10. [x] Create SDK service files (Helius, Jupiter, Transfer)
+11. [x] Create transaction hooks (useSwap, useTransfer, useHelius)
+12. [x] Build Transfer page UI with privacy options
+13. [x] Build Swap page UI with Jupiter integration
+14. [x] Add transaction progress modals
+15. [x] Create Privacy Cash service (deposit/withdraw shielded pool)
+16. [x] Create Privacy Cash page UI (/privacy)
+17. [x] Integrate ShadowWire SDK for private transfers ($15k bounty)
+18. [x] Integrate PNP Exchange SDK for prediction markets ($2.5k bounty)
+19. [x] Enhanced sidebar with section grouping and bounty badges
+20. [x] Connected dashboard with all privacy pools and real data
+21. [x] Integrate Darklake ZK-AMM for private swaps ($10k bounty)
+22. [x] Add order persistence for Darklake pending orders
+23. [x] Build Private Swap page with order history
+24. [ ] Build Badge NFT purchase flow
+25. [ ] Add Affiliate dashboard with referral tracking
+
+---
+
+## 💡 NOTES
+
+- **Privy Embedded Wallets** = Shadow Vaults (not PDAs)
+- **Privacy Cash** = Dark Pool deposits/withdrawals (ZK proof based)
+- **ShadowWire** = Ghost Send (Bulletproof ZK transfers) - Internal: hidden amount, External: anonymous sender
+- **Darklake ZK-AMM** = Private Swaps with Groth16 proofs ($10k bounty):
+  - Two-step flow: Commit (encrypt intent) → Settle (ZK proof)
+  - MEV-resistant blind slippage pools
+  - Supports SOL/WSOL/USDC/USDT pairs
+  - Order persistence in MongoDB for recovery
+  - ~2 minute settlement deadline
+  - Circuit files: settle.wasm, settle_final.zkey for client-side proof generation
+- **PNP Exchange** = Prediction markets (V2 AMM + P2P) with full trading functionality:
+  - Buy tokens (mint decision tokens via manual instruction building)
+  - Sell tokens (burn decision tokens)
+  - Create markets (V2 AMM or P2P)
+  - Redeem positions (claim USDC for winning tokens)
+  - Token balances displayed in trade modal
+  - SDK bug workaround: Manual instruction building bypasses wrong token program error
+- **Jupiter Swap API v1** = Swaps (public, not private) with optimistic balance updates
+- **Helius** = Whale intelligence feed + RPC balance fetching (real-time, no indexing delay)
+- **Zustand Store** = Global state with balance refresh trigger for header sync
+
+---
+
+## 📊 SCHEMA READY CHECK
+
+### Users Collection ✅
+```
+- wallet, privyId, phantomId, userNumber
+- onChainData (for future contract sync)
+- badge (tier, mintAddress, expiry)
+- subscription (isPremium, expiry, source)
+- stealthRating (score, breakdown, rank)
+- stats (balances, activity, P&L)
+- referral (code, earnings, rate)
+- settings (notifications, display, privacy)
+```
+
+### Vaults Collection ✅
+```
+- userId, userMainWallet
+- vaultNumber, name
+- walletType ('privy_embedded')
+- address, privyWalletId
+- balances (sol, tokens, totalUsd)
+- activity (transactions, lastActive, status)
+- pnl (realized, unrealized, roi, snapshots)
+```
+
+### Transactions Collection ✅
+```
+- userId, vaultId, vaultAddress
+- type (deposit, withdrawal, ghost_send, swap, etc.)
+- amount, token, usdValue
+- from/to (address, type)
+- pnl (realized, costBasis, proceeds)
+- onChain (signature, slot, status)
+- privacy (sdk, isPrivate, level)
+```
+
+### Portfolio Snapshots ✅
+```
+- userId, timestamp, interval
+- totalValueUsd, publicValueUsd, darkPoolValueUsd
+- vaults breakdown, tokens breakdown
+- pnl (daily, weekly, monthly, allTime)
+```
+
+### Whale Activity ✅
+```
+- walletHash, phantomId
+- eventType, amount, token, usdValue
+- displayText, importance
+- signature, slot, blockTime
+```
+
+### Token Accumulation ✅
+```
+- mint, symbol, name
+- timeframe, whaleActivity
+- signal, confidence
+- priceAtStart, priceAtEnd, priceChange
+```
+
+### Badges ✅
+```
+- userId, wallet
+- tier, tierId, name
+- nft (mintAddress, metadataUri, image)
+- purchase (price, txSignature, date)
+- status, expiresAt, benefits
+```
+
+### Referrals ✅
+```
+- referrer, referred (userId, wallet, phantomId)
+- codeUsed
+- earnings (rate, total, pending, paidOut)
+- conversions array
+- status
+```
+
+### Whale Watchlist ✅
+```
+- userId
+- whales array (phantomId, alerts)
+- tokens array (mint, symbol, threshold)
+- limits (maxWhales, maxTokens)
+```
+
+### Sessions ✅
+```
+- userId, wallet, privySessionId
+- device (userAgent, ip, country)
+- expiresAt, lastActivity
+```
+
+**SCHEMA STATUS: ✅ READY**
+
+---
+
+## 🎰 PNP EXCHANGE TECHNICAL DETAILS
+
+### SDK Bug Workaround
+The PNP SDK v0.2.8 has a bug where `mintDecisionTokensDerived` passes the Associated Token Program where the Token Program is expected. We bypass this with manual instruction building.
+
+### Instruction Discriminators
+Calculated as `sha256("global:<instruction_name>")[0..8]`:
+```
+mint_decision_tokens:  [226, 180, 53, 125, 168, 69, 114, 25]
+burn_decision_tokens:  [18, 198, 214, 1, 236, 94, 63, 29]
+```
+
+### Account Order (18 accounts for mint/burn)
+```typescript
+1. buyer (signer, writable)
+2. admin (writable)
+3. marketCreator (writable)
+4. market (writable)
+5. globalConfig (readonly)
+6. yesTokenMint (writable)
+7. noTokenMint (writable)
+8. buyerYesTokenAccount (writable)
+9. buyerNoTokenAccount (writable)
+10. marketReserveVault (writable)
+11. collateralMint (writable)
+12. buyerCollateralTokenAccount (writable)
+13. adminCollateralTokenAccount (writable)
+14. creatorFeeTreasury (writable)
+15. tokenProgramId (readonly) - for decision tokens
+16. tokenProgramId (readonly) - for collateral
+17. ASSOCIATED_TOKEN_PROGRAM_ID (readonly)
+18. SystemProgram.programId (readonly)
+```
+
+### Key Implementation Files
+- **Service**: `src/lib/privacy-sdks/pnp.ts`
+  - `buyTokensDirect()` - Manual instruction building for minting
+  - `sellTokensDirect()` - Manual instruction building for burning
+  - `createV2MarketDirect()` - Create V2 AMM market
+  - `getMarketTokenBalances()` - Fetch user's YES/NO balances
+  - `fetchAllMarketsFromSDK()` - Fetches both V2 and P2P markets
+
+- **Hook**: `src/hooks/usePNP.ts`
+  - `buyTokensV2()` / `buyTokensP2P()` - Buy with Privy signing
+  - `sellTokensV2()` - Sell with Privy signing
+  - `createMarket()` - Create market with Privy signing
+  - `redeemPositionV2()` - Redeem winning tokens
+  - `getMarketTokenBalances()` - Get user's token holdings
+
+- **UI**: `src/app/(dashboard)/markets/page.tsx`
+  - Trade modal with Buy/Sell toggle
+  - Token balance display (YES/NO)
+  - Transaction progress modal
+  - Redeem section for resolved markets
+  - Create market modal (V2/P2P)
+
+### AMM Behavior
+- When buying YES tokens, AMM mints BOTH YES and NO tokens
+- Prices calculated from supply ratio: `yesPrice = noSupply / totalSupply`
+- Token decimals: 6 (same as USDC)
+
+---
+
+## 🔒 DARKLAKE ZK-AMM TECHNICAL DETAILS
+
+### Overview
+Darklake is a ZK-AMM (Zero-Knowledge Automated Market Maker) that provides MEV-resistant private swaps on Solana using Groth16 proofs.
+
+### Two-Step Swap Flow
+1. **Commit Phase (TX 1)**: Creates encrypted order commitment
+   - Trade intent hidden from MEV bots
+   - Amount and direction encrypted
+   - Order locked in smart contract
+
+2. **Settle Phase (TX 2)**: Executes swap with ZK proof
+   - Client generates Groth16 proof (settle.wasm + settle_final.zkey)
+   - Proof verifies validity without revealing details
+   - Must complete within ~2 minutes (300 slots)
+
+### Circuit Files (Required)
+Copied by `postinstall.mjs` from `@darklakefi/ts-sdk-on-chain/dist/zk/circuits/`:
+- `settle.wasm` - WASM circuit for settle proof
+- `settle_final.zkey` - Proving key for settle
+- `cancel.wasm` - WASM circuit for cancel proof
+- `cancel_final.zkey` - Proving key for cancel
+
+### Fee Structure
+- **Trade Fee**: 0.5% (taken from swap amount)
+- **Account Rent**: ~0.002-0.003 SOL (refunded on order close)
+- **Transaction Fees**: ~0.002-0.004 SOL per transaction
+- **Total Extra**: ~0.007 SOL (mostly refundable rent)
+
+### Key Implementation Files
+- **Service**: `src/lib/privacy-sdks/darklake.ts`
+  - `executePrivateSwap()` - Full commit→settle flow
+  - `settlePendingOrder()` - Resume pending orders
+  - `getQuote()` - Get swap quote with fees
+  - `isOrderPending()` - Check on-chain order status
+
+- **Hook**: `src/hooks/useDarklake.ts`
+  - `executePrivateSwap()` - Swap with Privy signing
+  - `resumePendingOrder()` - Resume with Privy signing
+  - `fetchPendingOrders()` - Get pending orders from DB
+  - `fetchAllOrders()` - Get all orders (history)
+
+- **API**: `src/app/api/darklake-orders/route.ts`
+  - `GET` - Fetch orders (pending or all)
+  - `POST` - Save new pending order
+  - `PATCH` - Update order status (settled/expired/cancelled)
+
+- **UI**: `src/app/(dashboard)/private-swap/page.tsx`
+  - Token selector (SOL, WSOL, USDC, USDT)
+  - Quote display with fees
+  - Two-step progress modal
+  - Pending order recovery section
+  - Order history with TX links
+
+### Supported Tokens
+- SOL (native) - Auto-wrapped by SDK
+- WSOL - Swap directly
+- USDC - EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+- USDT - Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
+
+### SOL/WSOL Validation
+Cannot swap between SOL ↔ WSOL (same asset). UI shows warning and disables swap button.
+
+---
+
+*Update this file as development progresses*

@@ -1,0 +1,105 @@
+import { NextRequest, NextResponse } from 'next/server';
+import connectDB from '@/lib/database/mongodb';
+import { User, Transaction } from '@/lib/database/models';
+
+export const dynamic = 'force-dynamic';
+
+/**
+ * GET /api/leaderboard
+ * Fetch top users by points for the leaderboard
+ *
+ * Query params:
+ * - limit: number of users to return (default 50, max 100)
+ * - offset: pagination offset (default 0)
+ * - period: 'all' | 'weekly' | 'monthly' (default 'all')
+ */
+export async function GET(request: NextRequest) {
+  try {
+    await connectDB();
+
+    const { searchParams } = new URL(request.url);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
+    const offset = parseInt(searchParams.get('offset') || '0');
+    const period = searchParams.get('period') || 'all';
+
+    // Build date filter for period
+    let dateFilter = {};
+    if (period === 'weekly') {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      dateFilter = { lastActiveDate: { $gte: weekAgo } };
+    } else if (period === 'monthly') {
+      const monthAgo = new Date();
+      monthAgo.setMonth(monthAgo.getMonth() - 1);
+      dateFilter = { lastActiveDate: { $gte: monthAgo } };
+    }
+
+    const userQuery = {
+      points: { $gt: 0 },
+      ...dateFilter,
+    };
+
+    // Run user fetch and count in parallel
+    const [users, total] = await Promise.all([
+      User.find(userQuery)
+        .sort({ points: -1, streak: -1 })
+        .skip(offset)
+        .limit(limit)
+        .select('wallet userNumber badgeTier points streak lastActiveDate privacyScore stats.privateTransfers stats.swapVolume')
+        .lean(),
+      User.countDocuments(userQuery),
+    ]);
+
+    // Get transaction counts for all users in one query
+    const wallets = users.map(u => u.wallet);
+    const txCounts = wallets.length > 0
+      ? await Transaction.aggregate([
+          { $match: { wallet: { $in: wallets }, status: 'confirmed' } },
+          { $group: { _id: '$wallet', count: { $sum: 1 } } },
+        ])
+      : [];
+    const txCountMap = new Map(txCounts.map(t => [t._id, t.count]));
+
+    // Add rank to each user
+    const leaderboard = users.map((user, index) => ({
+      rank: offset + index + 1,
+      wallet: user.wallet,
+      userNumber: user.userNumber,
+      displayName: `Whale #${user.userNumber}`,
+      badgeTier: user.badgeTier,
+      points: user.points,
+      streak: user.streak || 0,
+      privacyScore: user.privacyScore || 0,
+      privateTransfers: user.stats?.privateTransfers || 0,
+      swapVolume: user.stats?.swapVolume || 0,
+      transactionCount: txCountMap.get(user.wallet) || 0,
+      lastActive: user.lastActiveDate,
+    }));
+
+    // Get top 3 for podium
+    const podium = leaderboard.slice(0, 3);
+
+    return NextResponse.json({
+      success: true,
+      leaderboard,
+      podium,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total,
+      },
+      period,
+    }, {
+      headers: {
+        'Cache-Control': 'private, max-age=30', // 30 seconds cache for leaderboard
+      },
+    });
+  } catch (error) {
+    console.error('Leaderboard API error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch leaderboard' },
+      { status: 500 }
+    );
+  }
+}
