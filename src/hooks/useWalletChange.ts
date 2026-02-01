@@ -24,6 +24,7 @@ export function useWalletChange() {
   const resetWallet = useStore((state) => state.resetWallet);
   const setAuthenticated = useStore((state) => state.setAuthenticated);
   const setAuthLoading = useStore((state) => state.setAuthLoading);
+  const setUserLoading = useStore((state) => state.setUserLoading);
 
   const previousWalletRef = useRef<string | null>(null);
   const isInitializedRef = useRef(false);
@@ -31,6 +32,7 @@ export function useWalletChange() {
 
   // Sync user to backend
   const syncUserToBackend = useCallback(async (wallet: string) => {
+    setUserLoading(true); // Start loading
     try {
       const response = await fetch('/api/auth/sync', {
         method: 'POST',
@@ -56,12 +58,22 @@ export function useWalletChange() {
             referredBy: data.user.referredBy,
             settings: data.user.settings,
           });
+          // Set terms acceptance status
+          if (data.user.termsAcceptedAt) {
+            store.setTermsAccepted(
+              new Date(data.user.termsAcceptedAt),
+              data.user.termsVersion || '1.0.0'
+            );
+          }
         }
       }
     } catch (error) {
       console.error('Failed to sync user:', error);
+    } finally {
+      setUserLoading(false); // Done loading
+      useStore.getState().setHasSynced(true); // Mark sync as complete
     }
-  }, []);
+  }, [setUserLoading]);
 
   useEffect(() => {
     // Skip if already processing

@@ -30,7 +30,10 @@ export interface UserSlice {
   referralCode: string | null;
   referredBy: string | null;
   settings: UserSettings;
+  termsAcceptedAt: Date | null;
+  termsVersion: string | null;
   userLoading: boolean;
+  hasSynced: boolean; // True after first sync completes
 
   // Actions
   setUser: (user: Partial<UserSlice>) => void;
@@ -39,7 +42,9 @@ export interface UserSlice {
   setPrivacyScore: (score: number) => void;
   setStats: (stats: Partial<UserStats>) => void;
   setSettings: (settings: Partial<UserSettings>) => void;
+  setTermsAccepted: (termsAcceptedAt: Date, termsVersion: string) => void;
   setUserLoading: (loading: boolean) => void;
+  setHasSynced: (synced: boolean) => void;
   resetUser: () => void;
 }
 
@@ -66,7 +71,10 @@ const initialUserState = {
     language: 'en',
     theme: 'dark',
   },
+  termsAcceptedAt: null,
+  termsVersion: null,
   userLoading: false,
+  hasSynced: false,
 };
 
 export const createUserSlice: StateCreator<UserSlice, [], [], UserSlice> = (set) => ({
@@ -99,8 +107,14 @@ export const createUserSlice: StateCreator<UserSlice, [], [], UserSlice> = (set)
       settings: { ...state.settings, ...settings },
     })),
 
+  setTermsAccepted: (termsAcceptedAt: Date, termsVersion: string) =>
+    set({ termsAcceptedAt, termsVersion }),
+
   setUserLoading: (loading: boolean) =>
     set({ userLoading: loading }),
+
+  setHasSynced: (synced: boolean) =>
+    set({ hasSynced: synced }),
 
   resetUser: () =>
     set(initialUserState),

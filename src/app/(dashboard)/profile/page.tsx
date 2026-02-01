@@ -39,6 +39,9 @@ import {
   Lock,
   Eye,
   Camera,
+  FileText,
+  HelpCircle,
+  AlertTriangle,
 } from 'lucide-react';
 
 // Types
@@ -923,6 +926,53 @@ export default function ProfilePage() {
                   Upload Custom Avatar
                 </Button>
               </div>
+            </div>
+          </Card>
+
+          {/* Legal & Terms */}
+          <Card variant="default" padding="md" className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-neon-green" />
+                Legal & Terms
+              </CardTitle>
+            </CardHeader>
+
+            <div className="space-y-3">
+              <a
+                href="/terms"
+                className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary hover:bg-bg-elevated border border-border-primary hover:border-neon-green/30 transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <FileText className="w-5 h-5 text-text-muted group-hover:text-neon-green transition-colors" />
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">Terms & Conditions</p>
+                    <p className="text-xs text-text-muted">View platform terms of use</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-text-muted group-hover:text-neon-green transition-colors" />
+              </a>
+
+              <a
+                href="/docs?section=faq"
+                className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary hover:bg-bg-elevated border border-border-primary hover:border-neon-green/30 transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <HelpCircle className="w-5 h-5 text-text-muted group-hover:text-neon-green transition-colors" />
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">FAQ & Help</p>
+                    <p className="text-xs text-text-muted">Common questions and support</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-text-muted group-hover:text-neon-green transition-colors" />
+              </a>
+            </div>
+
+            <div className="mt-4 p-3 rounded-lg bg-warning/10 border border-warning/30">
+              <p className="text-xs text-warning flex items-center gap-2">
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>This platform is in beta. Use small amounts first and proceed at your own risk.</span>
+              </p>
             </div>
           </Card>
         </div>

@@ -151,6 +151,8 @@ export async function GET(
         premiumExpiry: user.premiumExpiry,
         privacyScore,
         memberSince: user.createdAt,
+        termsAcceptedAt: user.termsAcceptedAt,
+        termsVersion: user.termsVersion,
       },
       points: {
         total: user.points || 0,

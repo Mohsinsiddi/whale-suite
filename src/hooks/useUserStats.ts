@@ -14,6 +14,8 @@ export interface UserStats {
     premiumExpiry?: string;
     privacyScore: number;
     memberSince: string;
+    termsAcceptedAt?: string;
+    termsVersion?: string;
   };
   points: {
     total: number;
@@ -106,6 +108,10 @@ export function useUserStats() {
         if (data.user) {
           store.setPrivacyScore(data.user.privacyScore || 0);
           store.setBadgeTier(data.user.badgeTier || 'none');
+          // Sync terms acceptance status
+          if (data.user.termsAcceptedAt) {
+            store.setTermsAccepted(new Date(data.user.termsAcceptedAt), data.user.termsVersion || '1.0.0');
+          }
         }
         if (data.stats) {
           store.setStats({

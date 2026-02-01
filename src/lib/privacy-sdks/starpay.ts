@@ -12,7 +12,13 @@ const STARPAY_API = '/api/starpay';
 
 export type CardType = 'visa' | 'mastercard';
 
-export type OrderStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'expired' | 'issued';
+// StarPay API Order Statuses
+// - pending: Waiting for payment
+// - processing: Payment received, issuing card
+// - completed: Card issued, markup credited
+// - failed: Card issuance failed
+// - expired: Order expired (30 min timeout)
+export type OrderStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'expired';
 
 // GET /api/v1/cards/price response
 export interface PriceResponse {
@@ -61,6 +67,7 @@ export interface OrderStatusResponse {
   cardType?: CardType;
   amountUSD?: number;
   expiresAt?: string;
+  message?: string; // Error message for failed orders
   payment?: {
     address: string;
     expectedSol?: number;
