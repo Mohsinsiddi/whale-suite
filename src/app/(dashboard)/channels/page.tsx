@@ -18,6 +18,7 @@ import {
   ConfigAccountData,
 } from '@/lib/contract/badge-sdk';
 import { JoinChannelModal } from '@/components/modals/JoinChannelModal';
+import { TransactionModal, SuccessModal } from '@/components/ui/Modal';
 
 type TabType = 'channels' | 'claim';
 
@@ -87,6 +88,12 @@ export default function ChannelsPage() {
   const [joiningChannel, setJoiningChannel] = useState<Channel | null>(null);
   const [selectedTier, setSelectedTier] = useState<number>(1);
   const [showJoinModal, setShowJoinModal] = useState(false);
+
+  // Claim/upgrade badge modal state
+  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [showClaimSuccessModal, setShowClaimSuccessModal] = useState(false);
+  const [claimSteps, setClaimSteps] = useState<{ label: string; status: 'pending' | 'active' | 'completed' | 'error'; description?: string }[]>([]);
+  const [claimCurrentStep, setClaimCurrentStep] = useState(0);
 
   // Auto-switch to claim tab if no badge (check both MongoDB AND on-chain)
   useEffect(() => {
@@ -258,25 +265,88 @@ export default function ChannelsPage() {
     Promise.all([fetchOnChainData(), fetchChannels()]);
   }, [fetchOnChainData, fetchChannels]);
 
-  // Handle claim or upgrade badge
+  // Handle claim or upgrade badge with modal
   const handleClaimOrUpgrade = async () => {
     if (!walletAddress || claimLoading) return;
 
-    let result;
-    if (hasBadge && selectedTier > userTier) {
-      // Upgrade existing badge (use badgeId 0 for first badge)
-      result = await upgradeTier(selectedTier, userTier, BigInt(0));
-    } else {
-      // Claim new badge
-      result = await claimBadge(selectedTier);
-    }
+    const isUpgrade = hasBadge && selectedTier > userTier;
 
-    if (result.success) {
-      // Refresh badge data
+    // Initialize steps
+    const steps = [
+      { label: 'Prepare Transaction', status: 'pending' as const, description: 'Building badge transaction...' },
+      { label: 'Encrypt Tier Data (INCO FHE)', status: 'pending' as const, description: 'Creating encrypted tier proofs...' },
+      { label: 'Sign Transaction', status: 'pending' as const, description: 'Waiting for wallet signature...' },
+      { label: 'Confirm On-Chain', status: 'pending' as const, description: 'Waiting for blockchain confirmation...' },
+      { label: 'Save to Database', status: 'pending' as const, description: 'Syncing badge data...' },
+    ];
+
+    setClaimSteps(steps);
+    setClaimCurrentStep(0);
+    setShowClaimModal(true);
+
+    // Update step helper
+    const updateStep = (index: number, status: 'active' | 'completed' | 'error', description?: string) => {
+      setClaimSteps(prev => prev.map((s, i) =>
+        i === index ? { ...s, status, description: description || s.description } : s
+      ));
+      if (status === 'active') setClaimCurrentStep(index);
+    };
+
+    try {
+      // Step 1: Prepare
+      updateStep(0, 'active');
+      await new Promise(r => setTimeout(r, 500)); // Small delay for UX
+      updateStep(0, 'completed');
+
+      // Step 2: Encrypt (happens in claimBadge/upgradeTier)
+      updateStep(1, 'active');
+      await new Promise(r => setTimeout(r, 300));
+
+      // Step 3: Sign - This is when user sees Phantom popup
+      updateStep(1, 'completed');
+      updateStep(2, 'active', 'Please approve in your wallet...');
+
+      let result;
+      if (isUpgrade) {
+        // Use badge_id from on-chain badge if available, else 0
+        const badgeId = onChainBadge?.badgeId ?? BigInt(0);
+        result = await upgradeTier(selectedTier, userTier, badgeId);
+      } else {
+        result = await claimBadge(selectedTier);
+      }
+
+      if (!result.success) {
+        throw new Error(result.error || 'Transaction failed');
+      }
+
+      // Step 4: Confirm on-chain
+      updateStep(2, 'completed');
+      updateStep(3, 'active', 'Transaction submitted, waiting for confirmation...');
+      await new Promise(r => setTimeout(r, 1000)); // Confirmation already done in hook
+      updateStep(3, 'completed');
+
+      // Step 5: Save to DB (already done in hook)
+      updateStep(4, 'active');
+      await new Promise(r => setTimeout(r, 500));
+      updateStep(4, 'completed');
+
+      // All done - close modal and show success
+      setShowClaimModal(false);
+      setShowClaimSuccessModal(true);
+
+      // Refresh data
       await refetchBadge();
       await fetchOnChainData();
       await fetchChannels();
       setActiveTab('channels');
+    } catch (error) {
+      console.error('Claim/upgrade error:', error);
+      // Mark current step as error
+      setClaimSteps(prev => prev.map((s, i) =>
+        i === claimCurrentStep ? { ...s, status: 'error' as const, description: error instanceof Error ? error.message : 'Transaction failed' } : s
+      ));
+      // Keep modal open for 2 seconds to show error, then close
+      setTimeout(() => setShowClaimModal(false), 2500);
     }
   };
 
@@ -808,6 +878,39 @@ export default function ChannelsPage() {
         anonId={joinAnonId}
         txSignature={joinTxSignature}
         onNavigate={handleNavigateToChannel}
+      />
+
+      {/* Claim/Upgrade Badge Transaction Modal */}
+      <TransactionModal
+        isOpen={showClaimModal}
+        onClose={() => setShowClaimModal(false)}
+        title={hasBadge ? `Upgrading to ${TIER_INFO[selectedTier as keyof typeof TIER_INFO]?.name}` : `Claiming ${TIER_INFO[selectedTier as keyof typeof TIER_INFO]?.name} Badge`}
+        steps={claimSteps}
+        currentStep={claimCurrentStep}
+        error={claimError || undefined}
+      />
+
+      {/* Claim Success Modal */}
+      <SuccessModal
+        isOpen={showClaimSuccessModal}
+        onClose={() => {
+          setShowClaimSuccessModal(false);
+          setActiveTab('channels');
+        }}
+        title={hasBadge ? 'Badge Upgraded!' : 'Badge Claimed!'}
+        message={`You now have access to ${TIER_INFO[selectedTier as keyof typeof TIER_INFO]?.name} tier channels.`}
+        txSignature={txSignature || undefined}
+        actions={
+          <button
+            onClick={() => {
+              setShowClaimSuccessModal(false);
+              setActiveTab('channels');
+            }}
+            className="w-full py-2 px-4 bg-gradient-to-r from-neon-green to-neon-cyan text-bg-primary text-sm font-semibold rounded-lg hover:shadow-glow-sm transition-all"
+          >
+            View Channels
+          </button>
+        }
       />
     </div>
   );
