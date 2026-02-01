@@ -57,14 +57,16 @@ const SIZES = {
 
 export function AnonAvatar({ anonId, size = 'md', className = '', showBadge = false }: AnonAvatarProps) {
   const { palette, pattern, initials, rotation } = useMemo(() => {
-    const hash = hashCode(anonId);
+    // Safeguard against undefined/empty anonId
+    const safeId = anonId || 'Whale#0000';
+    const hash = hashCode(safeId);
     const paletteIndex = hash % PALETTES.length;
     const patternIndex = (hash >> 4) % WHALE_PATTERNS.length;
     const rotation = ((hash >> 8) % 4) * 90;
 
     // Extract initials from anonId (e.g., "Whale#A4F2" -> "A4")
-    const match = anonId.match(/#([A-Z0-9]{2})/i);
-    const initials = match ? match[1] : anonId.slice(-2).toUpperCase();
+    const match = safeId.match(/#([A-Z0-9]{2})/i);
+    const initials = match ? match[1] : safeId.slice(-2).toUpperCase();
 
     return {
       palette: PALETTES[paletteIndex],
