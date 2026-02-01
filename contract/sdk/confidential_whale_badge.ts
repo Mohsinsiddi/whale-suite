@@ -856,7 +856,15 @@ export type ConfidentialWhaleBadge = {
     {
       "name": "upgradeTier",
       "docs": [
-        "Upgrade tier when user buys a higher badge on mainnet"
+        "Upgrade tier when user buys a higher badge on mainnet",
+        "",
+        "User must pay the full price for the new tier.",
+        "Only proofs up to the NEW PAID tier are computed.",
+        "",
+        "**Parameters:**",
+        "- new_tier: The tier to upgrade to (1-5, must be > current)",
+        "- encrypted_tier_ciphertext: User's actual tier encrypted via INCO",
+        "- encrypted_threshold_1-5: Constants 1,2,3,4,5 encrypted"
       ],
       "discriminator": [
         122,
@@ -876,6 +884,34 @@ export type ConfidentialWhaleBadge = {
           ],
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "treasury",
+          "docs": [
+            "Treasury account to receive payment"
+          ],
+          "writable": true
+        },
+        {
+          "name": "config",
+          "docs": [
+            "Global config account (for tier prices)"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "badge",
@@ -918,6 +954,10 @@ export type ConfidentialWhaleBadge = {
         }
       ],
       "args": [
+        {
+          "name": "newTier",
+          "type": "u8"
+        },
         {
           "name": "encryptedTierCiphertext",
           "type": "bytes"
@@ -1108,6 +1148,7 @@ export type ConfidentialWhaleBadge = {
       "name": "confidentialBadge",
       "docs": [
         "Confidential Whale Badge Account",
+        "",
         "PRIVACY-FIRST DESIGN:",
         "- NO plain text tier stored (was leaking privacy!)",
         "- NO amount_paid stored (reveals tier via price)",

@@ -77,10 +77,10 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
   // Generate channel items based on badge status
   const getChannelItems = useCallback((): NavItem[] => {
-    // If badge not claimed, show claim badge item
+    // If badge not claimed, show channels page (with claim tab)
     if (!confidentialBadge?.hasClaimed) {
       return [
-        { href: "/channels", icon: <ChannelsIcon />, label: "Claim Badge to Unlock", badge: "🔒", badgeColor: "warning" },
+        { href: "/channels", icon: <ChannelsIcon />, label: "Whale Channels", badge: "New", badgeColor: "cyan" },
       ];
     }
 

@@ -25,6 +25,11 @@ export interface IConfidentialBadge extends Document {
   encryptedTierHandle: string;
   proofHandles: IProofHandles;
 
+  // Upgrade tracking
+  upgradeTxSignature?: string;
+  upgradeAmountPaid?: number;
+  upgradedAt?: Date;
+
   // Status
   isActive: boolean;
   claimedAt: Date;
@@ -81,6 +86,19 @@ const ConfidentialBadgeSchema = new Schema<IConfidentialBadge>({
   proofHandles: {
     type: ProofHandlesSchema,
     required: true,
+  },
+  // Upgrade tracking
+  upgradeTxSignature: {
+    type: String,
+    required: false,
+  },
+  upgradeAmountPaid: {
+    type: Number,
+    required: false,
+  },
+  upgradedAt: {
+    type: Date,
+    required: false,
   },
   isActive: {
     type: Boolean,

@@ -74,14 +74,17 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    // Check if badge already exists
-    const existingBadge = await ConfidentialBadge.findOne({ wallet });
+    // Check if active badge already exists
+    const existingBadge = await ConfidentialBadge.findOne({ wallet, isActive: true });
     if (existingBadge) {
       return NextResponse.json(
         { success: false, error: 'Badge already claimed for this wallet' },
         { status: 400 }
       );
     }
+
+    // Delete any inactive badge records for this wallet before creating new one
+    await ConfidentialBadge.deleteMany({ wallet, isActive: false });
 
     // Create new badge record
     const badge = await ConfidentialBadge.create({
@@ -111,6 +114,117 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Failed to save confidential badge:', error);
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const {
+      wallet,
+      txSignature,
+      tier,
+      tierName,
+      amountPaid,
+    } = body;
+
+    // Validate required fields
+    if (!wallet || !txSignature || !tier) {
+      return NextResponse.json(
+        { success: false, error: 'Missing required fields for upgrade' },
+        { status: 400 }
+      );
+    }
+
+    await connectDB();
+
+    // Find existing badge
+    const existingBadge = await ConfidentialBadge.findOne({ wallet });
+    if (!existingBadge) {
+      return NextResponse.json(
+        { success: false, error: 'No existing badge to upgrade' },
+        { status: 404 }
+      );
+    }
+
+    // Validate upgrade (new tier must be higher)
+    if (tier <= existingBadge.tier) {
+      return NextResponse.json(
+        { success: false, error: 'Can only upgrade to a higher tier' },
+        { status: 400 }
+      );
+    }
+
+    // Update badge
+    existingBadge.tier = tier;
+    existingBadge.tierName = tierName || getTierName(tier);
+    existingBadge.upgradeTxSignature = txSignature;
+    existingBadge.upgradeAmountPaid = amountPaid || getTierPrice(tier);
+    existingBadge.upgradedAt = new Date();
+    await existingBadge.save();
+
+    return NextResponse.json({
+      success: true,
+      badge: {
+        hasClaimed: true,
+        tier: existingBadge.tier,
+        tierName: existingBadge.tierName,
+        badgeAccountAddress: existingBadge.badgeAccountAddress,
+        claimTxSignature: existingBadge.claimTxSignature,
+        upgradeTxSignature: existingBadge.upgradeTxSignature,
+        claimedAt: existingBadge.claimedAt,
+        upgradedAt: existingBadge.upgradedAt,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to upgrade confidential badge:', error);
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { wallet } = body;
+
+    if (!wallet) {
+      return NextResponse.json(
+        { success: false, error: 'Wallet address required' },
+        { status: 400 }
+      );
+    }
+
+    await connectDB();
+
+    // Find and delete badge, or mark as inactive
+    const result = await ConfidentialBadge.findOneAndUpdate(
+      { wallet },
+      { isActive: false, deletedAt: new Date() },
+      { new: true }
+    );
+
+    if (!result) {
+      return NextResponse.json({
+        success: true,
+        message: 'No badge found to delete',
+      });
+    }
+
+    console.log(`[API] Badge marked inactive for wallet: ${wallet}`);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Badge deleted successfully',
+    });
+  } catch (error) {
+    console.error('Failed to delete confidential badge:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

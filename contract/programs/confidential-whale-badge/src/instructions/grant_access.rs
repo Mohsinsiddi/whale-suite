@@ -14,6 +14,9 @@ use crate::state::ConfidentialBadge;
 /// This instruction grants the badge owner permission to decrypt the stored
 /// encrypted tier and proof handles via INCO's allow mechanism.
 ///
+/// **Parameters:**
+/// - badge_id: The badge to grant access to (for PDA derivation)
+///
 /// **Usage:**
 /// 1. Fetch the badge account to get handle values
 /// 2. Derive allowance PDAs for each handle: PDA([handle_bytes_le_16, user_pubkey], INCO_PROGRAM)
@@ -25,7 +28,10 @@ use crate::state::ConfidentialBadge;
 /// [2] bronze_allowance_pda (mut)
 /// [3] user_pubkey (readonly)
 /// ... and so on for silver, gold, diamond, legendary
-pub fn handler<'info>(ctx: Context<'_, '_, 'info, 'info, GrantAccess<'info>>) -> Result<()> {
+pub fn handler<'info>(
+    ctx: Context<'_, '_, 'info, 'info, GrantAccess<'info>>,
+    _badge_id: u64,  // For PDA derivation (used in accounts)
+) -> Result<()> {
     let badge = &ctx.accounts.badge;
     let user = &ctx.accounts.user;
     let inco = ctx.accounts.inco_lightning_program.to_account_info();
@@ -128,17 +134,19 @@ pub fn handler<'info>(ctx: Context<'_, '_, 'info, 'info, GrantAccess<'info>>) ->
 }
 
 #[derive(Accounts)]
+#[instruction(badge_id: u64)]
 pub struct GrantAccess<'info> {
     /// User requesting access (must be badge owner)
     #[account(mut)]
     pub user: Signer<'info>,
 
-    /// Badge account containing the handles
+    /// Badge account containing the handles (uses badge_id in PDA seeds)
     #[account(
-        seeds = [BADGE_SEED, user.key().as_ref()],
+        seeds = [BADGE_SEED, user.key().as_ref(), &badge_id.to_le_bytes()],
         bump = badge.bump,
         constraint = badge.owner == user.key() @ BadgeError::Unauthorized,
-        constraint = badge.is_active @ BadgeError::BadgeInactive
+        constraint = badge.is_active @ BadgeError::BadgeInactive,
+        constraint = badge.badge_id == badge_id @ BadgeError::BadgeNotFound
     )]
     pub badge: Account<'info, ConfidentialBadge>,
 

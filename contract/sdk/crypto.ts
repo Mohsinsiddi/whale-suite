@@ -2,27 +2,33 @@
  * Confidential Whale Badge - Crypto Helpers
  *
  * Functions for INCO encryption/decryption operations.
+ * Uses the correct INCO SDK imports for browser compatibility.
  */
 
-import { PublicKey, Keypair } from "@solana/web3.js";
-import { encryptValue, decrypt, hexToBuffer } from "@inco/solana-sdk";
-import { createHash } from "crypto";
-import * as nacl from "tweetnacl";
+import { PublicKey } from "@solana/web3.js";
+import { encryptValue } from "@inco/solana-sdk/encryption";
+import { hexToBuffer } from "@inco/solana-sdk/utils";
+import { decrypt } from "@inco/solana-sdk/attested-decrypt";
 
 // ============================================
-// HASHING
+// HASHING (Browser-compatible)
 // ============================================
 
 /**
  * Hash a public key to 128 bits for INCO encryption
+ * Uses Web Crypto API for browser compatibility
  *
  * Uses SHA256 and takes first 16 bytes as little-endian u128
  */
-export function hashPubkeyTo128Bits(pubkey: PublicKey): bigint {
-  const hash = createHash("sha256").update(pubkey.toBuffer()).digest();
+export async function hashPubkeyTo128Bits(pubkey: PublicKey): Promise<bigint> {
+  // Convert Buffer to Uint8Array for Web Crypto API
+  const pubkeyBytes = new Uint8Array(pubkey.toBuffer());
+  const hashBuffer = await crypto.subtle.digest("SHA-256", pubkeyBytes);
+  const hashArray = new Uint8Array(hashBuffer);
+
   let result = BigInt(0);
   for (let i = 15; i >= 0; i--) {
-    result = (result << BigInt(8)) | BigInt(hash[i]);
+    result = (result << BigInt(8)) | BigInt(hashArray[i]);
   }
   return result;
 }
@@ -49,7 +55,7 @@ export async function encryptForInco(value: bigint): Promise<Buffer> {
  * @returns Buffer ready to send to program
  */
 export async function encryptPubkeyHash(pubkey: PublicKey): Promise<Buffer> {
-  const hash = hashPubkeyTo128Bits(pubkey);
+  const hash = await hashPubkeyTo128Bits(pubkey);
   return encryptForInco(hash);
 }
 
@@ -104,8 +110,8 @@ export async function encryptPaymentData(
   encryptedRecipient: Buffer;
   encryptedAmount: Buffer;
 }> {
-  const senderHash = hashPubkeyTo128Bits(senderPubkey);
-  const recipientHash = hashPubkeyTo128Bits(recipientPubkey);
+  const senderHash = await hashPubkeyTo128Bits(senderPubkey);
+  const recipientHash = await hashPubkeyTo128Bits(recipientPubkey);
 
   const [encryptedSender, encryptedRecipient, encryptedAmount] = await Promise.all([
     encryptForInco(senderHash),
@@ -125,43 +131,14 @@ export async function encryptPaymentData(
 // ============================================
 
 /**
- * Decrypt an INCO proof handle
- *
- * @param handle - The u128 handle value
- * @param wallet - The wallet with decrypt permission
- * @returns Object with plaintext and isTrue boolean
- */
-export async function decryptProof(
-  handle: bigint | string,
-  wallet: Keypair
-): Promise<{ plaintext: string; isTrue: boolean } | null> {
-  try {
-    const handleStr = handle.toString();
-
-    const result = await decrypt([handleStr], {
-      address: wallet.publicKey,
-      signMessage: async (msg: Uint8Array) => nacl.sign.detached(msg, wallet.secretKey),
-    });
-
-    const plaintext = result.plaintexts[0];
-    const isTrue = plaintext === "1";
-
-    return { plaintext, isTrue };
-  } catch (error) {
-    console.error("Decrypt failed:", error);
-    return null;
-  }
-}
-
-/**
- * Decrypt with a custom sign function (for wallet adapters)
+ * Decrypt an INCO proof handle using wallet adapter signMessage
  *
  * @param handle - The u128 handle value
  * @param address - The public key with decrypt permission
- * @param signMessage - Function to sign a message
+ * @param signMessage - Function to sign a message (from wallet adapter)
  * @returns Object with plaintext and isTrue boolean
  */
-export async function decryptProofWithSigner(
+export async function decryptProof(
   handle: bigint | string,
   address: PublicKey,
   signMessage: (message: Uint8Array) => Promise<Uint8Array>
@@ -184,42 +161,36 @@ export async function decryptProofWithSigner(
   }
 }
 
-// ============================================
-// SIGNATURE HELPERS
-// ============================================
-
 /**
- * Sign an access request message
+ * Decrypt multiple INCO proof handles at once
  *
- * @param wallet - The wallet to sign with
- * @param channelId - The channel being accessed
- * @param timestamp - Unix timestamp
- * @returns The signature bytes
+ * @param handles - Array of u128 handle values
+ * @param address - The public key with decrypt permission
+ * @param signMessage - Function to sign a message (from wallet adapter)
+ * @returns Array of plaintexts or null on error
  */
-export function signAccessMessage(
-  wallet: Keypair,
-  channelId: string,
-  timestamp: number
-): Uint8Array {
-  const message = Buffer.from(`Access request for ${channelId} at ${timestamp}`);
-  return nacl.sign.detached(message, wallet.secretKey);
+export async function decryptMultipleProofs(
+  handles: (bigint | string)[],
+  address: PublicKey,
+  signMessage: (message: Uint8Array) => Promise<Uint8Array>
+): Promise<string[] | null> {
+  try {
+    const handleStrs = handles.map(h => h.toString());
+
+    const result = await decrypt(handleStrs, {
+      address,
+      signMessage,
+    });
+
+    return result.plaintexts;
+  } catch (error) {
+    console.error("Decrypt failed:", error);
+    return null;
+  }
 }
 
-/**
- * Verify an access request signature
- *
- * @param publicKey - The expected signer
- * @param channelId - The channel being accessed
- * @param timestamp - Unix timestamp
- * @param signature - The signature to verify
- * @returns True if valid
- */
-export function verifyAccessSignature(
-  publicKey: PublicKey,
-  channelId: string,
-  timestamp: number,
-  signature: Uint8Array
-): boolean {
-  const message = Buffer.from(`Access request for ${channelId} at ${timestamp}`);
-  return nacl.sign.detached.verify(message, signature, publicKey.toBytes());
-}
+// ============================================
+// RE-EXPORTS for convenience
+// ============================================
+
+export { encryptValue, hexToBuffer, decrypt };

@@ -19,8 +19,13 @@ use crate::state::{ConfidentialBadge, Config};
 /// **Upgrade Pricing:**
 /// User pays: new_tier_price - current_tier_price (inferred from existing proofs)
 /// For simplicity, we charge the full new tier price.
+///
+/// **Parameters:**
+/// - badge_id: The badge to upgrade (used in PDA derivation)
+/// - new_tier: The tier to upgrade to (1-5)
 pub fn handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, UpgradeTier<'info>>,
+    _badge_id: u64,                        // For PDA derivation (used in accounts)
     new_tier: u8,                         // The tier to upgrade to (must be > current)
     encrypted_tier_ciphertext: Vec<u8>,
     encrypted_threshold_1: Vec<u8>,
@@ -136,6 +141,7 @@ pub fn handler<'info>(
 }
 
 #[derive(Accounts)]
+#[instruction(badge_id: u64)]
 pub struct UpgradeTier<'info> {
     /// User upgrading the badge (must be owner)
     #[account(mut)]
@@ -156,13 +162,14 @@ pub struct UpgradeTier<'info> {
     )]
     pub config: Account<'info, Config>,
 
-    /// Badge account to upgrade
+    /// Badge account to upgrade (uses badge_id in PDA seeds)
     #[account(
         mut,
-        seeds = [BADGE_SEED, user.key().as_ref()],
+        seeds = [BADGE_SEED, user.key().as_ref(), &badge_id.to_le_bytes()],
         bump = badge.bump,
         constraint = badge.owner == user.key() @ BadgeError::Unauthorized,
-        constraint = badge.is_active @ BadgeError::BadgeInactive
+        constraint = badge.is_active @ BadgeError::BadgeInactive,
+        constraint = badge.badge_id == badge_id @ BadgeError::BadgeNotFound
     )]
     pub badge: Account<'info, ConfidentialBadge>,
 

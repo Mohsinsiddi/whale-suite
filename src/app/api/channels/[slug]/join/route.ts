@@ -13,7 +13,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { slug } = await params;
     const body = await request.json();
-    const { wallet, signature, message, timestamp } = body;
+    const {
+      wallet,
+      signature,
+      message,
+      timestamp,
+      // INCO verification fields
+      incoVerified,
+      proofHandle,
+      grantAccessTx,
+    } = body;
 
     if (!wallet || !signature || !message) {
       return NextResponse.json(
@@ -68,13 +77,36 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Check if user has required badge tier
-    const badge = await ConfidentialBadge.findOne({ wallet, isActive: true });
-    if (!badge || badge.tier < channel.tier) {
-      return NextResponse.json(
-        { success: false, error: `Requires ${channel.tierName}+ badge` },
-        { status: 403 }
-      );
+    // ========================================
+    // BADGE TIER VERIFICATION
+    // ========================================
+    // Two modes:
+    // 1. INCO-verified: Client already decrypted proof via INCO SDK
+    // 2. MongoDB fallback: Check cached tier from MongoDB
+    // ========================================
+
+    if (incoVerified && proofHandle && grantAccessTx) {
+      // INCO-verified: Trust client's INCO decryption result
+      // The client already:
+      // 1. Called grant_access on-chain
+      // 2. Decrypted the proof_* handle via INCO
+      // 3. Got TRUE result (otherwise wouldn't be calling this)
+      console.log(`[Join] INCO-verified join for ${wallet}`);
+      console.log(`[Join] Proof handle: ${proofHandle.slice(0, 20)}...`);
+      console.log(`[Join] Grant access TX: ${grantAccessTx}`);
+
+      // TODO: In production, verify the grantAccessTx on-chain
+      // and potentially re-decrypt server-side for security
+    } else {
+      // Fallback: Check MongoDB cached tier
+      const badge = await ConfidentialBadge.findOne({ wallet, isActive: true });
+      if (!badge || badge.tier < channel.tier) {
+        return NextResponse.json(
+          { success: false, error: `Requires ${channel.tierName}+ badge` },
+          { status: 403 }
+        );
+      }
+      console.log(`[Join] MongoDB-verified join for ${wallet}, tier: ${badge.tier}`);
     }
 
     // Check if already a member

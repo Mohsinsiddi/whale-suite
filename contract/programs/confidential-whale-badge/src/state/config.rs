@@ -10,8 +10,11 @@ pub struct Config {
     /// Treasury wallet to receive payments
     pub treasury: Pubkey,
 
-    /// Total number of badges claimed
+    /// Total number of badges claimed (historical count)
     pub total_badges: u64,
+
+    /// Next badge ID to assign (auto-incrementing)
+    pub next_badge_id: u64,
 
     /// Whether config is initialized
     pub is_initialized: bool,
@@ -43,6 +46,7 @@ impl Config {
         32 +    // admin
         32 +    // treasury
         8 +     // total_badges
+        8 +     // next_badge_id
         1 +     // is_initialized
         1 +     // bump
         8 +     // price_bronze

@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-confidential_whale_badge = "XPbon4Sw7hDArH49W8JNf5LK9nNTvowpRqWDHM2hMLD"
+confidential_whale_badge = "3aov6rjb4U8YjkjMjkA9Tbz3FMNdLTscKJVrbTAcWFxs"
 
 [registry]
 url = "https://api.apr.dev"

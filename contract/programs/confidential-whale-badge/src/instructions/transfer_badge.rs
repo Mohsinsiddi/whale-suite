@@ -11,8 +11,13 @@ use crate::state::ConfidentialBadge;
 
 /// Transfer badge ownership to another wallet
 /// Re-grants decrypt permissions to the new owner
+///
+/// **Parameters:**
+/// - badge_id: The badge to transfer (for PDA derivation)
+/// - new_owner: The new owner's pubkey
 pub fn handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, TransferBadge<'info>>,
+    _badge_id: u64,  // For PDA derivation (used in accounts)
     new_owner: Pubkey,
 ) -> Result<()> {
     let badge = &mut ctx.accounts.badge;
@@ -123,18 +128,20 @@ pub fn handler<'info>(
 }
 
 #[derive(Accounts)]
+#[instruction(badge_id: u64)]
 pub struct TransferBadge<'info> {
     /// Current owner of the badge
     #[account(mut)]
     pub current_owner: Signer<'info>,
 
-    /// Badge account to transfer
+    /// Badge account to transfer (uses badge_id in PDA seeds)
     #[account(
         mut,
-        seeds = [BADGE_SEED, current_owner.key().as_ref()],
+        seeds = [BADGE_SEED, current_owner.key().as_ref(), &badge_id.to_le_bytes()],
         bump = badge.bump,
         constraint = badge.owner == current_owner.key() @ BadgeError::Unauthorized,
-        constraint = badge.is_active @ BadgeError::BadgeInactive
+        constraint = badge.is_active @ BadgeError::BadgeInactive,
+        constraint = badge.badge_id == badge_id @ BadgeError::BadgeNotFound
     )]
     pub badge: Account<'info, ConfidentialBadge>,
 

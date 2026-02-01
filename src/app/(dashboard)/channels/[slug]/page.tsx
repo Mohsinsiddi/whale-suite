@@ -25,7 +25,7 @@ interface Message {
   contentType: 'text' | 'image' | 'link' | 'activity';
   activityData?: ActivityData;
   senderAnonId: string;
-  senderWallet: string;
+  isOwnMessage: boolean; // PRIVACY: No senderWallet exposed to other users
   createdAt: string;
   isEdited: boolean;
   isPinned: boolean;
@@ -170,7 +170,7 @@ export default function ChannelChatPage() {
       if (data.success) {
         setMessages(prev => [...prev, {
           ...data.message,
-          senderWallet: walletAddress,
+          isOwnMessage: true, // PRIVACY: This is our own message
           reactions: {},
         }]);
       }
@@ -214,7 +214,7 @@ export default function ChannelChatPage() {
       if (data.success) {
         setMessages(prev => [...prev, {
           ...data.message,
-          senderWallet: walletAddress,
+          isOwnMessage: true, // PRIVACY: This is our own message
           reactions: {},
         }]);
       }
@@ -348,7 +348,7 @@ export default function ChannelChatPage() {
           </div>
         ) : (
           messages.map((msg, index) => {
-            const isOwn = msg.senderWallet === walletAddress;
+            const isOwn = msg.isOwnMessage; // PRIVACY: Use isOwnMessage flag instead of comparing wallets
             const showAvatar = index === 0 || messages[index - 1]?.senderAnonId !== msg.senderAnonId;
 
             return (

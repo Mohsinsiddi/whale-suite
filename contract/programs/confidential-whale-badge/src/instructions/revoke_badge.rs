@@ -6,7 +6,10 @@ use crate::state::{ConfidentialBadge, Config};
 
 /// Revoke/deactivate a badge
 /// Can be called by admin or badge owner
-pub fn handler(ctx: Context<RevokeBadge>) -> Result<()> {
+///
+/// **Parameters:**
+/// - badge_id: The badge to revoke (for PDA derivation)
+pub fn handler(ctx: Context<RevokeBadge>, _badge_id: u64) -> Result<()> {
     let badge = &mut ctx.accounts.badge;
     let authority = &ctx.accounts.authority;
     let config = &ctx.accounts.config;
@@ -38,6 +41,7 @@ pub fn handler(ctx: Context<RevokeBadge>) -> Result<()> {
 }
 
 #[derive(Accounts)]
+#[instruction(badge_id: u64)]
 pub struct RevokeBadge<'info> {
     /// Authority revoking the badge (admin or owner)
     pub authority: Signer<'info>,
@@ -49,12 +53,13 @@ pub struct RevokeBadge<'info> {
     )]
     pub config: Account<'info, Config>,
 
-    /// Badge account to revoke
+    /// Badge account to revoke (uses badge_id in PDA seeds)
     #[account(
         mut,
-        seeds = [BADGE_SEED, badge.owner.as_ref()],
+        seeds = [BADGE_SEED, badge.owner.as_ref(), &badge_id.to_le_bytes()],
         bump = badge.bump,
-        constraint = badge.is_active @ BadgeError::BadgeInactive
+        constraint = badge.is_active @ BadgeError::BadgeInactive,
+        constraint = badge.badge_id == badge_id @ BadgeError::BadgeNotFound
     )]
     pub badge: Account<'info, ConfidentialBadge>,
 }

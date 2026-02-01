@@ -78,7 +78,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         contentType: m.contentType,
         activityData: m.activityData,
         senderAnonId: m.senderAnonId,
-        senderWallet: m.senderWallet,
+        // PRIVACY: Only show wallet to the sender, not to other users
+        isOwnMessage: wallet ? m.senderWallet === wallet : false,
         createdAt: m.createdAt,
         isEdited: m.isEdited,
         isPinned: m.isPinned,

@@ -9,7 +9,7 @@ pub mod state;
 pub use instructions::*;
 
 // Program ID - generated from target/deploy/confidential_whale_badge-keypair.json
-declare_id!("XPbon4Sw7hDArH49W8JNf5LK9nNTvowpRqWDHM2hMLD");
+declare_id!("3aov6rjb4U8YjkjMjkA9Tbz3FMNdLTscKJVrbTAcWFxs");
 
 #[program]
 pub mod confidential_whale_badge {
@@ -23,9 +23,14 @@ pub mod confidential_whale_badge {
     /// Claim a confidential badge - encrypts tier and pre-computes all proofs
     ///
     /// All encrypted values must be created client-side using INCO JS SDK:
+    /// - badge_id: Get from config.next_badge_id (enables multi-badge)
     /// - requested_tier: The tier (1-5) the user wants to purchase
     /// - encrypted_tier_ciphertext: The user's tier (1-5) encrypted
     /// - encrypted_threshold_1-5: Constant values 1,2,3,4,5 encrypted
+    ///
+    /// **Multi-Badge Support:**
+    /// Users can own multiple badges. Each badge has a unique badge_id.
+    /// Get badge_id from config.next_badge_id before calling this.
     ///
     /// **Tier Prices (admin configurable):**
     /// - Bronze (1): 0.1 SOL
@@ -35,6 +40,7 @@ pub mod confidential_whale_badge {
     /// - Legendary (5): 0.5 SOL
     pub fn claim_badge<'info>(
         ctx: Context<'_, '_, 'info, 'info, ClaimBadge<'info>>,
+        badge_id: u64,
         requested_tier: u8,
         encrypted_tier_ciphertext: Vec<u8>,
         encrypted_threshold_1: Vec<u8>,
@@ -45,6 +51,7 @@ pub mod confidential_whale_badge {
     ) -> Result<()> {
         instructions::claim_badge::handler(
             ctx,
+            badge_id,
             requested_tier,
             encrypted_tier_ciphertext,
             encrypted_threshold_1,
@@ -61,11 +68,13 @@ pub mod confidential_whale_badge {
     /// Only proofs up to the NEW PAID tier are computed.
     ///
     /// **Parameters:**
+    /// - badge_id: The badge to upgrade (for PDA derivation)
     /// - new_tier: The tier to upgrade to (1-5, must be > current)
     /// - encrypted_tier_ciphertext: User's actual tier encrypted via INCO
     /// - encrypted_threshold_1-5: Constants 1,2,3,4,5 encrypted
     pub fn upgrade_tier<'info>(
         ctx: Context<'_, '_, 'info, 'info, UpgradeTier<'info>>,
+        badge_id: u64,
         new_tier: u8,
         encrypted_tier_ciphertext: Vec<u8>,
         encrypted_threshold_1: Vec<u8>,
@@ -76,6 +85,7 @@ pub mod confidential_whale_badge {
     ) -> Result<()> {
         instructions::upgrade_tier::handler(
             ctx,
+            badge_id,
             new_tier,
             encrypted_tier_ciphertext,
             encrypted_threshold_1,
@@ -87,16 +97,32 @@ pub mod confidential_whale_badge {
     }
 
     /// Transfer badge ownership to another wallet
+    ///
+    /// **Parameters:**
+    /// - badge_id: The badge to transfer (for PDA derivation)
+    /// - new_owner: The new owner's pubkey
     pub fn transfer_badge<'info>(
         ctx: Context<'_, '_, 'info, 'info, TransferBadge<'info>>,
+        badge_id: u64,
         new_owner: Pubkey,
     ) -> Result<()> {
-        instructions::transfer_badge::handler(ctx, new_owner)
+        instructions::transfer_badge::handler(ctx, badge_id, new_owner)
     }
 
     /// Revoke/deactivate a badge (admin or owner)
-    pub fn revoke_badge(ctx: Context<RevokeBadge>) -> Result<()> {
-        instructions::revoke_badge::handler(ctx)
+    ///
+    /// **Parameters:**
+    /// - badge_id: The badge to revoke (for PDA derivation)
+    pub fn revoke_badge(ctx: Context<RevokeBadge>, badge_id: u64) -> Result<()> {
+        instructions::revoke_badge::handler(ctx, badge_id)
+    }
+
+    /// Close a badge account and recover rent
+    ///
+    /// Only the badge owner can close their badge.
+    /// This permanently deletes the badge and returns rent to the owner.
+    pub fn close_badge(ctx: Context<CloseBadge>) -> Result<()> {
+        instructions::close_badge::handler(ctx)
     }
 
     /// Grant decrypt access to badge handles
@@ -104,11 +130,15 @@ pub mod confidential_whale_badge {
     /// Call this after claim_badge to grant decrypt permission for the stored handles.
     /// Requires 12 remaining_accounts: 6 allowance PDAs + 6 user pubkeys (interleaved)
     ///
+    /// **Parameters:**
+    /// - badge_id: The badge to grant access to (for PDA derivation)
+    ///
     /// Allowance PDA derivation: PDA([handle_bytes_le_16, user_pubkey], INCO_PROGRAM_ID)
     pub fn grant_access<'info>(
         ctx: Context<'_, '_, 'info, 'info, GrantAccess<'info>>,
+        badge_id: u64,
     ) -> Result<()> {
-        instructions::grant_access::handler(ctx)
+        instructions::grant_access::handler(ctx, badge_id)
     }
 
     /// Update tier prices (admin only)

@@ -23,6 +23,16 @@ const INCO_LIGHTNING_PROGRAM_ID = new PublicKey("5sjEbPiqgZrYwR31ahR6Uk9wf5awoX6
 const CONFIG_SEED = Buffer.from("config");
 const BADGE_SEED = Buffer.from("badge");
 
+// Helper to derive badge PDA with badge_id (multi-badge support)
+function deriveBadgePda(userPubkey: PublicKey, badgeId: bigint, programId: PublicKey): [PublicKey, number] {
+  const badgeIdBuffer = Buffer.alloc(8);
+  badgeIdBuffer.writeBigUInt64LE(badgeId);
+  return PublicKey.findProgramAddressSync(
+    [BADGE_SEED, userPubkey.toBuffer(), badgeIdBuffer],
+    programId
+  );
+}
+
 // Tier Constants
 const TIER_BRONZE = 1;
 const TIER_SILVER = 2;
@@ -268,16 +278,18 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
   describe("2. BRONZE Tier - Fresh Wallet", () => {
     let bronzeWallet: Keypair;
     let bronzeBadgePda: PublicKey;
+    let bronzeBadgeId: bigint;
     let balanceBefore: number;
 
     before(async () => {
       bronzeWallet = Keypair.generate();
       testWallets.push(bronzeWallet);
-      [bronzeBadgePda] = PublicKey.findProgramAddressSync(
-        [BADGE_SEED, bronzeWallet.publicKey.toBuffer()],
-        program.programId
-      );
+      // Get next badge ID from config for multi-badge support
+      const config = await program.account.config.fetch(configPda);
+      bronzeBadgeId = BigInt(config.nextBadgeId.toString());
+      [bronzeBadgePda] = deriveBadgePda(bronzeWallet.publicKey, bronzeBadgeId, program.programId);
       console.log("\n   Bronze Wallet:", bronzeWallet.publicKey.toString().slice(0, 20) + "...");
+      console.log("   Badge ID:", bronzeBadgeId.toString());
     });
 
     it("should fund Bronze wallet and track balance", async () => {
@@ -307,6 +319,7 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
 
       const tx = await program.methods
         .claimBadge(
+          new BN(bronzeBadgeId.toString()),
           TIER_BRONZE,
           encrypted.tierCiphertext,
           encrypted.threshold1,
@@ -387,7 +400,7 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
       const allowances = handles.map(h => deriveAllowancePda(h, bronzeWallet.publicKey)[0]);
 
       const tx = await program.methods
-        .grantAccess()
+        .grantAccess(new BN(bronzeBadgeId.toString()))
         .accountsPartial({
           user: bronzeWallet.publicKey,
           badge: bronzeBadgePda,
@@ -467,16 +480,17 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
   describe("3. SILVER Tier - Fresh Wallet", () => {
     let silverWallet: Keypair;
     let silverBadgePda: PublicKey;
+    let silverBadgeId: bigint;
     let balanceBefore: number;
 
     before(async () => {
       silverWallet = Keypair.generate();
       testWallets.push(silverWallet);
-      [silverBadgePda] = PublicKey.findProgramAddressSync(
-        [BADGE_SEED, silverWallet.publicKey.toBuffer()],
-        program.programId
-      );
+      const config = await program.account.config.fetch(configPda);
+      silverBadgeId = BigInt(config.nextBadgeId.toString());
+      [silverBadgePda] = deriveBadgePda(silverWallet.publicKey, silverBadgeId, program.programId);
       console.log("\n   Silver Wallet:", silverWallet.publicKey.toString().slice(0, 20) + "...");
+      console.log("   Badge ID:", silverBadgeId.toString());
     });
 
     it("should fund Silver wallet", async () => {
@@ -502,7 +516,7 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
       const config = await program.account.config.fetch(configPda);
 
       const tx = await program.methods
-        .claimBadge(TIER_SILVER, encrypted.tierCiphertext, encrypted.threshold1,
+        .claimBadge(new BN(silverBadgeId.toString()), TIER_SILVER, encrypted.tierCiphertext, encrypted.threshold1,
           encrypted.threshold2, encrypted.threshold3, encrypted.threshold4, encrypted.threshold5)
         .accountsPartial({
           user: silverWallet.publicKey,
@@ -548,7 +562,7 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
       ];
       const allowances = handles.map(h => deriveAllowancePda(h, silverWallet.publicKey)[0]);
 
-      await program.methods.grantAccess()
+      await program.methods.grantAccess(new BN(silverBadgeId.toString()))
         .accountsPartial({
           user: silverWallet.publicKey,
           badge: silverBadgePda,
@@ -604,15 +618,16 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
   describe("4. GOLD Tier - Fresh Wallet", () => {
     let goldWallet: Keypair;
     let goldBadgePda: PublicKey;
+    let goldBadgeId: bigint;
     let balanceBefore: number;
 
     before(async () => {
       goldWallet = Keypair.generate();
       testWallets.push(goldWallet);
-      [goldBadgePda] = PublicKey.findProgramAddressSync(
-        [BADGE_SEED, goldWallet.publicKey.toBuffer()],
-        program.programId
-      );
+      const config = await program.account.config.fetch(configPda);
+      goldBadgeId = BigInt(config.nextBadgeId.toString());
+      [goldBadgePda] = deriveBadgePda(goldWallet.publicKey, goldBadgeId, program.programId);
+      console.log("   Badge ID:", goldBadgeId.toString());
     });
 
     it("should fund Gold wallet", async () => {
@@ -636,7 +651,7 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
       const config = await program.account.config.fetch(configPda);
 
       const tx = await program.methods
-        .claimBadge(TIER_GOLD, encrypted.tierCiphertext, encrypted.threshold1,
+        .claimBadge(new BN(goldBadgeId.toString()), TIER_GOLD, encrypted.tierCiphertext, encrypted.threshold1,
           encrypted.threshold2, encrypted.threshold3, encrypted.threshold4, encrypted.threshold5)
         .accountsPartial({
           user: goldWallet.publicKey,
@@ -673,7 +688,7 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
       ];
       const allowances = handles.map(h => deriveAllowancePda(h, goldWallet.publicKey)[0]);
 
-      await program.methods.grantAccess()
+      await program.methods.grantAccess(new BN(goldBadgeId.toString()))
         .accountsPartial({
           user: goldWallet.publicKey,
           badge: goldBadgePda,
@@ -724,15 +739,16 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
   describe("5. DIAMOND Tier - Fresh Wallet", () => {
     let diamondWallet: Keypair;
     let diamondBadgePda: PublicKey;
+    let diamondBadgeId: bigint;
     let balanceBefore: number;
 
     before(async () => {
       diamondWallet = Keypair.generate();
       testWallets.push(diamondWallet);
-      [diamondBadgePda] = PublicKey.findProgramAddressSync(
-        [BADGE_SEED, diamondWallet.publicKey.toBuffer()],
-        program.programId
-      );
+      const config = await program.account.config.fetch(configPda);
+      diamondBadgeId = BigInt(config.nextBadgeId.toString());
+      [diamondBadgePda] = deriveBadgePda(diamondWallet.publicKey, diamondBadgeId, program.programId);
+      console.log("   Badge ID:", diamondBadgeId.toString());
     });
 
     it("should fund Diamond wallet", async () => {
@@ -756,7 +772,7 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
       const config = await program.account.config.fetch(configPda);
 
       const tx = await program.methods
-        .claimBadge(TIER_DIAMOND, encrypted.tierCiphertext, encrypted.threshold1,
+        .claimBadge(new BN(diamondBadgeId.toString()), TIER_DIAMOND, encrypted.tierCiphertext, encrypted.threshold1,
           encrypted.threshold2, encrypted.threshold3, encrypted.threshold4, encrypted.threshold5)
         .accountsPartial({
           user: diamondWallet.publicKey,
@@ -790,7 +806,7 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
       ];
       const allowances = handles.map(h => deriveAllowancePda(h, diamondWallet.publicKey)[0]);
 
-      await program.methods.grantAccess()
+      await program.methods.grantAccess(new BN(diamondBadgeId.toString()))
         .accountsPartial({
           user: diamondWallet.publicKey,
           badge: diamondBadgePda,
@@ -841,15 +857,16 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
   describe("6. LEGENDARY Tier - Fresh Wallet", () => {
     let legendaryWallet: Keypair;
     let legendaryBadgePda: PublicKey;
+    let legendaryBadgeId: bigint;
     let balanceBefore: number;
 
     before(async () => {
       legendaryWallet = Keypair.generate();
       testWallets.push(legendaryWallet);
-      [legendaryBadgePda] = PublicKey.findProgramAddressSync(
-        [BADGE_SEED, legendaryWallet.publicKey.toBuffer()],
-        program.programId
-      );
+      const config = await program.account.config.fetch(configPda);
+      legendaryBadgeId = BigInt(config.nextBadgeId.toString());
+      [legendaryBadgePda] = deriveBadgePda(legendaryWallet.publicKey, legendaryBadgeId, program.programId);
+      console.log("   Badge ID:", legendaryBadgeId.toString());
     });
 
     it("should fund Legendary wallet", async () => {
@@ -873,7 +890,7 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
       const config = await program.account.config.fetch(configPda);
 
       const tx = await program.methods
-        .claimBadge(TIER_LEGENDARY, encrypted.tierCiphertext, encrypted.threshold1,
+        .claimBadge(new BN(legendaryBadgeId.toString()), TIER_LEGENDARY, encrypted.tierCiphertext, encrypted.threshold1,
           encrypted.threshold2, encrypted.threshold3, encrypted.threshold4, encrypted.threshold5)
         .accountsPartial({
           user: legendaryWallet.publicKey,
@@ -907,7 +924,7 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
       ];
       const allowances = handles.map(h => deriveAllowancePda(h, legendaryWallet.publicKey)[0]);
 
-      await program.methods.grantAccess()
+      await program.methods.grantAccess(new BN(legendaryBadgeId.toString()))
         .accountsPartial({
           user: legendaryWallet.publicKey,
           badge: legendaryBadgePda,
@@ -950,6 +967,119 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
   });
 
   // ==========================================
+  // SECTION 7: CLOSE BADGE TEST (Recover Rent)
+  // ==========================================
+
+  describe("7. CLOSE Badge - Recover Rent SOL", () => {
+    let closeTestWallet: Keypair;
+    let closeTestBadgePda: PublicKey;
+    let closeTestBadgeId: bigint;
+    let balanceBeforeClaim: number;
+    let balanceAfterClaim: number;
+    let balanceAfterClose: number;
+
+    before(async () => {
+      closeTestWallet = Keypair.generate();
+      testWallets.push(closeTestWallet);
+      const config = await program.account.config.fetch(configPda);
+      closeTestBadgeId = BigInt(config.nextBadgeId.toString());
+      [closeTestBadgePda] = deriveBadgePda(closeTestWallet.publicKey, closeTestBadgeId, program.programId);
+      console.log("\n   Close Test Wallet:", closeTestWallet.publicKey.toString().slice(0, 20) + "...");
+      console.log("   Badge ID:", closeTestBadgeId.toString());
+    });
+
+    it("should fund close test wallet", async () => {
+      console.log("\n--- Funding Close Test Wallet ---");
+      const fundAmount = 0.2 * LAMPORTS_PER_SOL;
+      const tx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: mainWallet.publicKey,
+          toPubkey: closeTestWallet.publicKey,
+          lamports: fundAmount,
+        })
+      );
+      await provider.sendAndConfirm(tx);
+      balanceBeforeClaim = await connection.getBalance(closeTestWallet.publicKey);
+      console.log(`   ✓ Funded: ${(balanceBeforeClaim / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
+    });
+
+    it("should claim BRONZE badge for close test", async () => {
+      console.log("\n--- Claiming Badge for Close Test ---");
+
+      const encrypted = await encryptBadgeValues(TIER_BRONZE);
+      const config = await program.account.config.fetch(configPda);
+
+      const tx = await program.methods
+        .claimBadge(new BN(closeTestBadgeId.toString()), TIER_BRONZE, encrypted.tierCiphertext, encrypted.threshold1,
+          encrypted.threshold2, encrypted.threshold3, encrypted.threshold4, encrypted.threshold5)
+        .accountsPartial({
+          user: closeTestWallet.publicKey,
+          treasury: config.treasury,
+          config: configPda,
+          badge: closeTestBadgePda,
+          incoLightningProgram: INCO_LIGHTNING_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([closeTestWallet])
+        .preInstructions([ComputeBudgetProgram.setComputeUnitLimit({ units: COMPUTE_UNITS })])
+        .rpc();
+
+      console.log("   TX:", tx);
+      await sleep(TX_CONFIRM_DELAY);
+
+      const badge = await program.account.confidentialBadge.fetch(closeTestBadgePda);
+      expect(badge.isActive).to.equal(true);
+
+      balanceAfterClaim = await connection.getBalance(closeTestWallet.publicKey);
+      console.log(`   ✓ Badge claimed. Balance: ${(balanceAfterClaim / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
+      console.log(`   Spent on badge: ${((balanceBeforeClaim - balanceAfterClaim) / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
+    });
+
+    it("should CLOSE badge and recover rent", async () => {
+      console.log("\n--- Closing Badge to Recover Rent ---");
+
+      // Get badge account rent before closing
+      const badgeAccountInfo = await connection.getAccountInfo(closeTestBadgePda);
+      const rentInBadge = badgeAccountInfo?.lamports || 0;
+      console.log(`   Badge account rent: ${(rentInBadge / LAMPORTS_PER_SOL).toFixed(6)} SOL`);
+
+      const tx = await program.methods
+        .closeBadge()
+        .accountsPartial({
+          owner: closeTestWallet.publicKey,
+          badge: closeTestBadgePda,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([closeTestWallet])
+        .rpc();
+
+      console.log("   TX:", tx);
+      await sleep(TX_CONFIRM_DELAY);
+
+      // Verify badge is closed
+      const closedBadge = await connection.getAccountInfo(closeTestBadgePda);
+      expect(closedBadge).to.be.null;
+      console.log("   ✓ Badge account closed (null)");
+
+      balanceAfterClose = await connection.getBalance(closeTestWallet.publicKey);
+      const rentRecovered = balanceAfterClose - balanceAfterClaim;
+
+      console.log(`   Balance after close: ${(balanceAfterClose / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
+      console.log(`   ✓ Rent recovered: ${(rentRecovered / LAMPORTS_PER_SOL).toFixed(6)} SOL`);
+
+      expect(rentRecovered).to.be.gt(0);
+    });
+
+    it("should recover remaining SOL from close test wallet", async () => {
+      console.log("\n--- Recovering SOL from Close Test Wallet ---");
+      const recovered = await recoverSol(connection, closeTestWallet, mainWallet.publicKey, "Close test wallet");
+      if (recovered > 0) {
+        console.log(`   ✓ Recovered: ${(recovered / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
+      }
+    });
+  });
+
+  // ==========================================
   // FINAL SUMMARY
   // ==========================================
 
@@ -975,6 +1105,12 @@ describe("Confidential Whale Badge - STRICT Fresh Wallet Tests", () => {
    ║  ✅ Gold     (0.3 SOL) - 3 TRUE, 2 FALSE                         ║
    ║  ✅ Diamond  (0.4 SOL) - 4 TRUE, 1 FALSE                         ║
    ║  ✅ Legendary(0.5 SOL) - 5 TRUE, 0 FALSE                         ║
+   ║  ✅ Close Badge - Rent recovered to owner                        ║
+   ╠═══════════════════════════════════════════════════════════════════╣
+   ║  MULTI-BADGE SUPPORT:                                            ║
+   ║  • Each badge has unique badge_id                                ║
+   ║  • Users can own multiple badges                                 ║
+   ║  • PDA: [badge, user, badge_id]                                  ║
    ╠═══════════════════════════════════════════════════════════════════╣
    ║  PRIVACY VERIFIED:                                               ║
    ║  • ALL 5 proof handles are NON-ZERO for every tier              ║

@@ -76,3 +76,5 @@ export type { DarklakeState, UseDarklakeReturn } from './useDarklake';
 // Confidential Badge & Channels
 export { useConfidentialBadge, TIER_INFO, TIER_PRICES } from './useConfidentialBadge';
 export type { ConfidentialBadgeData, UseConfidentialBadgeReturn } from './useConfidentialBadge';
+export { useClaimBadge } from './useClaimBadge';
+export type { ClaimBadgeState, ClaimBadgeResult } from './useClaimBadge';

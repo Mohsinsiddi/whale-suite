@@ -1,7 +1,8 @@
 /**
  * Confidential Whale Badge - SDK
  *
- * Complete SDK for UI integration with the Confidential Whale Badge program.
+ * Single source of truth for UI integration with the Confidential Whale Badge program.
+ * All encryption/decryption uses INCO SDK.
  *
  * @example
  * ```typescript
@@ -11,6 +12,7 @@
  *   deriveBadgePda,
  *   encryptBadgeValues,
  *   decryptProof,
+ *   buildClaimBadgeTransaction,
  * } from "@/contract/sdk";
  * ```
  */
@@ -39,6 +41,11 @@ export {
   TIER_LEGENDARY,
   TIER_PRICES,
   TIER_NAMES,
+  TIER_ICONS,
+  TIER_COLORS,
+  TIER_GRADIENTS,
+  // Privacy-first design
+  PRIVACY_DESIGN,
   // Defaults
   DEFAULT_PAYMENT_EXPIRY,
   // PDA derivation
@@ -50,10 +57,13 @@ export {
   // Helpers
   getTierPrice,
   getTierName,
+  getTierInfo,
+  getAllTiers,
+  getExpectedProofResults,
   generatePaymentId,
 } from "./constants";
 
-// Export crypto helpers
+// Export crypto helpers (INCO encryption/decryption)
 export {
   // Hashing
   hashPubkeyTo128Bits,
@@ -64,8 +74,36 @@ export {
   encryptPaymentData,
   // Decryption
   decryptProof,
-  decryptProofWithSigner,
-  // Signatures
-  signAccessMessage,
-  verifyAccessSignature,
+  decryptMultipleProofs,
+  // Raw INCO SDK re-exports
+  encryptValue,
+  hexToBuffer,
+  decrypt,
 } from "./crypto";
+
+// Export instruction builders and transaction helpers
+export {
+  // Instruction discriminators
+  INSTRUCTION_DISCRIMINATORS,
+  // Instruction builders
+  buildClaimBadgeInstruction,
+  buildUpgradeTierInstruction,
+  buildCloseBadgeInstruction,
+  // Account data types
+  type ConfigAccountData,
+  type BadgeAccountData,
+  // Account fetchers
+  fetchConfigAccount,
+  fetchBadgeAccount,
+  // Transaction builders
+  type ClaimBadgeParams,
+  type UpgradeTierParams,
+  type CloseBadgeParams,
+  buildClaimBadgeTransaction,
+  buildUpgradeTierTransaction,
+  buildCloseBadgeTransaction,
+  // Display helpers
+  getTierDisplayInfo,
+  getAllTiersForDisplay,
+  PRIVACY_INFO,
+} from "./instructions";

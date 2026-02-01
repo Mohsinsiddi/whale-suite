@@ -44,16 +44,21 @@ export function useConfidentialBadge(): UseConfidentialBadgeReturn {
     setError(null);
 
     try {
+      console.log('[useConfidentialBadge] Fetching badge for wallet:', walletAddress);
       const response = await fetch(`/api/badges/confidential?wallet=${walletAddress}`);
       const data = await response.json();
+      console.log('[useConfidentialBadge] API response:', data);
 
       if (data.success) {
-        setBadge(data.badge || { hasClaimed: false, tier: 0, tierName: 'None' });
+        const badgeData = data.badge || { hasClaimed: false, tier: 0, tierName: 'None' };
+        console.log('[useConfidentialBadge] Setting badge:', badgeData);
+        setBadge(badgeData);
       } else {
+        console.log('[useConfidentialBadge] API returned success=false, setting no badge');
         setBadge({ hasClaimed: false, tier: 0, tierName: 'None' });
       }
     } catch (err) {
-      console.error('Failed to fetch confidential badge:', err);
+      console.error('[useConfidentialBadge] Failed to fetch:', err);
       setError('Failed to fetch badge status');
       setBadge({ hasClaimed: false, tier: 0, tierName: 'None' });
     } finally {
@@ -99,3 +104,37 @@ export const TIER_PRICES = {
   4: 0.4,
   5: 0.5,
 } as const;
+
+/**
+ * PRIVACY-FIRST DESIGN
+ *
+ * The badge tier is NOT stored on-chain in plain text!
+ * Only encrypted INCO handles are stored:
+ * - encrypted_tier: INCO u128 handle
+ * - proof_bronze: INCO u128 handle (tier >= 1)
+ * - proof_silver: INCO u128 handle (tier >= 2)
+ * - proof_gold: INCO u128 handle (tier >= 3)
+ * - proof_diamond: INCO u128 handle (tier >= 4)
+ * - proof_legendary: INCO u128 handle (tier >= 5)
+ *
+ * ALL 5 proof handles are ALWAYS non-zero for EVERY tier.
+ * This prevents observers from determining the tier by checking
+ * which handles are zero vs non-zero.
+ *
+ * To verify tier access:
+ * 1. User signs with wallet
+ * 2. INCO decrypts the relevant proof handle
+ * 3. Result: "1" (TRUE) or "0" (FALSE)
+ *
+ * Example: Gold tier user
+ * - proof_bronze: decrypts to "1" (TRUE)
+ * - proof_silver: decrypts to "1" (TRUE)
+ * - proof_gold: decrypts to "1" (TRUE)
+ * - proof_diamond: decrypts to "0" (FALSE)
+ * - proof_legendary: decrypts to "0" (FALSE)
+ */
+export const PRIVACY_INFO = {
+  allHandlesNonZero: true,
+  tierStoredOnChain: false,
+  decryptRequiresSignature: true,
+};

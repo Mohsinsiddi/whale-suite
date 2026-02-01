@@ -18,6 +18,11 @@ use crate::state::{ConfidentialBadge, Config};
 ///
 /// The client must encrypt the tier value using INCO JS SDK before calling this.
 ///
+/// **MULTI-BADGE SUPPORT:**
+/// Users can claim multiple badges. Each badge gets a unique badge_id
+/// auto-assigned from config.next_badge_id.
+/// PDA seeds: [BADGE_SEED, user, badge_id.to_le_bytes()]
+///
 /// **WORKFLOW:**
 /// 1. Pay SOL to claim a tier (0.1-0.5 SOL based on tier)
 /// 2. Call claim_badge with payment + encrypted tier
@@ -36,6 +41,7 @@ use crate::state::{ConfidentialBadge, Config};
 /// the encrypted INCO handles which require decrypt permission.
 pub fn handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, ClaimBadge<'info>>,
+    badge_id: u64,                   // Unique badge ID (from config.next_badge_id)
     requested_tier: u8,              // Tier user wants (1-5)
     encrypted_tier_ciphertext: Vec<u8>,
     encrypted_threshold_1: Vec<u8>,  // Encrypted "1" (Bronze threshold)
@@ -161,6 +167,7 @@ pub fn handler<'info>(
     // NOTE: Call grant_access instruction separately to grant decrypt permissions
     // ALL proofs are non-zero handles (privacy-first design)
     badge.bump = ctx.bumps.badge;
+    badge.badge_id = badge_id;
     badge.owner = user.key();
     badge.encrypted_tier = encrypted_tier.0;
     badge.proof_bronze = proof_bronze.0;
@@ -172,11 +179,13 @@ pub fn handler<'info>(
     badge.updated_at = now;
     badge.is_active = true;
 
-    // Update global counter
+    // Update global counters
     config.total_badges = config.total_badges.checked_add(1).unwrap();
+    config.next_badge_id = config.next_badge_id.checked_add(1).unwrap();
 
     msg!(
-        "Badge claimed successfully! Owner: {}, Total badges: {}",
+        "Badge #{} claimed successfully! Owner: {}, Total badges: {}",
+        badge_id,
         user.key(),
         config.total_badges
     );
@@ -185,6 +194,7 @@ pub fn handler<'info>(
 }
 
 #[derive(Accounts)]
+#[instruction(badge_id: u64)]
 pub struct ClaimBadge<'info> {
     /// User claiming the badge
     #[account(mut)]
@@ -202,16 +212,18 @@ pub struct ClaimBadge<'info> {
     #[account(
         mut,
         seeds = [CONFIG_SEED],
-        bump = config.bump
+        bump = config.bump,
+        // Validate badge_id matches expected next ID
+        constraint = badge_id == config.next_badge_id @ BadgeError::InvalidTier
     )]
     pub config: Account<'info, Config>,
 
-    /// Badge account (PDA per user)
+    /// Badge account (PDA per user + badge_id for multi-badge support)
     #[account(
         init,
         payer = user,
         space = ConfidentialBadge::SIZE,
-        seeds = [BADGE_SEED, user.key().as_ref()],
+        seeds = [BADGE_SEED, user.key().as_ref(), &badge_id.to_le_bytes()],
         bump
     )]
     pub badge: Account<'info, ConfidentialBadge>,

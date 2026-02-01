@@ -7,10 +7,18 @@ use anchor_lang::prelude::*;
 /// - NO amount_paid stored (reveals tier via price)
 /// - ONLY encrypted INCO handles stored
 /// - Tier can only be verified via INCO proof decryption
+///
+/// MULTI-BADGE SUPPORT:
+/// - Each badge has a unique badge_id (u64)
+/// - PDA seeds: [BADGE_SEED, user, badge_id]
+/// - Users can own multiple badges for trading
 #[account]
 pub struct ConfidentialBadge {
     /// PDA bump seed
     pub bump: u8,
+
+    /// Unique badge identifier (allows multiple badges per user)
+    pub badge_id: u64,
 
     /// Current owner of the badge
     pub owner: Pubkey,
@@ -63,6 +71,7 @@ impl ConfidentialBadge {
     // Size calculation (removed tier: u8 and amount_paid: u64)
     pub const SIZE: usize = 8 +     // discriminator
         1 +         // bump
+        8 +         // badge_id (u64)
         32 +        // owner (Pubkey)
         // REMOVED: tier (u8) - privacy leak!
         // REMOVED: amount_paid (u64) - privacy leak!
