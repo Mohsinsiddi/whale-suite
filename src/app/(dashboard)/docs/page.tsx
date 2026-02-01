@@ -80,6 +80,7 @@ const tabs = [
 // Feature Categories (nested tabs)
 const featureCategories = [
   { id: "privacy", label: "Privacy Tools", icon: "🛡️" },
+  { id: "confidential", label: "Confidential", icon: "🔐" },
   { id: "trading", label: "Trading", icon: "💱" },
   { id: "predictions", label: "Predictions", icon: "🎲" },
   { id: "analytics", label: "Analytics", icon: "📊" },
@@ -475,6 +476,210 @@ export default function DocsPage() {
                   points="+25 pts per transfer"
                   badge="Bounty"
                 />
+              </div>
+            )}
+
+            {/* CONFIDENTIAL COMPUTING - INCO FHE */}
+            {featureCategory === "confidential" && (
+              <div className="space-y-4">
+                {/* INCO Overview Banner */}
+                <div className="p-4 rounded-xl bg-gradient-to-r from-purple-500/20 via-indigo-500/20 to-blue-500/20 border border-purple-500/30">
+                  <div className="flex items-start gap-3">
+                    <span className="text-3xl">🔐</span>
+                    <div>
+                      <h3 className="font-bold text-text-primary mb-1">INCO FHE - Fully Homomorphic Encryption</h3>
+                      <p className="text-sm text-text-secondary">
+                        Whale Suite integrates with INCO Network to provide <strong className="text-purple-400">confidential computing</strong> on Solana.
+                        INCO enables encrypted on-chain data that can be computed on without ever being decrypted.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <FeatureCard
+                  icon="🎫"
+                  title="Confidential Channels"
+                  subtitle="INCO FHE + Solana"
+                  description="Access exclusive tier-based channels using encrypted badge verification. Your badge tier proof is encrypted and verified on-chain without revealing your exact holdings or identity."
+                  privacyLevel="Maximum"
+                  network="Devnet"
+                  stats={{ popups: 2, gas: "~0.003 SOL", fee: "0%" }}
+                  steps={[
+                    "Mint a badge NFT (Bronze, Silver, Gold, etc.)",
+                    "Navigate to Channels page",
+                    "Click 'Claim Access' on your tier's channel",
+                    "Grant INCO decrypt permission (1 popup)",
+                    "Encrypted proof verified on INCO network",
+                    "Receive anonymous ID for channel access!"
+                  ]}
+                  useCases={["Exclusive whale communities", "Anonymous tier verification", "Private group access", "Confidential memberships"]}
+                  points="+20 pts per channel join"
+                  badge="INCO FHE"
+                />
+
+                <FeatureCard
+                  icon="🔒"
+                  title="Encrypted Tier Proofs"
+                  subtitle="Zero-Knowledge Verification"
+                  description="Badge tier verification happens entirely on encrypted data. The INCO covalidator network verifies your proof without ever knowing your wallet address or exact tier level."
+                  privacyLevel="Maximum"
+                  network="Devnet"
+                  stats={{ popups: 1, gas: "~0.001 SOL", fee: "0%" }}
+                  steps={[
+                    "Badge PDA contains encrypted tier proof",
+                    "INCO Lightning creates encrypted handle",
+                    "Proof submitted to INCO covalidator network",
+                    "Verification happens on encrypted data",
+                    "Only boolean result revealed (eligible/not eligible)"
+                  ]}
+                  useCases={["Confidential badge verification", "Hidden tier levels", "Private eligibility checks"]}
+                  points="Included in channel access"
+                />
+
+                <FeatureCard
+                  icon="🆔"
+                  title="Anonymous Channel IDs"
+                  subtitle="Pseudonymous Participation"
+                  description="Each channel membership gets a unique anonymous ID. Participate in exclusive communities without revealing your wallet or badge details to other members."
+                  privacyLevel="High"
+                  network="Devnet"
+                  stats={{ popups: 0, gas: "None after join", fee: "0%" }}
+                  steps={[
+                    "Successfully join a channel",
+                    "System generates unique anon ID",
+                    "ID format: adjective-animal-number",
+                    "Use this ID in channel interactions",
+                    "Your wallet remains private"
+                  ]}
+                  useCases={["Anonymous whale discussions", "Private trading signals", "Pseudonymous reputation building"]}
+                  points="Earn by participation"
+                />
+
+                {/* Benefits Section */}
+                <Card variant="default" padding="lg" className="border-l-4 border-l-purple-500">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="text-2xl">💡</span>
+                      Why INCO FHE Matters
+                    </CardTitle>
+                  </CardHeader>
+                  <div className="mt-4 space-y-4">
+                    <p className="text-text-secondary">
+                      Fully Homomorphic Encryption (FHE) allows computation on encrypted data without decryption.
+                      This enables powerful new use cases for blockchain privacy:
+                    </p>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/30">
+                        <h4 className="font-semibold text-purple-400 mb-2">For Users</h4>
+                        <ul className="text-sm text-text-secondary space-y-1">
+                          <li>• Badge tier remains confidential</li>
+                          <li>• Wallet address never exposed</li>
+                          <li>• Anonymous participation in channels</li>
+                          <li>• Verifiable without revealing data</li>
+                        </ul>
+                      </div>
+                      <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30">
+                        <h4 className="font-semibold text-indigo-400 mb-2">For Projects</h4>
+                        <ul className="text-sm text-text-secondary space-y-1">
+                          <li>• Token-gated access without doxxing</li>
+                          <li>• Confidential airdrops & rewards</li>
+                          <li>• Private voting & governance</li>
+                          <li>• Encrypted analytics & metrics</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* How It Works */}
+                <Card variant="default" padding="lg">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="text-2xl">⚙️</span>
+                      How INCO Integration Works
+                    </CardTitle>
+                  </CardHeader>
+                  <div className="mt-4 space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3 p-3 rounded-lg bg-bg-tertiary/50">
+                        <span className="text-lg font-bold text-neon-green">1</span>
+                        <div>
+                          <h4 className="font-semibold text-text-primary">Badge Minting</h4>
+                          <p className="text-sm text-text-secondary">
+                            When you mint a badge NFT, the smart contract also creates an encrypted proof of your tier
+                            using INCO Lightning. This proof is stored on-chain but encrypted.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3 p-3 rounded-lg bg-bg-tertiary/50">
+                        <span className="text-lg font-bold text-neon-green">2</span>
+                        <div>
+                          <h4 className="font-semibold text-text-primary">Access Request</h4>
+                          <p className="text-sm text-text-secondary">
+                            When you request channel access, you sign a transaction that grants INCO the
+                            permission to decrypt and verify your proof.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3 p-3 rounded-lg bg-bg-tertiary/50">
+                        <span className="text-lg font-bold text-neon-green">3</span>
+                        <div>
+                          <h4 className="font-semibold text-text-primary">Encrypted Verification</h4>
+                          <p className="text-sm text-text-secondary">
+                            INCO&apos;s covalidator network performs the verification on encrypted data.
+                            The computation happens without ever exposing your actual tier level.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3 p-3 rounded-lg bg-bg-tertiary/50">
+                        <span className="text-lg font-bold text-neon-green">4</span>
+                        <div>
+                          <h4 className="font-semibold text-text-primary">Result Callback</h4>
+                          <p className="text-sm text-text-secondary">
+                            Only the boolean result (eligible/not eligible) is returned to Solana.
+                            You get access without anyone knowing your exact badge tier.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Tech Specs */}
+                <Card variant="default" padding="lg">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <ChipIcon className="w-5 h-5 text-neon-cyan" />
+                      Technical Details
+                    </CardTitle>
+                  </CardHeader>
+                  <div className="mt-4">
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div className="p-3 rounded-xl bg-bg-tertiary/50 border border-border-secondary">
+                        <p className="text-xs text-text-muted">INCO Program</p>
+                        <p className="text-sm font-mono text-text-primary break-all">INCO Lightning</p>
+                      </div>
+                      <div className="p-3 rounded-xl bg-bg-tertiary/50 border border-border-secondary">
+                        <p className="text-xs text-text-muted">Network</p>
+                        <p className="text-sm font-mono text-text-primary">Solana Devnet</p>
+                      </div>
+                      <div className="p-3 rounded-xl bg-bg-tertiary/50 border border-border-secondary">
+                        <p className="text-xs text-text-muted">Encryption</p>
+                        <p className="text-sm font-mono text-text-primary">FHE (TFHE)</p>
+                      </div>
+                      <div className="p-3 rounded-xl bg-bg-tertiary/50 border border-border-secondary">
+                        <p className="text-xs text-text-muted">Covalidator</p>
+                        <p className="text-sm font-mono text-text-primary">INCO Alpha Network</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 p-3 rounded-xl bg-neon-cyan/10 border border-neon-cyan/30">
+                      <p className="text-sm text-neon-cyan">
+                        <strong>Mainnet Ready:</strong> Diamond and Legendary tier channels will be available
+                        on mainnet with full INCO FHE integration. Early adopters get exclusive benefits!
+                      </p>
+                    </div>
+                  </div>
+                </Card>
               </div>
             )}
 
@@ -962,6 +1167,7 @@ export default function DocsPage() {
                     { name: "Darklake", desc: "ZK AMM" },
                     { name: "PNP Protocol", desc: "Prediction Markets" },
                     { name: "Helius", desc: "RPC & Webhooks" },
+                    { name: "INCO Network", desc: "FHE Confidential" },
                   ].map(sdk => (
                     <div key={sdk.name} className="p-3 rounded-xl bg-bg-tertiary/50 border border-border-secondary text-center">
                       <p className="font-semibold text-text-primary text-sm">{sdk.name}</p>

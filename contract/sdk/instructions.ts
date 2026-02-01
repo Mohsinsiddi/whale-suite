@@ -346,7 +346,11 @@ export async function fetchBadgeAccount(
       isActive,
     };
   } catch (error) {
-    console.error("Failed to fetch badge account:", error);
+    // Only log unexpected errors (not "Account does not exist" which is expected during badge scanning)
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    if (!errorMsg.includes('Account does not exist') && !errorMsg.includes('could not find')) {
+      console.error("Failed to fetch badge account:", error);
+    }
     return null;
   }
 }

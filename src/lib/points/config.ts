@@ -182,6 +182,29 @@ export const POINT_ACTIONS = {
   },
 
   // ─────────────────────────────────────────────────────────
+  // INCO CHANNELS (Confidential Computing)
+  // Encrypted tier verification for exclusive channels
+  // ─────────────────────────────────────────────────────────
+  channel_join: {
+    basePoints: 20,
+    category: 'inco-channels',
+    sdk: 'inco',
+    description: 'Join an exclusive tier-based channel',
+    privacyWeight: 5, // Maximum privacy - encrypted verification
+    volumeMultiplier: false,
+    cooldown: 0,
+  },
+  channel_participate: {
+    basePoints: 5,
+    category: 'inco-channels',
+    sdk: 'inco',
+    description: 'Participate in channel discussions',
+    privacyWeight: 3,
+    volumeMultiplier: false,
+    cooldown: 3600000, // 1 hour
+  },
+
+  // ─────────────────────────────────────────────────────────
   // ENGAGEMENT & SOCIAL
   // Platform engagement rewards
   // ─────────────────────────────────────────────────────────
@@ -456,6 +479,14 @@ export const SDK_REGISTRY = {
     bounty: 'Sponsor',
     features: ['rpc', 'webhooks', 'tracking'],
     privacyLevel: 'infrastructure',
+  },
+  inco: {
+    name: 'INCO Network',
+    description: 'Fully Homomorphic Encryption for confidential computing',
+    website: 'https://inco.org',
+    bounty: 'Sponsor',
+    features: ['fhe', 'encrypted-verification', 'confidential-channels'],
+    privacyLevel: 'maximum',
   },
   lightprotocol: {
     name: 'Light Protocol',

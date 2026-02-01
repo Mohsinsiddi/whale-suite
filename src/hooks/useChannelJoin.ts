@@ -56,9 +56,9 @@ export interface JoinChannelResult {
 // Timing constants for smooth UX
 const STEP_TRANSITION_DELAY = 400;       // Delay between step transitions for visual feedback
 const TX_CONFIRM_DELAY = 2000;           // Wait after TX confirmation
-const INCO_PROPAGATION_DELAY = 15000;    // 15s for INCO to sync handles (critical!)
-const DECRYPT_RETRY_DELAY = 3000;        // 3s between decrypt retries
-const MAX_DECRYPT_RETRIES = 5;           // Max retry attempts
+const INCO_PROPAGATION_DELAY = 30000;    // 30s for INCO to sync handles (increased for devnet stability)
+const DECRYPT_RETRY_DELAY = 4000;        // 4s between decrypt retries
+const MAX_DECRYPT_RETRIES = 8;           // Max retry attempts (increased)
 
 // Proof handle keys by tier
 const TIER_PROOF_KEYS: Record<number, keyof BadgeAccountData> = {

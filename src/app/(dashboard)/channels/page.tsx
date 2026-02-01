@@ -18,6 +18,7 @@ import {
 import { JoinChannelModal } from '@/components/modals/JoinChannelModal';
 import { TransactionModal, SuccessModal } from '@/components/ui/Modal';
 import { BadgeSelectorModal } from '@/components/modals/BadgeSelectorModal';
+import NetworkSelectModal from '@/components/ui/NetworkSelectModal';
 
 type TabType = 'channels' | 'claim';
 
@@ -53,17 +54,17 @@ interface OnChainBadge {
 export default function ChannelsPage() {
   const router = useRouter();
   const { walletAddress, authenticated } = useAuth();
-  const { network } = useNetwork();
+  const { network, rpcPing } = useNetwork();
   const { badge, loading: badgeLoading, refetch: refetchBadge } = useConfidentialBadge();
   const { balance, loading: balanceLoading } = useWalletBalance(walletAddress);
   const {
     claimBadge,
     upgradeTier,
-    closeBadge,
+    // closeBadge - available for future use
     loading: claimLoading,
     error: claimError,
     txSignature,
-    success: claimSuccess,
+    // success: claimSuccess - handled by txSignature presence
   } = useClaimBadge();
 
   // Channel join with INCO verification
@@ -87,12 +88,13 @@ export default function ChannelsPage() {
   const [joiningChannel, setJoiningChannel] = useState<Channel | null>(null);
   const [selectedTier, setSelectedTier] = useState<number>(1);
   const [showJoinModal, setShowJoinModal] = useState(false);
+  const [networkModalOpen, setNetworkModalOpen] = useState(false);
 
   // Multi-badge support
   const [userBadges, setUserBadges] = useState<UserBadge[]>([]);
-  const [selectedBadge, setSelectedBadge] = useState<UserBadge | null>(null);
+  const [, setSelectedBadge] = useState<UserBadge | null>(null);
   const [showBadgeSelector, setShowBadgeSelector] = useState(false);
-  const [badgesLoading, setBadgesLoading] = useState(false);
+  const [, setBadgesLoading] = useState(false);
 
   // Claim/upgrade badge modal state
   const [showClaimModal, setShowClaimModal] = useState(false);
@@ -100,7 +102,7 @@ export default function ChannelsPage() {
   const [claimSteps, setClaimSteps] = useState<{ label: string; status: 'pending' | 'active' | 'completed' | 'error'; description?: string }[]>([]);
   const [claimCurrentStep, setClaimCurrentStep] = useState(0);
 
-  // Auto-switch to claim tab if no badge (check both MongoDB AND on-chain)
+  // Auto-switch to claim tab if no badge
   useEffect(() => {
     if (!badgeLoading && !badge?.hasClaimed && !onChainBadge?.isActive) {
       setActiveTab('claim');
@@ -112,17 +114,14 @@ export default function ChannelsPage() {
     if (!walletAddress) return;
 
     try {
-      // Check if already synced
       const checkRes = await fetch(`/api/badges/confidential?wallet=${walletAddress}`);
       const checkData = await checkRes.json();
 
       if (checkData.success && checkData.badge?.hasClaimed) {
-        // Already synced, just refetch
         await refetchBadge();
         return;
       }
 
-      // Sync to MongoDB
       await fetch('/api/badges/confidential', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -132,19 +131,18 @@ export default function ChannelsPage() {
           tier,
           tierName: TIER_INFO[tier as keyof typeof TIER_INFO]?.name || 'Unknown',
           badgeAccountAddress: badgePda,
-          amountPaid: 0, // Unknown for synced badges
+          amountPaid: 0,
           proofHandles: proofs,
         }),
       });
 
-      // Refetch MongoDB badge
       await refetchBadge();
     } catch (err) {
       console.error('Failed to sync badge to MongoDB:', err);
     }
   }, [walletAddress, refetchBadge]);
 
-  // Fetch on-chain badge data using multi-badge scan
+  // Fetch on-chain badge data
   const fetchOnChainData = useCallback(async () => {
     if (!walletAddress) return;
 
@@ -159,36 +157,24 @@ export default function ChannelsPage() {
       const userPubkey = new PublicKey(walletAddress);
       const [configPda] = deriveConfigPda();
 
-      // Fetch config and all user badges in parallel
       const [configData, badges] = await Promise.all([
         fetchConfigAccount(connection, configPda),
         findAllUserBadges(connection, userPubkey),
       ]);
 
-      console.log('[Channels] Config data:', configData);
-      console.log('[Channels] Found badges:', badges.length);
-
       if (configData) setConfig(configData);
-
-      // Store all badges
       setUserBadges(badges);
 
       if (badges.length > 0) {
-        // Use the first badge as default (or the one matching MongoDB)
         let primaryBadge = badges[0];
 
-        // Try to match with MongoDB badge if available
         if (badge?.badgeAccountAddress) {
           const matchingBadge = badges.find(b => b.pda.toBase58() === badge.badgeAccountAddress);
-          if (matchingBadge) {
-            primaryBadge = matchingBadge;
-          }
+          if (matchingBadge) primaryBadge = matchingBadge;
         }
 
-        // Set as selected badge for joining channels
         setSelectedBadge(primaryBadge);
 
-        // Set on-chain badge data for display
         const tierNum = badge?.tier || 1;
         const onChainData = {
           pda: primaryBadge.pda.toBase58(),
@@ -208,31 +194,13 @@ export default function ChannelsPage() {
 
         setOnChainBadge(onChainData);
 
-        // If on-chain badge exists but MongoDB doesn't have it, sync it
         if (!badge?.hasClaimed) {
           await syncBadgeToMongo(onChainData.pda, tierNum, onChainData.proofs);
         }
       } else {
-        // No badges found on-chain
-        console.log('[Channels] No active badges found on-chain');
         setOnChainBadge(null);
         setSelectedBadge(null);
         setUserBadges([]);
-
-        // If MongoDB has a badge record but on-chain doesn't exist, clean up MongoDB
-        if (badge?.hasClaimed) {
-          console.log('[Channels] Cleaning up stale MongoDB badge record');
-          try {
-            await fetch('/api/badges/confidential', {
-              method: 'DELETE',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ wallet: walletAddress }),
-            });
-            await refetchBadge();
-          } catch (err) {
-            console.error('Failed to clean up MongoDB badge:', err);
-          }
-        }
       }
     } catch (error) {
       console.error('Failed to fetch on-chain data:', error);
@@ -242,7 +210,7 @@ export default function ChannelsPage() {
     } finally {
       setBadgesLoading(false);
     }
-  }, [walletAddress, badge?.tier, badge?.hasClaimed, badge?.badgeAccountAddress, syncBadgeToMongo, refetchBadge]);
+  }, [walletAddress, badge?.tier, badge?.hasClaimed, badge?.badgeAccountAddress, syncBadgeToMongo]);
 
   // Fetch channels
   const fetchChannels = useCallback(async () => {
@@ -265,13 +233,12 @@ export default function ChannelsPage() {
     Promise.all([fetchOnChainData(), fetchChannels()]);
   }, [fetchOnChainData, fetchChannels]);
 
-  // Handle claim or upgrade badge with modal
+  // Handle claim or upgrade badge
   const handleClaimOrUpgrade = async () => {
     if (!walletAddress || claimLoading) return;
 
     const isUpgrade = hasBadge && selectedTier > userTier;
 
-    // Initialize steps
     const steps = [
       { label: 'Prepare Transaction', status: 'pending' as const, description: 'Building badge transaction...' },
       { label: 'Encrypt Tier Data (INCO FHE)', status: 'pending' as const, description: 'Creating encrypted tier proofs...' },
@@ -284,7 +251,6 @@ export default function ChannelsPage() {
     setClaimCurrentStep(0);
     setShowClaimModal(true);
 
-    // Update step helper
     const updateStep = (index: number, status: 'active' | 'completed' | 'error', description?: string) => {
       setClaimSteps(prev => prev.map((s, i) =>
         i === index ? { ...s, status, description: description || s.description } : s
@@ -293,22 +259,18 @@ export default function ChannelsPage() {
     };
 
     try {
-      // Step 1: Prepare
       updateStep(0, 'active');
-      await new Promise(r => setTimeout(r, 500)); // Small delay for UX
+      await new Promise(r => setTimeout(r, 500));
       updateStep(0, 'completed');
 
-      // Step 2: Encrypt (happens in claimBadge/upgradeTier)
       updateStep(1, 'active');
       await new Promise(r => setTimeout(r, 300));
 
-      // Step 3: Sign - This is when user sees Phantom popup
       updateStep(1, 'completed');
       updateStep(2, 'active', 'Please approve in your wallet...');
 
       let result;
       if (isUpgrade) {
-        // Use badge_id from on-chain badge if available, else 0
         const badgeId = onChainBadge?.badgeId ?? BigInt(0);
         result = await upgradeTier(selectedTier, userTier, badgeId);
       } else {
@@ -319,68 +281,59 @@ export default function ChannelsPage() {
         throw new Error(result.error || 'Transaction failed');
       }
 
-      // Step 4: Confirm on-chain
       updateStep(2, 'completed');
       updateStep(3, 'active', 'Transaction submitted, waiting for confirmation...');
-      await new Promise(r => setTimeout(r, 1000)); // Confirmation already done in hook
+      await new Promise(r => setTimeout(r, 1000));
       updateStep(3, 'completed');
 
-      // Step 5: Save to DB (already done in hook)
       updateStep(4, 'active');
       await new Promise(r => setTimeout(r, 500));
       updateStep(4, 'completed');
 
-      // All done - close modal and show success
       setShowClaimModal(false);
       setShowClaimSuccessModal(true);
 
-      // Refresh data
       await refetchBadge();
       await fetchOnChainData();
       await fetchChannels();
       setActiveTab('channels');
     } catch (error) {
       console.error('Claim/upgrade error:', error);
-      // Mark current step as error
       setClaimSteps(prev => prev.map((s, i) =>
         i === claimCurrentStep ? { ...s, status: 'error' as const, description: error instanceof Error ? error.message : 'Transaction failed' } : s
       ));
-      // Keep modal open for 2 seconds to show error, then close
       setTimeout(() => setShowClaimModal(false), 2500);
     }
   };
 
-  // Handle join channel with INCO verification
+  // Handle join channel
   const handleJoinChannel = async (channel: Channel) => {
     if (!walletAddress) return;
 
-    // If already joined, navigate directly
+    // Diamond and Legendary coming soon
+    if (channel.tier >= 4) return;
+
     if (channel.userAccess === 'joined') {
       router.push(`/channels/${channel.slug}`);
       return;
     }
 
-    // If locked (tier too low), don't allow
     if (channel.userAccess === 'locked') return;
 
-    // If user has multiple badges, show badge selector
     if (userBadges.length > 1) {
       setJoiningChannel(channel);
       setShowBadgeSelector(true);
       return;
     }
 
-    // If user has exactly one badge, use it
     if (userBadges.length === 1) {
       await startJoinFlow(channel, userBadges[0]);
       return;
     }
 
-    // No badges - shouldn't happen since channels are locked
     console.error('[Channels] No badges available for joining');
   };
 
-  // Start the actual join flow with selected badge
   const startJoinFlow = async (channel: Channel, badgeToUse: UserBadge) => {
     setJoiningChannel(channel);
     setSelectedBadge(badgeToUse);
@@ -388,7 +341,6 @@ export default function ChannelsPage() {
     setShowJoinModal(true);
     resetJoin();
 
-    // Start the join process with selected badge
     const result = await joinChannel(channel.slug, channel.tier, badgeToUse);
 
     if (result.success) {
@@ -396,21 +348,18 @@ export default function ChannelsPage() {
     }
   };
 
-  // Handle badge selection from modal
   const handleBadgeSelect = (badge: UserBadge) => {
     if (joiningChannel) {
       startJoinFlow(joiningChannel, badge);
     }
   };
 
-  // Handle modal close
   const handleCloseJoinModal = () => {
     setShowJoinModal(false);
     setJoiningChannel(null);
     resetJoin();
   };
 
-  // Handle navigate to channel after successful join
   const handleNavigateToChannel = () => {
     if (joiningChannel) {
       router.push(`/channels/${joiningChannel.slug}`);
@@ -422,7 +371,7 @@ export default function ChannelsPage() {
   if (!authenticated) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
+        <div className="text-center px-4">
           <div className="text-5xl mb-3">🔒</div>
           <h2 className="text-lg font-bold text-text-primary mb-1">Connect Wallet</h2>
           <p className="text-text-muted text-sm">Connect your wallet to access channels</p>
@@ -434,131 +383,116 @@ export default function ChannelsPage() {
   const userTier = badge?.tier || onChainBadge?.tier || 0;
   const hasBadge = badge?.hasClaimed || onChainBadge?.isActive;
 
-  // Debug info for development
-  console.log('[Channels] Badge status:', {
-    mongoDbBadge: badge,
-    onChainBadge,
-    userTier,
-    hasBadge,
-    badgeLoading,
-  });
-
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">Whale Channels</h1>
-          <p className="text-text-muted text-sm">Tier-gated private messaging with INCO FHE</p>
-        </div>
-        {config && (
-          <div className="flex items-center gap-4 text-xs text-text-muted">
-            <span><span className="text-neon-green font-bold">{config.totalBadges}</span> badges claimed</span>
-            <span className={`px-2 py-1 rounded ${network === 'devnet' ? 'bg-warning/10 text-warning' : 'bg-neon-green/10 text-neon-green'}`}>
-              {network}
-            </span>
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+      {/* Hero Banner */}
+      <div className="relative mb-6 p-4 sm:p-6 rounded-2xl bg-gradient-to-br from-bg-tertiary via-bg-secondary to-bg-tertiary border border-border-primary overflow-hidden">
+        {/* Background decoration */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(0,255,136,0.08),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(0,212,255,0.06),transparent_50%)]" />
+
+        <div className="relative z-10">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-3xl">🐋</span>
+                <h1 className="text-xl sm:text-2xl font-bold text-text-primary">Whale Channels</h1>
+              </div>
+              <p className="text-text-muted text-sm max-w-md">
+                Private tier-gated messaging powered by <span className="text-neon-cyan font-medium">INCO FHE</span>.
+                Your tier is encrypted on-chain - zero knowledge required.
+              </p>
+            </div>
+
+            {/* Network Toggle - Same as Header */}
+            <div className="flex items-center gap-3">
+              <NetworkToggle
+                network={network}
+                ping={rpcPing}
+                onClick={() => setNetworkModalOpen(true)}
+              />
+              {config && (
+                <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-bg-primary/50 border border-border-secondary">
+                  <span className="text-neon-green font-bold text-sm">{config.totalBadges}</span>
+                  <span className="text-text-muted text-xs">badges</span>
+                </div>
+              )}
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Debug Panel - Remove in production */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mb-4 p-3 rounded-lg bg-bg-primary border border-border-secondary text-xs font-mono">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-text-muted">
-              🔍 Debug Info {badgesLoading && <span className="text-neon-cyan animate-pulse">(scanning...)</span>}
-            </div>
+      {/* Devnet Notice Banner */}
+      {network === 'devnet' && (
+        <div className="mb-4 p-3 sm:p-4 rounded-xl bg-gradient-to-r from-warning/10 via-warning/5 to-transparent border border-warning/30">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex items-center gap-2">
-              {userBadges.length > 0 && (
-                <span className="px-2 py-0.5 rounded text-[10px] bg-neon-green/10 text-neon-green border border-neon-green/30">
-                  {userBadges.length} badge{userBadges.length > 1 ? 's' : ''}
-                </span>
-              )}
-              {hasBadge && (
-                <button
-                  onClick={async () => {
-                    if (!confirm('Close badge and delete from MongoDB? This will allow you to test the full claim flow again.')) return;
-                    const badgeId = onChainBadge?.badgeId ?? BigInt(0);
-                    console.log('[Debug] Closing badge with ID:', badgeId.toString());
-                    const result = await closeBadge(badgeId);
-                    if (result.success) {
-                      alert(`Badge closed! TX: ${result.txSignature?.slice(0, 20)}...`);
-                      await refetchBadge();
-                      window.location.reload();
-                    } else {
-                      alert(`Failed: ${result.error}`);
-                    }
-                  }}
-                  disabled={claimLoading}
-                  className="px-3 py-1 rounded bg-error/20 text-error border border-error/30 hover:bg-error/30 transition-colors disabled:opacity-50"
-                >
-                  {claimLoading ? 'Closing...' : '🗑️ Close Badge'}
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <span className="text-text-muted">MongoDB badge:</span>{' '}
-              <span className={badge?.hasClaimed ? 'text-neon-green' : 'text-error'}>
-                {badge?.hasClaimed ? `Tier ${badge.tier} (${badge.tierName})` : 'None'}
-              </span>
-            </div>
-            <div>
-              <span className="text-text-muted">On-chain badges:</span>{' '}
-              <span className={userBadges.length > 0 ? 'text-neon-green' : 'text-error'}>
-                {userBadges.length > 0 ? `${userBadges.length} found` : 'None'}
-              </span>
-            </div>
-            <div>
-              <span className="text-text-muted">Selected badge:</span>{' '}
-              <span className={selectedBadge ? 'text-neon-cyan' : 'text-text-muted'}>
-                {selectedBadge ? `#${selectedBadge.badgeId} (${selectedBadge.pda.toBase58().slice(0, 8)}...)` : 'None'}
-              </span>
-            </div>
-            <div>
-              <span className="text-text-muted">userTier:</span>{' '}
-              <span className="text-neon-cyan">{userTier}</span>
-            </div>
-          </div>
-          {/* Show all badges */}
-          {userBadges.length > 0 && (
-            <div className="mt-2 pt-2 border-t border-border-secondary">
-              <span className="text-text-muted">All badges:</span>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {userBadges.map((b) => (
-                  <span
-                    key={b.pda.toBase58()}
-                    className={`px-2 py-0.5 rounded text-[10px] ${
-                      selectedBadge?.pda.equals(b.pda)
-                        ? 'bg-neon-green/20 text-neon-green border border-neon-green/40'
-                        : 'bg-bg-tertiary text-text-muted border border-border-secondary'
-                    }`}
-                  >
-                    #{b.badgeId.toString()} ({b.pda.toBase58().slice(0, 6)}...)
-                  </span>
-                ))}
+              <span className="text-xl">⚠️</span>
+              <div>
+                <p className="font-semibold text-warning text-sm">Devnet Mode</p>
+                <p className="text-text-muted text-xs">Using Solana Devnet for testing</p>
               </div>
             </div>
-          )}
+            <div className="sm:ml-auto flex flex-wrap gap-2">
+              <a
+                href="https://faucet.solana.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-lg bg-warning/20 text-warning text-xs font-medium hover:bg-warning/30 transition-colors"
+              >
+                Get Devnet SOL →
+              </a>
+              <button
+                onClick={() => setNetworkModalOpen(true)}
+                className="px-3 py-1.5 rounded-lg bg-bg-tertiary text-text-secondary text-xs font-medium hover:bg-bg-elevated transition-colors"
+              >
+                Switch Network
+              </button>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-text-muted">
+            💡 <span className="font-medium">Tip:</span> Enable testnet mode in your wallet (Phantom → Settings → Developer Settings → Testnet Mode)
+          </p>
         </div>
       )}
+
+      {/* Early Adopter Banner */}
+      <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-neon-green/10 via-neon-cyan/5 to-neon-green/10 border border-neon-green/30">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-green to-neon-cyan flex items-center justify-center text-lg">
+              🎁
+            </div>
+            <div>
+              <p className="font-semibold text-neon-green text-sm">Early Adopter Benefits</p>
+              <p className="text-text-muted text-xs">Claim your badge now and get exclusive access!</p>
+            </div>
+          </div>
+          <div className="sm:ml-auto">
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="px-2 py-1 rounded bg-neon-green/20 text-neon-green">✓ Discounted prices</span>
+              <span className="px-2 py-1 rounded bg-neon-cyan/20 text-neon-cyan">✓ Pioneer badge</span>
+              <span className="px-2 py-1 rounded bg-purple-500/20 text-purple-400">✓ Mainnet airdrop</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Badge Status Bar */}
       {hasBadge && (
         <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-bg-tertiary to-bg-secondary border border-neon-green/30">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${TIER_INFO[userTier as keyof typeof TIER_INFO]?.color || 'from-gray-500 to-gray-400'} flex items-center justify-center text-2xl shadow-lg`}>
                 {TIER_INFO[userTier as keyof typeof TIER_INFO]?.icon || '🎫'}
               </div>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-bold text-text-primary">{TIER_INFO[userTier as keyof typeof TIER_INFO]?.name} Whale</span>
                   <span className="px-2 py-0.5 rounded text-[10px] bg-neon-green/10 text-neon-green border border-neon-green/30">VERIFIED</span>
                 </div>
                 <p className="text-xs text-text-muted">
-                  Access to {userTier} tier{userTier > 1 ? 's' : ''} • All proofs encrypted
+                  Access to {Math.min(userTier, 3)} channel{userTier > 1 ? 's' : ''} • Encrypted proofs
                 </p>
               </div>
             </div>
@@ -566,15 +500,19 @@ export default function ChannelsPage() {
               {[1, 2, 3, 4, 5].map((t) => {
                 const hasAccess = userTier >= t;
                 const info = TIER_INFO[t as keyof typeof TIER_INFO];
+                const isComingSoon = t >= 4;
                 return (
                   <div
                     key={t}
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${
-                      hasAccess ? 'bg-neon-green/20 border border-neon-green/40' : 'bg-bg-primary/50 opacity-40'
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm relative ${
+                      isComingSoon ? 'bg-bg-primary/50 opacity-40' : hasAccess ? 'bg-neon-green/20 border border-neon-green/40' : 'bg-bg-primary/50 opacity-40'
                     }`}
-                    title={`${info.name}: ${hasAccess ? 'Unlocked' : 'Locked'}`}
+                    title={`${info.name}: ${isComingSoon ? 'Coming Soon' : hasAccess ? 'Unlocked' : 'Locked'}`}
                   >
                     {info.icon}
+                    {isComingSoon && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-warning rounded-full flex items-center justify-center text-[8px]">⏳</span>
+                    )}
                   </div>
                 );
               })}
@@ -584,10 +522,10 @@ export default function ChannelsPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 mb-6 border-b border-border-primary">
+      <div className="flex items-center gap-2 mb-6 border-b border-border-primary overflow-x-auto">
         <button
           onClick={() => setActiveTab('channels')}
-          className={`px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+          className={`px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
             activeTab === 'channels'
               ? 'border-neon-green text-neon-green'
               : 'border-transparent text-text-muted hover:text-text-primary'
@@ -596,12 +534,12 @@ export default function ChannelsPage() {
           <span className="flex items-center gap-2">
             <ChannelsIcon className="w-4 h-4" />
             Channels
-            {hasBadge && <span className="px-1.5 py-0.5 rounded text-[10px] bg-neon-green/10">{channels.length}</span>}
+            {hasBadge && <span className="px-1.5 py-0.5 rounded text-[10px] bg-neon-green/10">{channels.filter(c => c.tier <= 3).length}</span>}
           </span>
         </button>
         <button
           onClick={() => setActiveTab('claim')}
-          className={`px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+          className={`px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
             activeTab === 'claim'
               ? 'border-neon-cyan text-neon-cyan'
               : 'border-transparent text-text-muted hover:text-text-primary'
@@ -641,87 +579,164 @@ export default function ChannelsPage() {
                 <div className="animate-spin w-6 h-6 border-2 border-neon-green border-t-transparent rounded-full" />
               </div>
             ) : (
-              /* Channels Table */
-              <div className="bg-bg-tertiary rounded-xl border border-border-primary overflow-hidden">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border-secondary">
-                      <th className="text-left px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Channel</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden sm:table-cell">Tier</th>
-                      <th className="text-center px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">Members</th>
-                      <th className="text-center px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">Messages</th>
-                      <th className="text-right px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border-secondary">
-                    {channels.map((channel) => {
+              <div className="space-y-4">
+                {/* Available Channels */}
+                <div className="bg-bg-tertiary rounded-xl border border-border-primary overflow-hidden">
+                  <div className="px-4 py-3 border-b border-border-secondary bg-bg-secondary/50">
+                    <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                      <span className="text-neon-green">●</span> Available Channels
+                    </h3>
+                  </div>
+
+                  {/* Mobile Card View */}
+                  <div className="sm:hidden divide-y divide-border-secondary">
+                    {channels.filter(c => c.tier <= 3).map((channel) => {
                       const isLocked = channel.userAccess === 'locked' && userTier < channel.tier;
                       const isJoined = channel.userAccess === 'joined';
                       const canAccess = userTier >= channel.tier;
 
                       return (
-                        <tr
+                        <div
                           key={channel.id}
                           onClick={() => !isLocked && handleJoinChannel(channel)}
-                          className={`transition-colors ${
-                            isLocked
-                              ? 'opacity-50 cursor-not-allowed'
-                              : 'hover:bg-bg-elevated cursor-pointer'
+                          className={`p-4 transition-colors ${
+                            isLocked ? 'opacity-50' : 'active:bg-bg-elevated'
                           }`}
                         >
-                          <td className="px-4 py-4">
+                          <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-3">
                               <span className="text-2xl">{channel.icon}</span>
                               <div>
                                 <p className="font-medium text-text-primary">{channel.name}</p>
-                                <p className="text-xs text-text-muted line-clamp-1 max-w-[200px]">{channel.description}</p>
+                                <p className="text-xs text-text-muted">{TIER_INFO[channel.tier as keyof typeof TIER_INFO]?.name}+ • {channel.memberCount} members</p>
                               </div>
                             </div>
-                          </td>
-                          <td className="px-4 py-4 hidden sm:table-cell">
-                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
-                              canAccess ? 'bg-neon-green/10 text-neon-green' : 'bg-bg-primary text-text-muted'
-                            }`}>
-                              {TIER_INFO[channel.tier as keyof typeof TIER_INFO]?.icon} {channel.tierName}+
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 text-center hidden md:table-cell">
-                            <span className="text-sm text-text-secondary">{channel.memberCount}</span>
-                          </td>
-                          <td className="px-4 py-4 text-center hidden md:table-cell">
-                            <span className="text-sm text-text-secondary">{channel.messageCount}</span>
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            {joiningChannel?.id === channel.id ? (
-                              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-neon-cyan/10 text-neon-cyan">
-                                <LoadingSpinner className="w-3 h-3" /> Joining...
-                              </span>
-                            ) : isJoined ? (
-                              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-neon-green/10 text-neon-green border border-neon-green/30">
-                                <CheckIcon className="w-3 h-3" /> Enter
-                              </span>
+                            {isJoined ? (
+                              <span className="px-3 py-1.5 rounded-lg text-xs bg-neon-green/10 text-neon-green border border-neon-green/30">Enter</span>
                             ) : canAccess ? (
-                              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-neon-cyan/10 text-neon-cyan">
-                                Join
-                              </span>
+                              <span className="px-3 py-1.5 rounded-lg text-xs bg-neon-cyan/10 text-neon-cyan">Join</span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-bg-primary text-text-muted">
-                                <LockIcon className="w-3 h-3" /> Locked
+                              <span className="px-3 py-1.5 rounded-lg text-xs bg-bg-primary text-text-muted">
+                                <LockIcon className="w-3 h-3 inline mr-1" />Locked
                               </span>
                             )}
-                          </td>
-                        </tr>
+                          </div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-
-                {channels.length === 0 && (
-                  <div className="text-center py-12">
-                    <span className="text-4xl block mb-2">📭</span>
-                    <p className="text-text-muted">No channels available</p>
                   </div>
-                )}
+
+                  {/* Desktop Table View */}
+                  <table className="w-full hidden sm:table">
+                    <thead>
+                      <tr className="border-b border-border-secondary">
+                        <th className="text-left px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Channel</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Tier</th>
+                        <th className="text-center px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Members</th>
+                        <th className="text-center px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Messages</th>
+                        <th className="text-right px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-secondary">
+                      {channels.filter(c => c.tier <= 3).map((channel) => {
+                        const isLocked = channel.userAccess === 'locked' && userTier < channel.tier;
+                        const isJoined = channel.userAccess === 'joined';
+                        const canAccess = userTier >= channel.tier;
+
+                        return (
+                          <tr
+                            key={channel.id}
+                            onClick={() => !isLocked && handleJoinChannel(channel)}
+                            className={`transition-colors ${
+                              isLocked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-bg-elevated cursor-pointer'
+                            }`}
+                          >
+                            <td className="px-4 py-4">
+                              <div className="flex items-center gap-3">
+                                <span className="text-2xl">{channel.icon}</span>
+                                <div>
+                                  <p className="font-medium text-text-primary">{channel.name}</p>
+                                  <p className="text-xs text-text-muted line-clamp-1 max-w-[200px]">{channel.description}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                                canAccess ? 'bg-neon-green/10 text-neon-green' : 'bg-bg-primary text-text-muted'
+                              }`}>
+                                {TIER_INFO[channel.tier as keyof typeof TIER_INFO]?.icon} {channel.tierName}+
+                              </span>
+                            </td>
+                            <td className="px-4 py-4 text-center">
+                              <span className="text-sm text-text-secondary">{channel.memberCount}</span>
+                            </td>
+                            <td className="px-4 py-4 text-center">
+                              <span className="text-sm text-text-secondary">{channel.messageCount}</span>
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              {joiningChannel?.id === channel.id ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-neon-cyan/10 text-neon-cyan">
+                                  <LoadingSpinner className="w-3 h-3" /> Joining...
+                                </span>
+                              ) : isJoined ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-neon-green/10 text-neon-green border border-neon-green/30">
+                                  <CheckIcon className="w-3 h-3" /> Enter
+                                </span>
+                              ) : canAccess ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-neon-cyan/10 text-neon-cyan">Join</span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-bg-primary text-text-muted">
+                                  <LockIcon className="w-3 h-3" /> Locked
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Coming Soon Channels */}
+                <div className="bg-bg-tertiary/50 rounded-xl border border-border-secondary overflow-hidden">
+                  <div className="px-4 py-3 border-b border-border-secondary bg-gradient-to-r from-purple-500/10 to-transparent">
+                    <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                      <span className="text-warning">⏳</span> Coming Soon on Mainnet
+                      <span className="px-2 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-400">Premium</span>
+                    </h3>
+                  </div>
+
+                  <div className="divide-y divide-border-secondary">
+                    {channels.filter(c => c.tier >= 4).map((channel) => (
+                      <div key={channel.id} className="p-4 opacity-60">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl grayscale">{channel.icon}</span>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-text-primary">{channel.name}</p>
+                                <span className="px-2 py-0.5 rounded text-[10px] bg-warning/20 text-warning">Mainnet Only</span>
+                              </div>
+                              <p className="text-xs text-text-muted">{channel.description}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-bg-primary text-text-muted">
+                              <LockIcon className="w-3 h-3" /> Coming Soon
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="p-4 bg-gradient-to-r from-purple-500/5 to-transparent border-t border-border-secondary">
+                    <p className="text-xs text-text-muted text-center">
+                      💎 Diamond and 👑 Legendary channels will be available on Mainnet launch.
+                      <span className="text-purple-400 font-medium"> Early adopters get priority access!</span>
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
           </motion.div>
@@ -760,19 +775,62 @@ export default function ChannelsPage() {
               </div>
             </div>
 
-            {/* Tier Selection Table */}
+            {/* Tier Selection */}
             <div className="bg-bg-tertiary rounded-xl border border-border-primary overflow-hidden mb-6">
-              <table className="w-full">
+              {/* Mobile Card View */}
+              <div className="sm:hidden divide-y divide-border-secondary">
+                {[1, 2, 3].map((tier) => {
+                  const info = TIER_INFO[tier as keyof typeof TIER_INFO];
+                  const price = TIER_PRICES[tier as keyof typeof TIER_PRICES];
+                  const canAfford = balance >= price;
+                  const alreadyHas = userTier >= tier;
+                  const isSelected = selectedTier === tier;
+
+                  return (
+                    <div
+                      key={tier}
+                      onClick={() => !alreadyHas && canAfford && setSelectedTier(tier)}
+                      className={`p-4 transition-colors ${
+                        alreadyHas ? 'bg-neon-green/5' : isSelected ? 'bg-neon-cyan/10' : canAfford ? 'active:bg-bg-elevated' : 'opacity-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${info.color} flex items-center justify-center text-xl shadow-lg`}>
+                            {info.icon}
+                          </div>
+                          <div>
+                            <p className="font-medium text-text-primary">{info.name}</p>
+                            <p className="text-lg font-bold text-neon-green">{price} SOL</p>
+                          </div>
+                        </div>
+                        {alreadyHas ? (
+                          <span className="px-3 py-1.5 rounded-lg text-xs bg-neon-green/10 text-neon-green">Owned</span>
+                        ) : !canAfford ? (
+                          <span className="px-3 py-1.5 rounded-lg text-xs bg-error/10 text-error">Insufficient</span>
+                        ) : isSelected ? (
+                          <span className="px-3 py-1.5 rounded-lg text-xs bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40">Selected</span>
+                        ) : (
+                          <span className="px-3 py-1.5 rounded-lg text-xs bg-bg-primary text-text-muted">Select</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop Table View */}
+              <table className="w-full hidden sm:table">
                 <thead>
                   <tr className="border-b border-border-secondary">
                     <th className="text-left px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Tier</th>
                     <th className="text-center px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Price</th>
-                    <th className="text-center px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden sm:table-cell">Channels</th>
+                    <th className="text-center px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Channels</th>
                     <th className="text-right px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-secondary">
-                  {[1, 2, 3, 4, 5].map((tier) => {
+                  {[1, 2, 3].map((tier) => {
                     const info = TIER_INFO[tier as keyof typeof TIER_INFO];
                     const price = TIER_PRICES[tier as keyof typeof TIER_PRICES];
                     const canAfford = balance >= price;
@@ -784,13 +842,7 @@ export default function ChannelsPage() {
                         key={tier}
                         onClick={() => !alreadyHas && canAfford && setSelectedTier(tier)}
                         className={`transition-colors ${
-                          alreadyHas
-                            ? 'bg-neon-green/5'
-                            : isSelected
-                            ? 'bg-neon-cyan/10'
-                            : canAfford
-                            ? 'hover:bg-bg-elevated cursor-pointer'
-                            : 'opacity-50'
+                          alreadyHas ? 'bg-neon-green/5' : isSelected ? 'bg-neon-cyan/10' : canAfford ? 'hover:bg-bg-elevated cursor-pointer' : 'opacity-50'
                         }`}
                       >
                         <td className="px-4 py-4">
@@ -807,7 +859,7 @@ export default function ChannelsPage() {
                         <td className="px-4 py-4 text-center">
                           <span className="text-lg font-bold text-neon-green">{price} SOL</span>
                         </td>
-                        <td className="px-4 py-4 text-center hidden sm:table-cell">
+                        <td className="px-4 py-4 text-center">
                           <span className="text-sm text-text-secondary">{tier} channel{tier > 1 ? 's' : ''}</span>
                         </td>
                         <td className="px-4 py-4 text-right">
@@ -816,17 +868,13 @@ export default function ChannelsPage() {
                               <CheckIcon className="w-3 h-3" /> Owned
                             </span>
                           ) : !canAfford ? (
-                            <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs bg-error/10 text-error">
-                              Insufficient
-                            </span>
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs bg-error/10 text-error">Insufficient</span>
                           ) : isSelected ? (
                             <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40">
                               <CheckIcon className="w-3 h-3" /> Selected
                             </span>
                           ) : (
-                            <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs bg-bg-primary text-text-muted hover:bg-bg-elevated">
-                              Select
-                            </span>
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs bg-bg-primary text-text-muted hover:bg-bg-elevated">Select</span>
                           )}
                         </td>
                       </tr>
@@ -834,9 +882,16 @@ export default function ChannelsPage() {
                   })}
                 </tbody>
               </table>
+
+              {/* Coming Soon Tiers */}
+              <div className="border-t border-border-secondary bg-gradient-to-r from-purple-500/5 to-transparent">
+                <div className="px-4 py-2 text-xs text-text-muted">
+                  <span className="text-warning">⏳</span> Diamond & Legendary tiers coming on Mainnet
+                </div>
+              </div>
             </div>
 
-            {/* Claim or Upgrade Button */}
+            {/* Claim Button */}
             <div className="flex flex-col items-center gap-4">
               {claimError && (
                 <div className="w-full p-3 rounded-lg bg-error/10 border border-error/30 text-error text-sm text-center">
@@ -844,22 +899,7 @@ export default function ChannelsPage() {
                 </div>
               )}
 
-              {claimSuccess && txSignature && (
-                <div className="w-full p-3 rounded-lg bg-neon-green/10 border border-neon-green/30 text-neon-green text-sm text-center">
-                  {hasBadge ? 'Badge upgraded' : 'Badge claimed'} successfully!{' '}
-                  <a
-                    href={`https://explorer.solana.com/tx/${txSignature}?cluster=${network}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline"
-                  >
-                    View tx
-                  </a>
-                </div>
-              )}
-
-              {/* Show claim button if no badge OR upgrade button if higher tier selected */}
-              {(!hasBadge || selectedTier > userTier) ? (
+              {(!hasBadge || selectedTier > userTier) && selectedTier <= 3 ? (
                 <>
                   <button
                     onClick={handleClaimOrUpgrade}
@@ -875,36 +915,30 @@ export default function ChannelsPage() {
                     {claimLoading ? (
                       <span className="flex items-center justify-center gap-2">
                         <LoadingSpinner className="w-5 h-5" />
-                        {hasBadge ? 'Upgrading' : 'Claiming'} {TIER_INFO[selectedTier as keyof typeof TIER_INFO]?.name} Badge...
+                        {hasBadge ? 'Upgrading' : 'Claiming'}...
                       </span>
                     ) : hasBadge ? (
-                      <span>
-                        Upgrade to {TIER_INFO[selectedTier as keyof typeof TIER_INFO]?.name} for {TIER_PRICES[selectedTier as keyof typeof TIER_PRICES]} SOL
-                      </span>
+                      <span>Upgrade to {TIER_INFO[selectedTier as keyof typeof TIER_INFO]?.name} for {TIER_PRICES[selectedTier as keyof typeof TIER_PRICES]} SOL</span>
                     ) : (
-                      <span>
-                        Claim {TIER_INFO[selectedTier as keyof typeof TIER_INFO]?.name} Badge for {TIER_PRICES[selectedTier as keyof typeof TIER_PRICES]} SOL
-                      </span>
+                      <span>Claim {TIER_INFO[selectedTier as keyof typeof TIER_INFO]?.name} Badge for {TIER_PRICES[selectedTier as keyof typeof TIER_PRICES]} SOL</span>
                     )}
                   </button>
 
-                  <p className="text-xs text-text-muted text-center max-w-md">
-                    Privacy-first: Your tier is encrypted with INCO FHE. All 5 proof handles are non-zero,
-                    preventing observers from determining your tier.
+                  <p className="text-xs text-text-muted text-center max-w-md px-4">
+                    🔐 Privacy-first: Your tier is encrypted with INCO FHE. All 5 proof handles are non-zero - zero knowledge guaranteed.
                   </p>
                 </>
               ) : (
-                /* Already at max tier or no higher tier selected */
                 <div className="text-center py-4 max-w-md mx-auto">
                   <div className={`w-16 h-16 mx-auto mb-4 rounded-xl bg-gradient-to-br ${TIER_INFO[userTier as keyof typeof TIER_INFO]?.color || 'from-gray-500 to-gray-400'} flex items-center justify-center text-3xl shadow-lg`}>
                     {TIER_INFO[userTier as keyof typeof TIER_INFO]?.icon || '🎫'}
                   </div>
                   <h3 className="text-lg font-bold text-text-primary mb-2">
-                    {userTier >= 5 ? 'Maximum Tier Reached!' : `${TIER_INFO[userTier as keyof typeof TIER_INFO]?.name} Badge Active`}
+                    {userTier >= 3 ? 'Gold Badge Active!' : `${TIER_INFO[userTier as keyof typeof TIER_INFO]?.name} Badge Active`}
                   </h3>
                   <p className="text-text-muted text-sm mb-4">
-                    {userTier >= 5
-                      ? 'You have the Legendary badge - full access to all channels!'
+                    {userTier >= 3
+                      ? 'You have the highest tier available on Devnet. Diamond & Legendary coming on Mainnet!'
                       : 'Select a higher tier above to upgrade your badge.'
                     }
                   </p>
@@ -921,7 +955,7 @@ export default function ChannelsPage() {
         )}
       </AnimatePresence>
 
-      {/* Join Channel Modal - INCO FHE Verification Flow */}
+      {/* Modals */}
       <JoinChannelModal
         isOpen={showJoinModal}
         onClose={handleCloseJoinModal}
@@ -937,7 +971,6 @@ export default function ChannelsPage() {
         onNavigate={handleNavigateToChannel}
       />
 
-      {/* Claim/Upgrade Badge Transaction Modal */}
       <TransactionModal
         isOpen={showClaimModal}
         onClose={() => setShowClaimModal(false)}
@@ -947,7 +980,6 @@ export default function ChannelsPage() {
         error={claimError || undefined}
       />
 
-      {/* Claim Success Modal */}
       <SuccessModal
         isOpen={showClaimSuccessModal}
         onClose={() => {
@@ -970,7 +1002,6 @@ export default function ChannelsPage() {
         }
       />
 
-      {/* Badge Selector Modal (for multi-badge users) */}
       <BadgeSelectorModal
         isOpen={showBadgeSelector}
         onClose={() => {
@@ -982,7 +1013,69 @@ export default function ChannelsPage() {
         requiredTier={joiningChannel?.tier || 1}
         onSelect={handleBadgeSelect}
       />
+
+      <NetworkSelectModal
+        isOpen={networkModalOpen}
+        onClose={() => setNetworkModalOpen(false)}
+      />
     </div>
+  );
+}
+
+// Network Toggle Component (same as Header)
+function NetworkToggle({
+  network,
+  ping,
+  onClick
+}: {
+  network: 'mainnet' | 'devnet';
+  ping: number | null;
+  onClick: () => void;
+}) {
+  const pingStatus = ping === null
+    ? 'loading'
+    : ping < 0
+    ? 'error'
+    : ping < 200
+    ? 'excellent'
+    : ping < 500
+    ? 'good'
+    : 'slow';
+
+  return (
+    <button
+      onClick={onClick}
+      className={`group flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-[1.02] ${
+        network === 'mainnet'
+          ? 'bg-neon-green/10 text-neon-green border border-neon-green/30 hover:bg-neon-green/15 hover:border-neon-green/50'
+          : 'bg-warning/10 text-warning border border-warning/30 hover:bg-warning/15 hover:border-warning/50'
+      }`}
+    >
+      <span className={`w-2 h-2 rounded-full transition-all ${
+        network === 'mainnet' ? 'bg-neon-green' : 'bg-warning'
+      } ${ping !== null && ping >= 0 ? 'animate-pulse' : ''}`} />
+
+      <span className="font-semibold">
+        {network === 'mainnet' ? 'Mainnet' : 'Devnet'}
+      </span>
+
+      <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] ${
+        pingStatus === 'loading'
+          ? 'bg-bg-tertiary text-text-muted'
+          : pingStatus === 'error'
+          ? 'bg-error/20 text-error'
+          : pingStatus === 'excellent'
+          ? 'bg-neon-green/20 text-neon-green'
+          : pingStatus === 'good'
+          ? 'bg-warning/20 text-warning'
+          : 'bg-error/20 text-error'
+      }`}>
+        <SignalIcon className="w-2.5 h-2.5" />
+        {pingStatus === 'loading' ? '...' : pingStatus === 'error' ? 'err' : `${ping}ms`}
+      </span>
+
+      <ChevronUpDownIcon className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+    </button>
   );
 }
 
@@ -1015,5 +1108,17 @@ const LoadingSpinner = ({ className = "w-4 h-4" }) => (
   <svg className={`animate-spin ${className}`} fill="none" viewBox="0 0 24 24">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+  </svg>
+);
+
+const SignalIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.348 14.651a3.75 3.75 0 010-5.303m5.304 0a3.75 3.75 0 010 5.303m-7.425 2.122a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546" />
+  </svg>
+);
+
+const ChevronUpDownIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
   </svg>
 );
