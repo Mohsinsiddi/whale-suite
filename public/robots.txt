@@ -1,0 +1,30 @@
+# Whale Suite - Privacy-First Trading Platform
+# https://whalesuite.xyz
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://whalesuite.xyz/sitemap.xml
+
+# Disallow API routes
+Disallow: /api/
+Disallow: /_next/
+
+# Disallow user-specific pages from indexing
+Disallow: /u/
+
+# Allow important pages
+Allow: /
+Allow: /dashboard
+Allow: /swap
+Allow: /transfer
+Allow: /privacy
+Allow: /channels
+Allow: /badges
+Allow: /docs
+Allow: /terms
+Allow: /donate
+
+# Crawl delay to be nice to our servers
+Crawl-delay: 1

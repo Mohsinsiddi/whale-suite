@@ -1,0 +1,32 @@
+<svg viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="apple-body" x1="20" y1="40" x2="160" y2="140">
+      <stop offset="0%" stop-color="#00ff88"/>
+      <stop offset="50%" stop-color="#00d4ff"/>
+      <stop offset="100%" stop-color="#00ff88"/>
+    </linearGradient>
+    <linearGradient id="apple-tail" x1="10" y1="60" x2="25" y2="120">
+      <stop offset="0%" stop-color="#00ff88"/>
+      <stop offset="100%" stop-color="#00d4ff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="180" height="180" rx="40" fill="#0a0e14"/>
+
+  <!-- Subtle glow -->
+  <circle cx="90" cy="90" r="60" fill="url(#apple-body)" opacity="0.1"/>
+
+  <!-- Whale body -->
+  <path d="M20 90 C20 65 40 40 75 35 C100 32 130 40 150 55 C160 62 165 75 165 90 C165 105 155 120 135 130 C115 140 80 145 55 140 C35 135 22 120 20 105 C18 97 20 92 20 90Z" fill="url(#apple-body)"/>
+
+  <!-- Tail -->
+  <path d="M20 90 C10 75 5 60 5 50 C12 60 18 75 22 85 L20 90Z M20 90 C10 105 5 120 5 130 C12 120 18 105 22 95 L20 90Z" fill="url(#apple-tail)"/>
+
+  <!-- Eye -->
+  <circle cx="130" cy="75" r="8" fill="#0a0e14"/>
+  <circle cx="133" cy="72" r="3" fill="rgba(255,255,255,0.6)"/>
+
+  <!-- Dorsal fin -->
+  <path d="M85 35 C90 35 100 20 108 10 C108 18 100 32 95 40 C90 48 85 48 85 42 L85 35Z" fill="url(#apple-body)"/>
+</svg>
