@@ -88,6 +88,18 @@ function deriveAllowancePda(handle: bigint, owner: PublicKey): [PublicKey, numbe
   );
 }
 
+/**
+ * Check if INCO allowance PDA already exists (access already granted)
+ */
+async function checkAllowanceExists(connection: Connection, allowancePda: PublicKey): Promise<boolean> {
+  try {
+    const accountInfo = await connection.getAccountInfo(allowancePda);
+    return accountInfo !== null && accountInfo.data.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 // ============================================
 // HOOK
 // ============================================
@@ -250,6 +262,11 @@ export function useRevealBadge() {
   /**
    * Reveal badge tier via FHE decryption
    * @param badge - The badge to reveal (from findAllUserBadges)
+   *
+   * OPTIMIZATION: If access was already granted (allowance PDA exists),
+   * skip the grant_access transaction and go directly to decrypt.
+   * This means first reveal = transaction + wait + sign,
+   * subsequent reveals = sign only (instant!)
    */
   const revealBadge = useCallback(async (badge: UserBadge): Promise<RevealBadgeResult> => {
     if (!walletAddress || !wallet) {
@@ -260,23 +277,6 @@ export function useRevealBadge() {
       return { success: false, error: 'No badge provided' };
     }
 
-    // Initialize steps
-    const initialSteps: RevealStep[] = [
-      { id: 'grant', label: 'Grant Decrypt Access', status: 'pending', description: 'Requesting INCO permission...' },
-      { id: 'wait', label: 'Sync with INCO Network', status: 'pending', description: 'Waiting for network propagation...' },
-      { id: 'decrypt', label: 'Decrypt Badge Tier', status: 'pending', description: 'Revealing your tier via FHE...' },
-    ];
-
-    setState({
-      loading: true,
-      currentStep: 0,
-      steps: initialSteps,
-      error: null,
-      success: false,
-      revealedTier: null,
-      txSignature: null,
-    });
-
     try {
       const connection = new Connection(
         process.env.NEXT_PUBLIC_DEVNET_RPC || 'https://api.devnet.solana.com',
@@ -285,10 +285,11 @@ export function useRevealBadge() {
       const userPubkey = new PublicKey(walletAddress);
       const { pda: badgePda, badgeId, data: badgeData } = badge;
 
-      // ========================================
-      // STEP 1: Grant INCO Decrypt Access
-      // ========================================
-      await updateStep(0, 'active', 'Building grant_access transaction...');
+      // Get the encrypted tier handle
+      const tierHandle = badgeData.encryptedTier;
+      if (!tierHandle || tierHandle === '0') {
+        return { success: false, error: 'No encrypted tier found on badge' };
+      }
 
       // Get all handles as BigInt (encryptedTier + all proofs)
       const handles = [
@@ -303,87 +304,160 @@ export function useRevealBadge() {
       // Derive allowance PDAs
       const allowancePdas = handles.map(h => deriveAllowancePda(h, userPubkey)[0]);
 
-      // Build transaction
-      const grantIx = buildGrantAccessInstruction(userPubkey, badgePda, badgeId, allowancePdas);
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-
-      const tx = new Transaction();
-      tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_200_000 }));
-      tx.add(grantIx);
-      tx.recentBlockhash = blockhash;
-      tx.feePayer = userPubkey;
-
-      await updateStep(0, 'active', 'Please approve in your wallet...');
-
-      // Sign the transaction
-      const signedTx = await signTransaction(tx);
-
-      await updateStep(0, 'active', 'Submitting to blockchain...');
-
-      // Send and confirm
-      const grantTxSig = await connection.sendRawTransaction(signedTx.serialize());
-
-      await connection.confirmTransaction({
-        signature: grantTxSig,
-        blockhash,
-        lastValidBlockHeight,
-      }, 'confirmed');
-
-      console.log('[Reveal] grant_access TX:', grantTxSig);
-      setState(prev => ({ ...prev, txSignature: grantTxSig }));
-
-      await updateStep(0, 'completed', `TX: ${grantTxSig.slice(0, 8)}...`);
-      await sleep(TX_CONFIRM_DELAY);
-
       // ========================================
-      // STEP 2: Wait for INCO Network
+      // CHECK: Has access already been granted?
       // ========================================
-      await updateStep(1, 'active', 'Waiting for INCO network...');
+      const accessAlreadyGranted = await checkAllowanceExists(connection, allowancePdas[0]);
+      console.log('[Reveal] Access already granted:', accessAlreadyGranted);
 
-      const propagationSeconds = INCO_PROPAGATION_DELAY / 1000;
-      for (let i = propagationSeconds; i > 0; i--) {
-        await updateStep(1, 'active', `Syncing with INCO... ${i}s remaining`, false);
-        await sleep(1000);
+      let grantTxSig: string | null = null;
+
+      if (accessAlreadyGranted) {
+        // ========================================
+        // FAST PATH: Access already granted, just decrypt
+        // ========================================
+        const fastSteps: RevealStep[] = [
+          { id: 'decrypt', label: 'Decrypt Badge Tier', status: 'pending', description: 'Sign to reveal your tier...' },
+        ];
+
+        setState({
+          loading: true,
+          currentStep: 0,
+          steps: fastSteps,
+          error: null,
+          success: false,
+          revealedTier: null,
+          txSignature: null,
+        });
+
+        await updateStep(0, 'active', 'Sign message to decrypt your badge tier...');
+
+        // Decrypt with retry handling
+        const tier = await decryptTierHandle(tierHandle, (attempt, max) => {
+          updateStep(0, 'active', `Decrypting... retry ${attempt}/${max}`, false);
+        });
+
+        if (tier === null) {
+          throw new Error('Failed to decrypt tier');
+        }
+
+        const tierInfo = TIER_INFO[tier] || TIER_INFO[1];
+        await updateStep(0, 'completed', `${tierInfo.icon} ${tierInfo.name} Badge Revealed!`);
+
+        // Success!
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          success: true,
+          revealedTier: tier,
+        }));
+
+        return {
+          success: true,
+          tier,
+        };
+
+      } else {
+        // ========================================
+        // FULL PATH: First time - grant access, wait, decrypt
+        // ========================================
+        const fullSteps: RevealStep[] = [
+          { id: 'grant', label: 'Grant Decrypt Access', status: 'pending', description: 'One-time INCO permission...' },
+          { id: 'wait', label: 'Sync with INCO Network', status: 'pending', description: 'Waiting for network propagation...' },
+          { id: 'decrypt', label: 'Decrypt Badge Tier', status: 'pending', description: 'Revealing your tier via FHE...' },
+        ];
+
+        setState({
+          loading: true,
+          currentStep: 0,
+          steps: fullSteps,
+          error: null,
+          success: false,
+          revealedTier: null,
+          txSignature: null,
+        });
+
+        // ========================================
+        // STEP 1: Grant INCO Decrypt Access (one-time only)
+        // ========================================
+        await updateStep(0, 'active', 'Building grant_access transaction...');
+
+        // Build transaction
+        const grantIx = buildGrantAccessInstruction(userPubkey, badgePda, badgeId, allowancePdas);
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+
+        const tx = new Transaction();
+        tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_200_000 }));
+        tx.add(grantIx);
+        tx.recentBlockhash = blockhash;
+        tx.feePayer = userPubkey;
+
+        await updateStep(0, 'active', 'Please approve in your wallet (one-time only)...');
+
+        // Sign the transaction
+        const signedTx = await signTransaction(tx);
+
+        await updateStep(0, 'active', 'Submitting to blockchain...');
+
+        // Send and confirm
+        grantTxSig = await connection.sendRawTransaction(signedTx.serialize());
+
+        await connection.confirmTransaction({
+          signature: grantTxSig,
+          blockhash,
+          lastValidBlockHeight,
+        }, 'confirmed');
+
+        console.log('[Reveal] grant_access TX:', grantTxSig);
+        setState(prev => ({ ...prev, txSignature: grantTxSig }));
+
+        await updateStep(0, 'completed', `TX: ${grantTxSig.slice(0, 8)}...`);
+        await sleep(TX_CONFIRM_DELAY);
+
+        // ========================================
+        // STEP 2: Wait for INCO Network
+        // ========================================
+        await updateStep(1, 'active', 'Waiting for INCO network...');
+
+        const propagationSeconds = INCO_PROPAGATION_DELAY / 1000;
+        for (let i = propagationSeconds; i > 0; i--) {
+          await updateStep(1, 'active', `Syncing with INCO... ${i}s remaining`, false);
+          await sleep(1000);
+        }
+
+        await updateStep(1, 'completed', 'INCO network synced');
+
+        // ========================================
+        // STEP 3: Decrypt Badge Tier
+        // ========================================
+        await updateStep(2, 'active', 'Decrypting your badge tier...');
+
+        // Decrypt with retry handling
+        const tier = await decryptTierHandle(tierHandle, (attempt, max) => {
+          updateStep(2, 'active', `Decrypting... retry ${attempt}/${max}`, false);
+        });
+
+        if (tier === null) {
+          throw new Error('Failed to decrypt tier after multiple attempts');
+        }
+
+        const tierInfo = TIER_INFO[tier] || TIER_INFO[1];
+        await updateStep(2, 'completed', `${tierInfo.icon} ${tierInfo.name} Badge Revealed!`);
+
+        // Success!
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          success: true,
+          revealedTier: tier,
+        }));
+
+        return {
+          success: true,
+          tier,
+          txSignature: grantTxSig,
+        };
       }
-
-      await updateStep(1, 'completed', 'INCO network synced');
-
-      // ========================================
-      // STEP 3: Decrypt Badge Tier
-      // ========================================
-      await updateStep(2, 'active', 'Decrypting your badge tier...');
-
-      const tierHandle = badgeData.encryptedTier;
-
-      if (!tierHandle || tierHandle === '0') {
-        throw new Error('No encrypted tier found on badge');
-      }
-
-      // Decrypt with retry handling
-      const tier = await decryptTierHandle(tierHandle, (attempt, max) => {
-        updateStep(2, 'active', `Decrypting... retry ${attempt}/${max}`, false);
-      });
-
-      if (tier === null) {
-        throw new Error('Failed to decrypt tier after multiple attempts');
-      }
-
-      const tierInfo = TIER_INFO[tier] || TIER_INFO[1];
-      await updateStep(2, 'completed', `${tierInfo.icon} ${tierInfo.name} Badge Revealed!`);
-
-      // Success!
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        success: true,
-        revealedTier: tier,
-      }));
-
-      return {
-        success: true,
-        tier,
-        txSignature: grantTxSig,
-      };
 
     } catch (error) {
       console.error('[Reveal] Error:', error);
@@ -425,10 +499,123 @@ export function useRevealBadge() {
     });
   }, []);
 
+  /**
+   * Batch reveal multiple badges with ONE signature (when access already granted)
+   *
+   * This is the FAST path - skips grant_access and just decrypts.
+   * Returns map of badge PDA -> tier
+   *
+   * @param badges - Array of badges to reveal
+   * @returns Map of badge PDA string to tier number
+   */
+  const batchRevealBadges = useCallback(async (
+    badges: UserBadge[]
+  ): Promise<{ success: boolean; tiers: Map<string, number>; error?: string }> => {
+    if (!walletAddress || badges.length === 0) {
+      return { success: false, tiers: new Map(), error: 'No wallet or badges' };
+    }
+
+    try {
+      const connection = new Connection(
+        process.env.NEXT_PUBLIC_DEVNET_RPC || 'https://api.devnet.solana.com',
+        'confirmed'
+      );
+      const userPubkey = new PublicKey(walletAddress);
+
+      // Collect all tier handles
+      const handles: string[] = [];
+      const badgeKeys: string[] = [];
+
+      for (const badge of badges) {
+        const tierHandle = badge.data.encryptedTier;
+        if (tierHandle && tierHandle !== '0') {
+          // Check if access already granted
+          const allowancePda = deriveAllowancePda(BigInt(tierHandle), userPubkey)[0];
+          const accessGranted = await checkAllowanceExists(connection, allowancePda);
+
+          if (accessGranted) {
+            handles.push(tierHandle);
+            badgeKeys.push(badge.pda.toBase58());
+          }
+        }
+      }
+
+      if (handles.length === 0) {
+        return { success: false, tiers: new Map(), error: 'No badges with granted access' };
+      }
+
+      console.log(`[BatchReveal] Decrypting ${handles.length} badges with ONE signature...`);
+
+      // Batch decrypt ALL handles with ONE signature!
+      const result = await decrypt(handles, {
+        address: new PublicKey(walletAddress),
+        signMessage,
+      });
+
+      const tiers = new Map<string, number>();
+
+      if (result.plaintexts) {
+        result.plaintexts.forEach((plaintext, index) => {
+          const tier = parseInt(plaintext || '1', 10);
+          tiers.set(badgeKeys[index], tier);
+          console.log(`[BatchReveal] Badge ${badgeKeys[index].slice(0, 8)}... = ${TIER_NAMES[tier] || 'Unknown'}`);
+        });
+      }
+
+      return { success: true, tiers };
+
+    } catch (error) {
+      console.error('[BatchReveal] Error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, tiers: new Map(), error: errorMsg };
+    }
+  }, [walletAddress, signMessage]);
+
+  /**
+   * Check which badges need grant_access (allowance doesn't exist yet)
+   * @param badges - Array of badges to check
+   * @returns Object with badges that need access and badges that already have access
+   */
+  const checkBadgesAccessStatus = useCallback(async (
+    badges: UserBadge[]
+  ): Promise<{ needsAccess: UserBadge[]; hasAccess: UserBadge[] }> => {
+    if (!walletAddress || badges.length === 0) {
+      return { needsAccess: [], hasAccess: [] };
+    }
+
+    const connection = new Connection(
+      process.env.NEXT_PUBLIC_DEVNET_RPC || 'https://api.devnet.solana.com',
+      'confirmed'
+    );
+    const userPubkey = new PublicKey(walletAddress);
+
+    const needsAccess: UserBadge[] = [];
+    const hasAccess: UserBadge[] = [];
+
+    for (const badge of badges) {
+      const tierHandle = badge.data.encryptedTier;
+      if (tierHandle && tierHandle !== '0') {
+        const allowancePda = deriveAllowancePda(BigInt(tierHandle), userPubkey)[0];
+        const accessGranted = await checkAllowanceExists(connection, allowancePda);
+
+        if (accessGranted) {
+          hasAccess.push(badge);
+        } else {
+          needsAccess.push(badge);
+        }
+      }
+    }
+
+    console.log(`[AccessCheck] ${hasAccess.length} badges have access, ${needsAccess.length} need grant_access`);
+    return { needsAccess, hasAccess };
+  }, [walletAddress]);
+
   return {
     ...state,
     walletAddress,
     revealBadge,
+    batchRevealBadges,
+    checkBadgesAccessStatus,
     reset,
   };
 }
