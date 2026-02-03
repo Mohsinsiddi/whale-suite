@@ -76,14 +76,160 @@ const QuestionIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+// Social Links
+const SOCIAL_LINKS = {
+  twitter: "https://x.com/WhaleSuite",
+  telegram: "https://t.me/whale_suite",
+  github: "https://github.com/Mohsinsiddi/whale-suite",
+  contract: "https://github.com/Mohsinsiddi/whale-suite/tree/main/contract",
+  website: "https://www.whalesuite.xyz",
+  video: "https://drive.google.com/file/d/1u1kQnn0R6tcizyyxjK2oeeDQmihGj4WH/view",
+  solscan: "https://solscan.io/account/3aov6rjb4U8YjkjMjkA9Tbz3FMNdLTscKJVrbTAcWFxs?cluster=devnet",
+  programId: "3aov6rjb4U8YjkjMjkA9Tbz3FMNdLTscKJVrbTAcWFxs",
+};
+
+// Roadmap items
+const ROADMAP = [
+  { title: "Mainnet Badge Deploy", desc: "Move Confidential Badge contract to mainnet once INCO launches there", status: "planned" },
+  { title: "Real-time Chat", desc: "WebSocket support for instant messaging in tier-gated channels", status: "planned" },
+  { title: "Direct Messages", desc: "Private 1:1 encrypted messaging between verified badge holders", status: "planned" },
+  { title: "Dark Pool OTC", desc: "Anonymous OTC matching where whales trade large positions without moving the market", status: "planned" },
+  { title: "$WHALE Token", desc: "Native governance and utility token. Stake for fee discounts, earn from platform revenue", status: "planned" },
+  { title: "Badge NFT Marketplace", desc: "Trade Confidential Badge NFTs on secondary market with private tier verification", status: "planned" },
+  { title: "Mobile App", desc: "React Native version with biometric auth for privacy on the go", status: "planned" },
+  { title: "Hardware Wallets", desc: "Ledger and Trezor support for cold storage users", status: "planned" },
+];
+
+// Sponsor data with detailed info
+const SPONSORS = [
+  {
+    id: "inco",
+    name: "INCO Network",
+    category: "primary",
+    icon: "🔐",
+    color: "#8B5CF6",
+    tagline: "Fully Homomorphic Encryption",
+    description: "Confidential computing on Solana. Enables encrypted on-chain data that can be computed on without ever being decrypted.",
+    integration: "Confidential Whale Badges - badge tier verification via FHE proofs without revealing exact holdings",
+    features: ["Encrypted tier proofs", "Private membership verification", "Anonymous channel access", "Confidential payments"],
+    network: "Devnet",
+    link: "https://inco.org",
+  },
+  {
+    id: "privacy-cash",
+    name: "Privacy Cash",
+    category: "privacy",
+    icon: "🔒",
+    color: "#00ff88",
+    tagline: "ZK Shielded Balances",
+    description: "Hide your SOL balance using ZK compression. Balance becomes invisible on-chain - observers can't see whale holdings.",
+    integration: "Core 'hide your balance' feature with deposit/withdraw operations",
+    features: ["Shielded SOL balance", "SPL token support (USDC, USDT)", "ZK proof generation", "Client-side encryption"],
+    network: "Mainnet",
+    link: "https://privacycash.io",
+  },
+  {
+    id: "shadowwire",
+    name: "ShadowWire",
+    category: "privacy",
+    icon: "👻",
+    color: "#8B5CF6",
+    tagline: "Bulletproof ZK Transfers",
+    description: "Private transfers with Bulletproof zero-knowledge proofs. Send SOL with hidden amounts or as anonymous sender.",
+    integration: "Ghost Send feature - internal transfers (amount hidden) and external transfers (sender anonymous)",
+    features: ["Bulletproof proofs", "Amount hiding", "Sender anonymity", "Batch transfers for OTC"],
+    network: "Mainnet",
+    link: "https://shadowwire.io",
+  },
+  {
+    id: "pnp",
+    name: "PNP Markets",
+    category: "trading",
+    icon: "🎲",
+    color: "#F59E0B",
+    tagline: "Anonymous Prediction Markets",
+    description: "Trade on prediction markets anonymously. Take YES/NO positions on real-world events.",
+    integration: "V2 AMM Markets, V3 P2P Markets, Twitter/YouTube auto-settlement, custom oracle markets",
+    features: ["AMM liquidity pools", "P2P order matching", "Social media oracles", "USDC collateral"],
+    network: "Mainnet",
+    link: "https://pnp.exchange",
+  },
+  {
+    id: "anoncoin",
+    name: "Anoncoin",
+    category: "launch",
+    icon: "🚀",
+    color: "#10B981",
+    tagline: "Gasless Token Launcher",
+    description: "Create and launch tokens anonymously on Solana. Gasless launches with auto-generated liquidity.",
+    integration: "Token creation without gas fees - wallet not linked to token creation",
+    features: ["Gasless launches", "Anonymous creator", "Auto-liquidity", "DEX listings"],
+    network: "Mainnet",
+    link: "https://anoncoin.io",
+  },
+  {
+    id: "helius",
+    name: "Helius",
+    category: "infrastructure",
+    icon: "🌐",
+    color: "#3B82F6",
+    tagline: "RPC & Blockchain Indexing",
+    description: "High-performance RPC infrastructure for wallet balances, transaction history, and whale activity tracking.",
+    integration: "Real-time SOL + SPL balances, 30s auto-refresh, whale intelligence feed for 100+ SOL transactions",
+    features: ["Enhanced RPC", "Wallet balances", "Transaction indexing", "Webhooks"],
+    network: "Mainnet + Devnet",
+    link: "https://helius.dev",
+  },
+  {
+    id: "quicknode",
+    name: "QuickNode",
+    category: "infrastructure",
+    icon: "⚡",
+    color: "#6366F1",
+    tagline: "High-Performance RPC",
+    description: "Reliable RPC provider for mainnet operations. Provides redundancy alongside Helius RPC.",
+    integration: "Configurable RPC option in settings - users can set custom QuickNode endpoint",
+    features: ["Fast RPC", "Mainnet support", "Custom endpoints", "Redundancy"],
+    network: "Mainnet",
+    link: "https://quicknode.com",
+  },
+  {
+    id: "starpay",
+    name: "StarPay",
+    category: "payments",
+    icon: "💳",
+    color: "#EC4899",
+    tagline: "Anonymous Virtual Cards",
+    description: "Virtual payment cards without KYC for real-world crypto spending anywhere cards are accepted.",
+    integration: "Card creation flow with QR payment - amounts from $5 to $250",
+    features: ["No KYC", "Virtual cards", "Real-world spending", "Multiple currencies"],
+    network: "Mainnet",
+    link: "https://starpay.io",
+  },
+  {
+    id: "light",
+    name: "Light Protocol",
+    category: "privacy",
+    icon: "💡",
+    color: "#FBBF24",
+    tagline: "ZK Compression",
+    description: "ZK hashing that powers Privacy Cash operations. Browser-compatible WASM execution for client-side proof generation.",
+    integration: "WASM module for ZK proof computation in browser",
+    features: ["ZK hashing", "WASM execution", "Client-side proofs", "Circuit files"],
+    network: "Mainnet",
+    link: "https://lightprotocol.com",
+  },
+];
+
 // Main Tabs
 const tabs = [
   { id: "overview", label: "Overview", icon: <BookIcon className="w-4 h-4" /> },
   { id: "features", label: "Features", icon: <RocketIcon className="w-4 h-4" /> },
   { id: "rewards", label: "Points & Rewards", icon: <StarIcon className="w-4 h-4" /> },
-  { id: "partners", label: "SDK Partners", icon: <ChipIcon className="w-4 h-4" /> },
+  { id: "partners", label: "Sponsors", icon: <ChipIcon className="w-4 h-4" /> },
   { id: "faq", label: "FAQ", icon: <QuestionIcon className="w-4 h-4" /> },
-  { id: "business", label: "About", icon: <HeartIcon className="w-4 h-4" /> },
+  { id: "community", label: "Community", icon: <HeartIcon className="w-4 h-4" /> },
+  { id: "business", label: "About", icon: <StarIcon className="w-4 h-4" /> },
 ];
 
 // FAQ Data
@@ -443,6 +589,7 @@ const VALID_SECTIONS = {
   features: { tab: "features" },
   rewards: { tab: "rewards" },
   partners: { tab: "partners" },
+  community: { tab: "community" },
   business: { tab: "business" },
   // Feature categories (will also set tab to "features")
   privacy: { tab: "features", category: "privacy" },
@@ -473,6 +620,14 @@ const VALID_SECTIONS = {
   "help": { tab: "faq" },
   "questions": { tab: "faq" },
   "about": { tab: "business" },
+  // Community aliases
+  "social": { tab: "community" },
+  "links": { tab: "community" },
+  "roadmap": { tab: "community" },
+  "support": { tab: "community" },
+  "donate": { tab: "community" },
+  // Sponsor aliases
+  "sponsors": { tab: "partners" },
 } as const;
 
 export default function DocsPage() {
@@ -1213,42 +1368,196 @@ export default function DocsPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="space-y-4"
+            className="space-y-6"
           >
-            <p className="text-text-secondary mb-4">
-              Whale Suite integrates with the best privacy infrastructure on Solana:
-            </p>
-            {(Object.entries(SDK_REGISTRY) as [SdkId, typeof SDK_REGISTRY[SdkId]][]).map(
-              ([sdkId, sdk]) => (
-                <Card key={sdkId} variant="default" padding="md">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-bold text-text-primary">{sdk.name}</h3>
-                        {sdk.bounty && <Badge variant="warning" size="sm">{sdk.bounty}</Badge>}
-                        <Badge
-                          variant={sdk.privacyLevel === "maximum" || sdk.privacyLevel === "high" ? "success" : sdk.privacyLevel === "medium" ? "info" : "default"}
-                          size="sm"
-                        >
-                          {sdk.privacyLevel}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-text-secondary mb-2">{sdk.description}</p>
-                      <div className="flex flex-wrap gap-1">
-                        {sdk.features.map((feature) => (
-                          <span key={feature} className="px-2 py-0.5 text-[10px] bg-bg-tertiary rounded-full text-text-muted">
-                            {feature}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <a href={sdk.website} target="_blank" rel="noopener noreferrer" className="text-xs text-neon-cyan hover:underline">
-                      Visit →
+            {/* Primary Sponsor Banner */}
+            <Card variant="glow" padding="lg" className="border-2 border-purple-500/50">
+              <div className="flex items-start gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-3xl flex-shrink-0">
+                  🔐
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h2 className="text-xl font-bold text-text-primary">INCO Network</h2>
+                    <Badge variant="warning" size="sm">Primary Sponsor</Badge>
+                    <Badge variant="info" size="sm">Devnet</Badge>
+                  </div>
+                  <p className="text-sm text-purple-300 font-medium mb-2">Fully Homomorphic Encryption for Solana</p>
+                  <p className="text-sm text-text-secondary mb-3">
+                    Our main innovation: Confidential Whale Badge system using INCO&apos;s FHE technology.
+                    Badge tier verification happens on encrypted data - the system verifies you qualify
+                    WITHOUT ever knowing your exact badge tier or wallet address.
+                  </p>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    <span className="px-2 py-1 text-xs bg-purple-500/20 text-purple-300 rounded-lg">Encrypted tier proofs</span>
+                    <span className="px-2 py-1 text-xs bg-purple-500/20 text-purple-300 rounded-lg">Private membership</span>
+                    <span className="px-2 py-1 text-xs bg-purple-500/20 text-purple-300 rounded-lg">Anonymous channels</span>
+                    <span className="px-2 py-1 text-xs bg-purple-500/20 text-purple-300 rounded-lg">Confidential payments</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <a href="https://inco.org" target="_blank" rel="noopener noreferrer" className="text-sm text-purple-400 hover:text-purple-300 transition-colors">
+                      inco.org →
+                    </a>
+                    <a href={SOCIAL_LINKS.contract} target="_blank" rel="noopener noreferrer" className="text-sm text-text-muted hover:text-neon-green transition-colors">
+                      View Contract →
                     </a>
                   </div>
-                </Card>
-              )
-            )}
+                </div>
+              </div>
+            </Card>
+
+            {/* Privacy Sponsors */}
+            <div>
+              <h3 className="text-lg font-bold text-text-primary mb-3 flex items-center gap-2">
+                <span className="text-xl">🛡️</span> Privacy Infrastructure
+              </h3>
+              <div className="grid gap-4">
+                {SPONSORS.filter(s => s.category === "privacy").map((sponsor) => (
+                  <Card key={sponsor.id} variant="default" padding="md" className="hover:border-border-focus transition-colors">
+                    <div className="flex items-start gap-4">
+                      <div
+                        className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
+                        style={{ backgroundColor: sponsor.color + "20" }}
+                      >
+                        {sponsor.icon}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-bold text-text-primary">{sponsor.name}</h4>
+                          <Badge variant={sponsor.network === "Mainnet" ? "success" : "info"} size="xs">{sponsor.network}</Badge>
+                        </div>
+                        <p className="text-xs font-medium mb-1" style={{ color: sponsor.color }}>{sponsor.tagline}</p>
+                        <p className="text-sm text-text-secondary mb-2">{sponsor.description}</p>
+                        <p className="text-xs text-text-muted mb-2"><strong>Integration:</strong> {sponsor.integration}</p>
+                        <div className="flex flex-wrap gap-1">
+                          {sponsor.features.map((feature) => (
+                            <span key={feature} className="px-2 py-0.5 text-[10px] bg-bg-tertiary rounded-full text-text-muted">
+                              {feature}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <a href={sponsor.link} target="_blank" rel="noopener noreferrer" className="text-xs text-neon-cyan hover:underline flex-shrink-0">
+                        Visit →
+                      </a>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+
+            {/* Trading & Launch Sponsors */}
+            <div>
+              <h3 className="text-lg font-bold text-text-primary mb-3 flex items-center gap-2">
+                <span className="text-xl">💱</span> Trading & Launch
+              </h3>
+              <div className="grid gap-4">
+                {SPONSORS.filter(s => s.category === "trading" || s.category === "launch" || s.category === "payments").map((sponsor) => (
+                  <Card key={sponsor.id} variant="default" padding="md" className="hover:border-border-focus transition-colors">
+                    <div className="flex items-start gap-4">
+                      <div
+                        className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
+                        style={{ backgroundColor: sponsor.color + "20" }}
+                      >
+                        {sponsor.icon}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-bold text-text-primary">{sponsor.name}</h4>
+                          <Badge variant={sponsor.network === "Mainnet" ? "success" : "info"} size="xs">{sponsor.network}</Badge>
+                        </div>
+                        <p className="text-xs font-medium mb-1" style={{ color: sponsor.color }}>{sponsor.tagline}</p>
+                        <p className="text-sm text-text-secondary mb-2">{sponsor.description}</p>
+                        <p className="text-xs text-text-muted mb-2"><strong>Integration:</strong> {sponsor.integration}</p>
+                        <div className="flex flex-wrap gap-1">
+                          {sponsor.features.map((feature) => (
+                            <span key={feature} className="px-2 py-0.5 text-[10px] bg-bg-tertiary rounded-full text-text-muted">
+                              {feature}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <a href={sponsor.link} target="_blank" rel="noopener noreferrer" className="text-xs text-neon-cyan hover:underline flex-shrink-0">
+                        Visit →
+                      </a>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+
+            {/* Infrastructure Sponsors */}
+            <div>
+              <h3 className="text-lg font-bold text-text-primary mb-3 flex items-center gap-2">
+                <span className="text-xl">🌐</span> Infrastructure
+              </h3>
+              <div className="grid sm:grid-cols-2 gap-4">
+                {SPONSORS.filter(s => s.category === "infrastructure").map((sponsor) => (
+                  <Card key={sponsor.id} variant="default" padding="md" className="hover:border-border-focus transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                        style={{ backgroundColor: sponsor.color + "20" }}
+                      >
+                        {sponsor.icon}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-semibold text-text-primary text-sm">{sponsor.name}</h4>
+                          <Badge variant="success" size="xs">{sponsor.network}</Badge>
+                        </div>
+                        <p className="text-xs mb-1" style={{ color: sponsor.color }}>{sponsor.tagline}</p>
+                        <p className="text-xs text-text-muted">{sponsor.integration}</p>
+                      </div>
+                      <a href={sponsor.link} target="_blank" rel="noopener noreferrer" className="text-xs text-neon-cyan hover:underline">
+                        →
+                      </a>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+
+            {/* Contract Info */}
+            <Card variant="default" padding="lg" className="border-l-4 border-l-neon-green">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-xl">📜</span>
+                  Smart Contract
+                </CardTitle>
+              </CardHeader>
+              <div className="mt-4 space-y-3">
+                <p className="text-sm text-text-secondary">
+                  Our Confidential Whale Badge contract is deployed on Solana Devnet with full INCO FHE integration.
+                </p>
+                <div className="p-3 rounded-xl bg-bg-tertiary/50 border border-border-secondary">
+                  <p className="text-xs text-text-muted mb-1">Program ID (Devnet)</p>
+                  <p className="text-sm font-mono text-neon-green break-all">3aov6rjb4U8YjkjMjkA9Tbz3FMNdLTscKJVrbTAcWFxs</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href="https://solscan.io/account/3aov6rjb4U8YjkjMjkA9Tbz3FMNdLTscKJVrbTAcWFxs?cluster=devnet"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 text-sm font-medium bg-bg-tertiary rounded-lg text-text-secondary hover:text-neon-cyan transition-colors"
+                  >
+                    View on Solscan
+                  </a>
+                  <a
+                    href={SOCIAL_LINKS.contract}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 text-sm font-medium bg-bg-tertiary rounded-lg text-text-secondary hover:text-neon-cyan transition-colors"
+                  >
+                    View Source Code
+                  </a>
+                </div>
+                <p className="text-xs text-text-muted">
+                  12 instructions: initialize, claim_badge, upgrade_tier, transfer_badge, revoke_badge, close_badge,
+                  grant_access, update_prices, create_private_payment, claim_payment, finalize_claim, cancel_payment
+                </p>
+              </div>
+            </Card>
           </motion.div>
         )}
 
@@ -1303,7 +1612,7 @@ export default function DocsPage() {
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <a
-                      href="https://twitter.com/whalesuite"
+                      href={SOCIAL_LINKS.twitter}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-3 py-1.5 text-sm font-medium bg-bg-tertiary rounded-lg text-text-secondary hover:text-neon-cyan transition-colors"
@@ -1311,23 +1620,257 @@ export default function DocsPage() {
                       Twitter / X
                     </a>
                     <a
-                      href="https://discord.gg/whalesuite"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1.5 text-sm font-medium bg-bg-tertiary rounded-lg text-text-secondary hover:text-neon-cyan transition-colors"
-                    >
-                      Discord
-                    </a>
-                    <a
-                      href="https://t.me/whalesuite"
+                      href={SOCIAL_LINKS.telegram}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-3 py-1.5 text-sm font-medium bg-bg-tertiary rounded-lg text-text-secondary hover:text-neon-cyan transition-colors"
                     >
                       Telegram
                     </a>
+                    <a
+                      href={SOCIAL_LINKS.github}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 text-sm font-medium bg-bg-tertiary rounded-lg text-text-secondary hover:text-neon-cyan transition-colors"
+                    >
+                      GitHub
+                    </a>
                   </div>
                 </div>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+
+        {activeTab === "community" && (
+          <motion.div
+            key="community"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-6"
+          >
+            {/* Hero Banner */}
+            <Card variant="glow" padding="lg">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-text-primary mb-2">Join the Whale Pod</h2>
+                <p className="text-text-secondary max-w-lg mx-auto">
+                  Trade in Shadows. Profit in Silence. Connect with fellow whales and stay updated on the latest privacy features.
+                </p>
+              </div>
+            </Card>
+
+            {/* Social Links Grid */}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Twitter */}
+              <a
+                href={SOCIAL_LINKS.twitter}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group"
+              >
+                <Card variant="default" padding="lg" className="h-full hover:border-[#1DA1F2] transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-xl bg-[#1DA1F2]/20 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                      𝕏
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-text-primary group-hover:text-[#1DA1F2] transition-colors">Twitter / X</h3>
+                      <p className="text-sm text-text-muted">@WhaleSuite</p>
+                      <p className="text-xs text-text-secondary mt-1">Updates & announcements</p>
+                    </div>
+                  </div>
+                </Card>
+              </a>
+
+              {/* Telegram */}
+              <a
+                href={SOCIAL_LINKS.telegram}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group"
+              >
+                <Card variant="default" padding="lg" className="h-full hover:border-[#0088cc] transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-xl bg-[#0088cc]/20 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                      ✈️
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-text-primary group-hover:text-[#0088cc] transition-colors">Telegram</h3>
+                      <p className="text-sm text-text-muted">@whale_suite</p>
+                      <p className="text-xs text-text-secondary mt-1">Community chat</p>
+                    </div>
+                  </div>
+                </Card>
+              </a>
+
+              {/* GitHub */}
+              <a
+                href={SOCIAL_LINKS.github}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group"
+              >
+                <Card variant="default" padding="lg" className="h-full hover:border-[#6e5494] transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-xl bg-[#6e5494]/20 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                      🐙
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-text-primary group-hover:text-[#6e5494] transition-colors">GitHub</h3>
+                      <p className="text-sm text-text-muted">Mohsinsiddi/whale-suite</p>
+                      <p className="text-xs text-text-secondary mt-1">Open source code</p>
+                    </div>
+                  </div>
+                </Card>
+              </a>
+            </div>
+
+            {/* Program ID & Contract */}
+            <Card variant="default" padding="lg" className="border-l-4 border-l-neon-green">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-xl">📜</span>
+                  Smart Contract (Devnet)
+                </CardTitle>
+                <Badge variant="info" size="sm">Devnet</Badge>
+              </CardHeader>
+              <div className="mt-4 space-y-4">
+                <div className="p-4 rounded-xl bg-bg-tertiary/50 border border-border-secondary">
+                  <p className="text-xs text-text-muted mb-2">Program ID</p>
+                  <p className="text-sm font-mono text-neon-green break-all">{SOCIAL_LINKS.programId}</p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <a
+                    href={SOCIAL_LINKS.solscan}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-neon-green/10 border border-neon-green/30 rounded-xl text-neon-green hover:bg-neon-green/20 transition-colors"
+                  >
+                    <span>🔍</span> View on Solscan
+                  </a>
+                  <a
+                    href={SOCIAL_LINKS.contract}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-bg-tertiary rounded-xl text-text-secondary hover:text-neon-cyan transition-colors"
+                  >
+                    <span>💻</span> View Source Code
+                  </a>
+                </div>
+                <p className="text-xs text-text-muted">
+                  Built with Anchor 0.31.1 • 12 instructions • 21/21 tests passing
+                </p>
+              </div>
+            </Card>
+
+            {/* Demo Video */}
+            <Card variant="default" padding="lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-xl">🎬</span>
+                  Demo Video
+                </CardTitle>
+              </CardHeader>
+              <div className="mt-4">
+                <p className="text-sm text-text-secondary mb-4">
+                  Watch the full walkthrough of Whale Suite features - Confidential Badges, Privacy Cash, Ghost Send, and more.
+                </p>
+                <a
+                  href={SOCIAL_LINKS.video}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 hover:bg-red-500/20 transition-colors"
+                >
+                  <span>▶️</span> Watch on Google Drive
+                </a>
+              </div>
+            </Card>
+
+            {/* Roadmap */}
+            <Card variant="default" padding="lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-xl">🗺️</span>
+                  Roadmap
+                </CardTitle>
+              </CardHeader>
+              <div className="mt-4 space-y-3">
+                {ROADMAP.map((item, idx) => (
+                  <div key={idx} className="flex items-start gap-3 p-3 rounded-xl bg-bg-tertiary/30 border border-border-secondary">
+                    <div className="w-8 h-8 rounded-lg bg-neon-cyan/20 flex items-center justify-center text-sm font-bold text-neon-cyan flex-shrink-0">
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-text-primary text-sm">{item.title}</h4>
+                      <p className="text-xs text-text-muted mt-0.5">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            {/* Support / Donate */}
+            <Card variant="default" padding="lg" className="border-l-4 border-l-pink-500">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <HeartIcon className="w-5 h-5 text-pink-500" />
+                  Support Whale Suite
+                </CardTitle>
+              </CardHeader>
+              <div className="mt-4 space-y-4">
+                <p className="text-sm text-text-secondary">
+                  Whale Suite is built by a small team during the Solana Privacy Hack 2026.
+                  If you find value in our platform, consider supporting development.
+                </p>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-pink-500/10 border border-pink-500/30">
+                    <h4 className="font-semibold text-pink-400 mb-2">Star on GitHub</h4>
+                    <p className="text-sm text-text-secondary mb-3">Help us get visibility in the ecosystem</p>
+                    <a
+                      href={SOCIAL_LINKS.github}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-pink-400 hover:text-pink-300 transition-colors"
+                    >
+                      ⭐ Star Repository →
+                    </a>
+                  </div>
+                  <div className="p-4 rounded-xl bg-neon-green/10 border border-neon-green/30">
+                    <h4 className="font-semibold text-neon-green mb-2">Spread the Word</h4>
+                    <p className="text-sm text-text-secondary mb-3">Share with fellow privacy enthusiasts</p>
+                    <a
+                      href={SOCIAL_LINKS.twitter}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-neon-green hover:text-neon-green/80 transition-colors"
+                    >
+                      🐦 Follow & Share →
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Built With */}
+            <Card variant="default" padding="lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-xl">🏗️</span>
+                  Built With
+                </CardTitle>
+              </CardHeader>
+              <div className="mt-4">
+                <div className="flex flex-wrap gap-2">
+                  {["INCO (FHE)", "ShadowWire", "Light Protocol", "Privacy Cash", "Helius", "PNP", "StarPay", "Anoncoin", "QuickNode", "Jupiter", "Privy", "DarkLake"].map((tech) => (
+                    <span key={tech} className="px-3 py-1.5 text-sm bg-bg-tertiary rounded-lg text-text-secondary">
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-text-muted mt-4">
+                  181+ TypeScript files • 30+ API routes • 12 MongoDB collections • 9 sponsor technologies
+                </p>
               </div>
             </Card>
           </motion.div>
