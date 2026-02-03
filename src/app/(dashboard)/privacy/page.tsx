@@ -1,25 +1,35 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
 import { usePrivacyCash, usePoints } from "@/hooks";
+import { useWalletBalances } from "@/hooks/useHelius";
 import { useAuth } from "@/lib/privy/hooks";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useNetwork } from "@/hooks/useNetwork";
 import { PointsEarned } from "@/components/leaderboard";
 import LearnMoreLink from "@/components/ui/LearnMoreLink";
 import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
+import {
+  PRIVACY_CASH_TOKENS,
+  calculateWithdrawalFee,
+  WITHDRAWAL_FEE_RATE,
+  type PrivacyCashTokenSymbol,
+} from "@/lib/privacy-sdks/privacy-cash";
 
 type TabType = "deposit" | "withdraw";
 
 export default function PrivacyCashPage() {
   const { walletAddress, authenticated } = useAuth();
   const { balance: walletBalance, loading: balanceLoading } = useWalletBalance(walletAddress);
+  const { balances: walletBalances, loading: tokenBalancesLoading } = useWalletBalances(walletAddress);
   const {
     privateBalance,
+    privateBalances,
+    selectedToken,
     loading,
     error,
     result,
@@ -30,10 +40,65 @@ export default function PrivacyCashPage() {
     reset,
     validateWithdrawal,
     calculateReceiveAmount,
-    fees,
+    setSelectedToken,
+    fetchPrivateBalance,
+    getSelectedTokenFees,
   } = usePrivacyCash();
   const { awardPoints } = usePoints();
   const { network } = useNetwork();
+
+  // Get current token info
+  const currentToken = useMemo(() =>
+    PRIVACY_CASH_TOKENS.find(t => t.symbol === selectedToken) || PRIVACY_CASH_TOKENS[0],
+    [selectedToken]
+  );
+  const tokenFees = useMemo(() => getSelectedTokenFees(), [getSelectedTokenFees]);
+
+  // Get wallet balance for selected token
+  const getTokenWalletBalance = useCallback((tokenSymbol: PrivacyCashTokenSymbol): number => {
+    if (tokenSymbol === 'SOL') {
+      return walletBalance;
+    }
+    // Find token in wallet balances
+    const tokenConfig = PRIVACY_CASH_TOKENS.find(t => t.symbol === tokenSymbol);
+    if (!tokenConfig || !walletBalances?.tokens) return 0;
+
+    const token = walletBalances.tokens.find(
+      t => t.mint.toLowerCase() === tokenConfig.mint.toLowerCase()
+    );
+    return token?.uiAmount || 0;
+  }, [walletBalance, walletBalances]);
+
+  // Current token wallet balance
+  const currentTokenWalletBalance = useMemo(() => {
+    return getTokenWalletBalance(selectedToken);
+  }, [selectedToken, getTokenWalletBalance]);
+
+  // Token balance loading state
+  const [lastFetchedToken, setLastFetchedToken] = useState<PrivacyCashTokenSymbol>('SOL');
+  const [isBalanceLoading, setIsBalanceLoading] = useState(false);
+
+  // Handle token change
+  const handleTokenChange = useCallback(async (token: PrivacyCashTokenSymbol) => {
+    if (token === selectedToken) return;
+    setSelectedToken(token);
+    setAmount(""); // Reset amount when changing tokens
+
+    // Fetch balance for new token if initialized
+    if (initialized) {
+      setIsBalanceLoading(true);
+      await fetchPrivateBalance(token);
+      setLastFetchedToken(token);
+      setIsBalanceLoading(false);
+    }
+  }, [selectedToken, setSelectedToken, initialized, fetchPrivateBalance]);
+
+  // Update lastFetchedToken when initialized
+  useEffect(() => {
+    if (initialized && selectedToken !== lastFetchedToken) {
+      setLastFetchedToken(selectedToken);
+    }
+  }, [initialized, selectedToken, lastFetchedToken]);
 
   const [initLoading, setInitLoading] = useState(false);
 
@@ -105,6 +170,7 @@ export default function PrivacyCashPage() {
         awardPoints(action, {
           txSignature: result.signature,
           amount: operationAmount,
+          token: selectedToken, // Pass the selected token for whale intelligence
           network,
         }).then((pointsResult) => {
           if (pointsResult) {
@@ -128,17 +194,18 @@ export default function PrivacyCashPage() {
     }
   };
 
-  // Reserve for Solana transaction fees
-  const FEE_RESERVE = 0.05;
+  // Reserve for Solana transaction fees (only for SOL deposits)
+  const FEE_RESERVE = selectedToken === 'SOL' ? 0.05 : 0;
 
   const getMaxAmount = () => {
     if (activeTab === "deposit") {
       // Leave SOL for network fees (0.05 SOL for multiple transactions)
-      return walletBalance > FEE_RESERVE ? (walletBalance - FEE_RESERVE).toFixed(4) : "0";
+      const maxDeposit = currentTokenWalletBalance - FEE_RESERVE;
+      return maxDeposit > 0 ? maxDeposit.toFixed(currentToken.decimals > 6 ? 6 : 4) : "0";
     }
     // For withdrawal, user can enter their full balance - we deduct fee from what they receive
-    const balance = privateBalance?.balance || 0;
-    return balance > 0 ? balance.toFixed(4) : "0";
+    const balance = privateBalances[selectedToken]?.balance || privateBalance?.balance || 0;
+    return balance > 0 ? balance.toFixed(currentToken.decimals > 6 ? 6 : 4) : "0";
   };
 
   // Get validation state for current amount
@@ -146,23 +213,24 @@ export default function PrivacyCashPage() {
     if (!amount || parseFloat(amount) <= 0) return null;
 
     if (activeTab === "withdraw") {
-      const validation = validateWithdrawal(parseFloat(amount));
+      const validation = validateWithdrawal(parseFloat(amount), selectedToken);
       if (!validation.valid) {
         return validation.error || "Validation failed";
       }
     } else {
       // Deposit validation - compare as formatted strings to avoid floating point issues
       const amountNum = parseFloat(amount);
-      const maxDeposit = walletBalance - FEE_RESERVE;
+      const maxDeposit = currentTokenWalletBalance - FEE_RESERVE;
 
-      if (amountNum < fees.MIN_DEPOSIT) {
-        return `Minimum deposit is ${fees.MIN_DEPOSIT} SOL`;
+      if (amountNum < tokenFees.MIN_DEPOSIT) {
+        return `Minimum deposit is ${tokenFees.MIN_DEPOSIT} ${selectedToken}`;
       }
       // Compare formatted values to avoid floating point precision issues
-      const amountFormatted = amountNum.toFixed(4);
-      const maxFormatted = maxDeposit.toFixed(4);
+      const decimals = currentToken.decimals > 6 ? 6 : 4;
+      const amountFormatted = amountNum.toFixed(decimals);
+      const maxFormatted = maxDeposit.toFixed(decimals);
       if (parseFloat(amountFormatted) > parseFloat(maxFormatted)) {
-        return `Insufficient wallet balance. Max: ${maxFormatted} SOL`;
+        return `Insufficient wallet balance. Max: ${maxFormatted} ${selectedToken}`;
       }
     }
     return null;
@@ -199,9 +267,9 @@ export default function PrivacyCashPage() {
       const sigTimer = setTimeout(advanceStep, 6000); // Step 3 after 6s
 
       if (activeTab === "deposit") {
-        await deposit(parseFloat(amount));
+        await deposit(parseFloat(amount), selectedToken);
       } else {
-        await withdraw(parseFloat(amount));
+        await withdraw(parseFloat(amount), undefined, selectedToken);
       }
 
       clearTimeout(proofTimer);
@@ -245,44 +313,104 @@ export default function PrivacyCashPage() {
         <LearnMoreLink section="privacy">How it works</LearnMoreLink>
       </div>
 
+      {/* Token Selector */}
+      <div className="p-4 rounded-xl bg-bg-tertiary border border-border-secondary">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm font-medium text-text-primary">Select Asset</span>
+          <span className="text-xs text-text-muted">{PRIVACY_CASH_TOKENS.length} supported</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {PRIVACY_CASH_TOKENS.map((token) => (
+            <button
+              key={token.symbol}
+              onClick={() => handleTokenChange(token.symbol as PrivacyCashTokenSymbol)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
+                selectedToken === token.symbol
+                  ? 'bg-neon-green/20 border-neon-green text-neon-green'
+                  : 'bg-bg-elevated/50 border-border-secondary text-text-secondary hover:border-neon-green/50 hover:text-text-primary'
+              }`}
+            >
+              {token.logoURI ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={token.logoURI} alt={token.symbol} className="w-5 h-5 rounded-full" />
+              ) : (
+                <span className="text-base">{token.icon}</span>
+              )}
+              {token.symbol}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Balance Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card variant="default" padding="md">
           <div className="flex items-center gap-2 mb-2">
             <WalletIcon className="w-4 h-4 text-text-muted" />
-            <span className="text-xs text-text-muted">Public Balance</span>
+            <span className="text-xs text-text-muted">Public {selectedToken} Balance</span>
           </div>
-          <div className="text-2xl font-bold text-text-primary">
-            {balanceLoading ? "..." : `${walletBalance.toFixed(4)} SOL`}
+          <div className="flex items-center gap-2">
+            {currentToken.logoURI ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={currentToken.logoURI} alt={selectedToken} className="w-6 h-6 rounded-full" />
+            ) : (
+              <span className="text-xl">{currentToken.icon}</span>
+            )}
+            <div className="text-2xl font-bold text-text-primary">
+              {balanceLoading || tokenBalancesLoading ? "..." : `${currentTokenWalletBalance.toFixed(currentToken.decimals > 6 ? 6 : 4)}`}
+            </div>
           </div>
-          <div className="text-xs text-text-secondary">
-            {balanceLoading ? "" : `$${(walletBalance * 150).toFixed(2)}`}
+          <div className="text-xs text-text-secondary mt-1">
+            {currentToken.name}
           </div>
         </Card>
 
         <Card variant="glow" padding="md">
           <div className="flex items-center gap-2 mb-2">
             <ShieldIcon className="w-4 h-4 text-neon-green" />
-            <span className="text-xs text-text-muted">Hidden Balance</span>
+            <span className="text-xs text-text-muted">Hidden {selectedToken} Balance</span>
           </div>
           {initialized ? (
             <>
-              <div className="text-2xl font-bold text-neon-green">
-                {privateBalance ? `${privateBalance.balance.toFixed(4)} SOL` : "0.0000 SOL"}
-              </div>
-              <div className="text-xs text-text-secondary">
-                {privateBalance ? `$${(privateBalance.balance * 150).toFixed(2)}` : "$0.00"}
-              </div>
-              {privateBalance && privateBalance.balance > 0 && privateBalance.balance <= fees.WITHDRAWAL_FEE && (
-                <div className="text-xs text-warning mt-1">
-                  ⚠️ Below withdrawal fee
+              <div className="flex items-center gap-2">
+                {currentToken.logoURI ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={currentToken.logoURI} alt={selectedToken} className="w-6 h-6 rounded-full" />
+                ) : (
+                  <span className="text-xl">{currentToken.icon}</span>
+                )}
+                <div className="text-2xl font-bold text-neon-green">
+                  {isBalanceLoading ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="w-4 h-4 border-2 border-neon-green/30 border-t-neon-green rounded-full animate-spin" />
+                      <span className="text-text-muted text-base">Loading...</span>
+                    </span>
+                  ) : (
+                    (privateBalances[selectedToken]?.balance || privateBalance?.balance || 0).toFixed(currentToken.decimals > 6 ? 6 : 4)
+                  )}
                 </div>
-              )}
-              {privateBalance && privateBalance.balance > fees.WITHDRAWAL_FEE && (
-                <div className="text-xs text-text-muted mt-1">
-                  After fee you receive: {calculateReceiveAmount(privateBalance.balance).toFixed(4)} SOL
-                </div>
-              )}
+              </div>
+              <div className="text-xs text-text-secondary mt-1">
+                Shielded in privacy pool
+              </div>
+              {(() => {
+                const balance = privateBalances[selectedToken]?.balance || privateBalance?.balance || 0;
+                if (balance > 0 && balance <= tokenFees.WITHDRAWAL_FEE) {
+                  return (
+                    <div className="text-xs text-warning mt-1">
+                      ⚠️ Below withdrawal fee ({tokenFees.WITHDRAWAL_FEE} {selectedToken})
+                    </div>
+                  );
+                }
+                if (balance > tokenFees.WITHDRAWAL_FEE) {
+                  return (
+                    <div className="text-xs text-text-muted mt-1">
+                      After fee: {calculateReceiveAmount(balance, selectedToken).toFixed(currentToken.decimals > 6 ? 6 : 4)} {selectedToken}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </>
           ) : (
             <button
@@ -346,18 +474,49 @@ export default function PrivacyCashPage() {
               </button>
             </div>
 
+            {/* Selected Token Display */}
+            <div className="mb-4 p-3 rounded-xl bg-bg-tertiary border border-neon-green/30">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {currentToken.logoURI ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={currentToken.logoURI} alt={selectedToken} className="w-10 h-10 rounded-full" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-green to-neon-cyan flex items-center justify-center text-bg-primary font-bold text-lg">
+                      {currentToken.icon}
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-sm font-medium text-text-primary">{currentToken.name}</div>
+                    <div className="text-xs text-text-muted">{selectedToken}</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-medium text-neon-green">
+                    {activeTab === "deposit"
+                      ? `${currentTokenWalletBalance.toFixed(currentToken.decimals > 6 ? 6 : 4)} available`
+                      : `${(privateBalances[selectedToken]?.balance || 0).toFixed(currentToken.decimals > 6 ? 6 : 4)} shielded`
+                    }
+                  </div>
+                  <div className="text-xs text-text-muted">
+                    {activeTab === "deposit" ? "in wallet" : "in pool"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Description */}
             <div className="mb-6 p-3 rounded-lg bg-bg-tertiary border border-border-secondary">
               <p className="text-xs text-text-secondary">
                 {activeTab === "deposit" ? (
                   <>
-                    <span className="text-neon-green font-medium">Shield your SOL</span> by
+                    <span className="text-neon-green font-medium">Shield your {selectedToken}</span> by
                     depositing into the privacy pool. Your balance will be hidden from
                     public view on the blockchain.
                   </>
                 ) : (
                   <>
-                    <span className="text-neon-cyan font-medium">Unshield your SOL</span> by
+                    <span className="text-neon-cyan font-medium">Unshield your {selectedToken}</span> by
                     withdrawing from the privacy pool. Funds will be returned to your
                     public wallet.
                   </>
@@ -370,13 +529,13 @@ export default function PrivacyCashPage() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-medium text-text-secondary">
-                    {activeTab === "withdraw" ? "Amount to Withdraw (SOL)" : "Amount to Deposit (SOL)"}
+                    {activeTab === "withdraw" ? `Amount to Withdraw (${selectedToken})` : `Amount to Deposit (${selectedToken})`}
                   </label>
                   <button
                     onClick={handleMax}
                     className="text-xs text-neon-green hover:text-neon-green/80 transition-colors"
                   >
-                    Max: {getMaxAmount()} SOL
+                    Max: {getMaxAmount()} {selectedToken}
                   </button>
                 </div>
                 <div className="relative">
@@ -388,7 +547,11 @@ export default function PrivacyCashPage() {
                     className="w-full px-4 py-3 text-lg bg-bg-secondary border border-border-secondary rounded-xl text-text-primary placeholder:text-text-muted focus:outline-none focus:border-neon-green transition-colors"
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                    <span className="text-sm text-text-muted">SOL</span>
+                    {currentToken.logoURI && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={currentToken.logoURI} alt={selectedToken} className="w-5 h-5 rounded-full" />
+                    )}
+                    <span className="text-sm text-text-muted">{selectedToken}</span>
                   </div>
                 </div>
               </div>
@@ -400,13 +563,15 @@ export default function PrivacyCashPage() {
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-text-muted">You Withdraw</span>
                       <span className="text-sm font-medium text-text-primary">
-                        {amount && parseFloat(amount) > 0 ? parseFloat(amount).toFixed(4) : "0.0000"} SOL
+                        {amount && parseFloat(amount) > 0 ? parseFloat(amount).toFixed(currentToken.decimals > 6 ? 6 : 4) : "0.0000"} {selectedToken}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-text-muted">Relay Fee</span>
+                      <span className="text-xs text-text-muted">Fee (0.35% + {tokenFees.WITHDRAWAL_FEE} rent)</span>
                       <span className="text-xs text-error">
-                        -{fees.WITHDRAWAL_FEE.toFixed(4)} SOL
+                        -{amount && parseFloat(amount) > 0
+                          ? calculateWithdrawalFee(parseFloat(amount), selectedToken).toFixed(currentToken.decimals > 6 ? 6 : 4)
+                          : "0.0000"} {selectedToken}
                       </span>
                     </div>
                     <div className="border-t border-border-secondary pt-2 mt-2">
@@ -414,8 +579,8 @@ export default function PrivacyCashPage() {
                         <span className="text-xs font-medium text-text-primary">You Receive</span>
                         <span className="text-sm font-bold text-neon-green">
                           {amount && parseFloat(amount) > 0
-                            ? calculateReceiveAmount(parseFloat(amount)).toFixed(4)
-                            : "0.0000"} SOL
+                            ? calculateReceiveAmount(parseFloat(amount), selectedToken).toFixed(currentToken.decimals > 6 ? 6 : 4)
+                            : "0.0000"} {selectedToken}
                         </span>
                       </div>
                     </div>
@@ -425,7 +590,7 @@ export default function PrivacyCashPage() {
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-text-muted">Deposit Amount</span>
                       <span className="text-sm font-medium text-neon-green">
-                        {amount && parseFloat(amount) > 0 ? parseFloat(amount).toFixed(4) : "0.0000"} SOL
+                        {amount && parseFloat(amount) > 0 ? parseFloat(amount).toFixed(currentToken.decimals > 6 ? 6 : 4) : "0.0000"} {selectedToken}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -451,23 +616,35 @@ export default function PrivacyCashPage() {
               )}
 
               {/* Dust Warning - Balance too low to withdraw */}
-              {activeTab === "withdraw" && initialized && (privateBalance?.balance || 0) > 0 && (privateBalance?.balance || 0) <= fees.WITHDRAWAL_FEE && (
-                <div className="p-3 rounded-lg bg-warning/10 border border-warning/30">
-                  <p className="text-xs text-warning">
-                    <strong>Balance too low to withdraw.</strong> You have {privateBalance?.balance.toFixed(4)} SOL but the withdrawal fee is {fees.WITHDRAWAL_FEE} SOL.
-                    Deposit at least {(fees.WITHDRAWAL_FEE + 0.001).toFixed(3)} SOL more to withdraw.
-                  </p>
-                </div>
-              )}
+              {(() => {
+                const balance = privateBalances[selectedToken]?.balance || privateBalance?.balance || 0;
+                if (activeTab === "withdraw" && initialized && balance > 0 && balance <= tokenFees.WITHDRAWAL_FEE) {
+                  return (
+                    <div className="p-3 rounded-lg bg-warning/10 border border-warning/30">
+                      <p className="text-xs text-warning">
+                        <strong>Balance too low to withdraw.</strong> You have {balance.toFixed(currentToken.decimals > 6 ? 6 : 4)} {selectedToken} but the withdrawal fee is {tokenFees.WITHDRAWAL_FEE} {selectedToken}.
+                        Deposit more to withdraw.
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
               {/* Min Balance Warning for Withdraw */}
-              {activeTab === "withdraw" && initialized && (privateBalance?.balance || 0) > fees.WITHDRAWAL_FEE && (privateBalance?.balance || 0) < fees.RECOMMENDED_MIN_BALANCE && (
-                <div className="p-3 rounded-lg bg-info/10 border border-info/30">
-                  <p className="text-xs text-info">
-                    Tip: You can withdraw your full balance of {(privateBalance?.balance || 0).toFixed(4)} SOL and receive {calculateReceiveAmount(privateBalance?.balance || 0).toFixed(4)} SOL after relay fee.
-                  </p>
-                </div>
-              )}
+              {(() => {
+                const balance = privateBalances[selectedToken]?.balance || privateBalance?.balance || 0;
+                if (activeTab === "withdraw" && initialized && balance > tokenFees.WITHDRAWAL_FEE && balance < tokenFees.RECOMMENDED_MIN_BALANCE) {
+                  return (
+                    <div className="p-3 rounded-lg bg-info/10 border border-info/30">
+                      <p className="text-xs text-info">
+                        Tip: You can withdraw your full balance of {balance.toFixed(currentToken.decimals > 6 ? 6 : 4)} {selectedToken} and receive {calculateReceiveAmount(balance, selectedToken).toFixed(currentToken.decimals > 6 ? 6 : 4)} {selectedToken} after relay fee.
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
               {/* Submit Button */}
               <Button
@@ -477,7 +654,7 @@ export default function PrivacyCashPage() {
                 disabled={!canSubmit}
                 loading={loading}
               >
-                {activeTab === "deposit" ? "Shield SOL" : "Unshield SOL"}
+                {activeTab === "deposit" ? `Shield ${selectedToken}` : `Unshield ${selectedToken}`}
               </Button>
             </div>
           </Card>
@@ -543,7 +720,7 @@ export default function PrivacyCashPage() {
 
           <Card variant="default" padding="md">
             <h3 className="text-sm font-semibold text-text-primary mb-3">
-              Fee Structure
+              Fee Structure ({selectedToken})
             </h3>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
@@ -551,16 +728,20 @@ export default function PrivacyCashPage() {
                 <span className="text-neon-green">Free</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-text-muted">Withdrawal Fee</span>
-                <span className="text-text-secondary">~{fees.WITHDRAWAL_FEE} SOL (relay)</span>
+                <span className="text-text-muted">Withdrawal Rate</span>
+                <span className="text-text-secondary">{(WITHDRAWAL_FEE_RATE * 100).toFixed(2)}%</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-text-muted">Rent Fee</span>
+                <span className="text-text-secondary">+{tokenFees.WITHDRAWAL_FEE} {selectedToken}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-text-muted">Min Withdrawal</span>
+                <span className="text-text-secondary">{tokenFees.MIN_WITHDRAWAL} {selectedToken}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-text-muted">Min Deposit</span>
-                <span className="text-text-secondary">{fees.MIN_DEPOSIT} SOL</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-text-muted">Recommended Min</span>
-                <span className="text-neon-green">{fees.RECOMMENDED_MIN_BALANCE} SOL</span>
+                <span className="text-text-secondary">{tokenFees.MIN_DEPOSIT} {selectedToken}</span>
               </div>
             </div>
           </Card>
@@ -582,7 +763,7 @@ export default function PrivacyCashPage() {
       <TransactionModal
         isOpen={showProgressModal}
         onClose={() => {}}
-        title={activeTab === "deposit" ? "Shielding SOL..." : "Unshielding SOL..."}
+        title={activeTab === "deposit" ? `Shielding ${selectedToken}...` : `Unshielding ${selectedToken}...`}
         steps={progressSteps}
         currentStep={progressStep}
       />
@@ -595,11 +776,11 @@ export default function PrivacyCashPage() {
           setLastOperation(null);
           setPointsEarned(null);
         }}
-        title={lastOperation?.type === "deposit" ? "SOL Shielded!" : "SOL Unshielded!"}
+        title={lastOperation?.type === "deposit" ? `${selectedToken} Shielded!` : `${selectedToken} Unshielded!`}
         message={
           lastOperation?.type === "deposit"
-            ? `Successfully shielded ${lastOperation?.amount || ''} SOL into privacy pool`
-            : `Successfully unshielded ${lastOperation?.amount || ''} SOL to your wallet`
+            ? `Successfully shielded ${lastOperation?.amount || ''} ${selectedToken} into privacy pool`
+            : `Successfully unshielded ${lastOperation?.amount || ''} ${selectedToken} to your wallet`
         }
         txSignature={lastOperation?.signature || result?.signature || ""}
         actions={pointsEarned ? <PointsEarned points={pointsEarned} action="Privacy" /> : undefined}

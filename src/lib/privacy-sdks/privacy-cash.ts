@@ -37,21 +37,56 @@ const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 // SDK appends .wasm and .zkey to this path
 const CIRCUIT_BASE_PATH = '/circuit2/transaction2';
 
-// Fee constants (in SOL)
+// Fee constants from Privacy Cash API (https://api3.privacycash.org/config)
+// Total withdrawal fee = (amount * WITHDRAWAL_FEE_RATE) + RENT_FEE
+export const WITHDRAWAL_FEE_RATE = 0.0035; // 0.35% of withdrawal amount
+
+// Default fees for SOL - use getTokenFees() for other tokens
 export const PRIVACY_FEES = {
-  WITHDRAWAL_FEE: 0.006, // ~6,000,000 lamports - relay fee for ZK withdrawal
-  DEPOSIT_FEE: 0, // No deposit fee from Privacy Cash (only minimal network fee)
-  MIN_DEPOSIT: 0.001, // Minimum deposit amount
-  MIN_WITHDRAWAL: 0.007, // Minimum withdrawal (must be > fee to receive something)
-  RECOMMENDED_MIN_BALANCE: 0.01, // Recommended minimum for withdrawals
+  WITHDRAWAL_FEE: 0.006, // Rent fee for SOL
+  WITHDRAWAL_FEE_RATE: WITHDRAWAL_FEE_RATE, // 0.35%
+  DEPOSIT_FEE: 0, // No deposit fee
+  MIN_DEPOSIT: 0.001,
+  MIN_WITHDRAWAL: 0.01, // From API minimum_withdrawal
+  RECOMMENDED_MIN_BALANCE: 0.015,
 };
 
-// Common token mints
-export const TOKEN_MINTS = {
-  USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-  USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
-  USD1: 'USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB', // World Liberty Financial USD
-};
+// Get fees for a specific token
+export function getTokenFees(tokenSymbol: PrivacyCashTokenSymbol = 'SOL') {
+  const token = getPrivacyCashToken(tokenSymbol);
+  if (!token) {
+    return PRIVACY_FEES;
+  }
+  return {
+    WITHDRAWAL_FEE: token.withdrawalFee, // Rent fee (flat)
+    WITHDRAWAL_FEE_RATE: WITHDRAWAL_FEE_RATE, // 0.35% rate
+    DEPOSIT_FEE: 0,
+    MIN_DEPOSIT: token.minDeposit,
+    MIN_WITHDRAWAL: token.minWithdrawal,
+    RECOMMENDED_MIN_BALANCE: token.minWithdrawal * 1.5,
+  };
+}
+
+// Calculate total withdrawal fee for a given amount
+export function calculateWithdrawalFee(amount: number, tokenSymbol: PrivacyCashTokenSymbol = 'SOL'): number {
+  const fees = getTokenFees(tokenSymbol);
+  // Fee = (amount * 0.35%) + rent_fee
+  return (amount * WITHDRAWAL_FEE_RATE) + fees.WITHDRAWAL_FEE;
+}
+
+// Import from centralized token config
+import {
+  PRIVACY_CASH_TOKENS,
+  getPrivacyCashToken,
+  getPrivacyCashWithdrawalFee,
+  getPrivacyCashMinDeposit,
+  getPrivacyCashMinWithdrawal,
+  type PrivacyCashTokenSymbol,
+  type PrivacyCashToken,
+} from '@/lib/tokens';
+
+// Re-export for convenience
+export { PRIVACY_CASH_TOKENS, getPrivacyCashToken, type PrivacyCashTokenSymbol, type PrivacyCashToken };
 
 export type PrivacyAction = 'deposit' | 'withdraw';
 
@@ -75,9 +110,15 @@ export interface PrivacyTxResult {
 }
 
 export interface PrivateBalance {
-  balance: number; // in SOL
-  lamports: number;
+  balance: number; // in token units (e.g., SOL, USDC)
+  baseUnits: number; // in smallest units (lamports for SOL, etc.)
   lastUpdated: number;
+  token: PrivacyCashTokenSymbol;
+}
+
+// Multi-token balance map
+export interface PrivateBalances {
+  [token: string]: PrivateBalance;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -175,282 +216,270 @@ class PrivacyCashService {
   }
 
   /**
-   * Get private (shielded) SOL balance
+   * Get private (shielded) balance for SOL or SPL token
    */
   async getPrivateBalance(
     publicKey: PublicKey,
-    signMessage: (message: Uint8Array) => Promise<Uint8Array>
+    signMessage: (message: Uint8Array) => Promise<Uint8Array>,
+    tokenSymbol: PrivacyCashTokenSymbol = 'SOL'
   ): Promise<PrivateBalance> {
     try {
       const encryptionService = await this.initEncryption(signMessage);
+      const token = getPrivacyCashToken(tokenSymbol);
 
-      const utxos = await getUtxos({
-        publicKey,
-        connection: this.connection,
-        encryptionService,
-        storage: getStorage(),
-      });
+      if (!token) {
+        throw new Error(`Unknown token: ${tokenSymbol}`);
+      }
 
-      const { lamports } = getBalanceFromUtxos(utxos);
+      if (tokenSymbol === 'SOL') {
+        // Native SOL balance
+        const utxos = await getUtxos({
+          publicKey,
+          connection: this.connection,
+          encryptionService,
+          storage: getStorage(),
+        });
 
-      return {
-        balance: lamports / LAMPORTS_PER_SOL,
-        lamports,
-        lastUpdated: Date.now(),
-      };
+        const { lamports } = getBalanceFromUtxos(utxos);
+
+        return {
+          balance: lamports / LAMPORTS_PER_SOL,
+          baseUnits: lamports,
+          lastUpdated: Date.now(),
+          token: 'SOL',
+        };
+      } else {
+        // SPL token balance
+        const utxos = await getUtxosSPL({
+          publicKey,
+          connection: this.connection,
+          encryptionService,
+          storage: getStorage(),
+          mintAddress: token.mint,
+        });
+
+        const { base_units, amount } = getBalanceFromUtxosSPL(utxos);
+
+        return {
+          balance: amount,
+          baseUnits: base_units,
+          lastUpdated: Date.now(),
+          token: tokenSymbol,
+        };
+      }
     } catch (error) {
-      console.error('Error fetching private balance:', error);
+      console.error(`Error fetching private ${tokenSymbol} balance:`, error);
       return {
         balance: 0,
-        lamports: 0,
+        baseUnits: 0,
         lastUpdated: Date.now(),
+        token: tokenSymbol,
       };
     }
   }
 
   /**
-   * Deposit SOL into the privacy pool (shield funds)
+   * Get all private balances for all supported tokens
+   */
+  async getAllPrivateBalances(
+    publicKey: PublicKey,
+    signMessage: (message: Uint8Array) => Promise<Uint8Array>
+  ): Promise<PrivateBalances> {
+    const balances: PrivateBalances = {};
+
+    // Fetch all balances in parallel
+    const results = await Promise.all(
+      PRIVACY_CASH_TOKENS.map(async (token) => {
+        const balance = await this.getPrivateBalance(publicKey, signMessage, token.symbol as PrivacyCashTokenSymbol);
+        return { symbol: token.symbol, balance };
+      })
+    );
+
+    results.forEach(({ symbol, balance }) => {
+      balances[symbol] = balance;
+    });
+
+    return balances;
+  }
+
+  /**
+   * Deposit SOL or SPL token into the privacy pool (shield funds)
    */
   async deposit(
     publicKey: PublicKey,
-    amountInSOL: number,
+    amount: number,
     signMessage: (message: Uint8Array) => Promise<Uint8Array>,
     signTransaction: (tx: VersionedTransaction) => Promise<VersionedTransaction>,
+    tokenSymbol: PrivacyCashTokenSymbol = 'SOL',
     referrer?: string
   ): Promise<PrivacyTxResult> {
     try {
       const encryptionService = await this.initEncryption(signMessage);
       const wasm = await initLightWasm();
+      const token = getPrivacyCashToken(tokenSymbol);
 
-      const amountInLamports = Math.floor(amountInSOL * LAMPORTS_PER_SOL);
+      if (!token) {
+        throw new Error(`Unknown token: ${tokenSymbol}`);
+      }
 
-      const result = await deposit({
-        lightWasm: wasm,
-        connection: this.connection,
-        amount_in_lamports: amountInLamports,
-        keyBasePath: CIRCUIT_BASE_PATH,
-        publicKey: publicKey,
-        transactionSigner: async (tx: VersionedTransaction) => {
-          return await signTransaction(tx);
-        },
-        storage: getStorage(),
-        encryptionService,
-        referrer: referrer || '',
-      });
+      let result;
+
+      if (tokenSymbol === 'SOL') {
+        // Native SOL deposit
+        const amountInLamports = Math.floor(amount * LAMPORTS_PER_SOL);
+
+        result = await deposit({
+          lightWasm: wasm,
+          connection: this.connection,
+          amount_in_lamports: amountInLamports,
+          keyBasePath: CIRCUIT_BASE_PATH,
+          publicKey: publicKey,
+          transactionSigner: async (tx: VersionedTransaction) => {
+            return await signTransaction(tx);
+          },
+          storage: getStorage(),
+          encryptionService,
+          referrer: referrer || '',
+        });
+      } else {
+        // SPL token deposit
+        result = await depositSPL({
+          lightWasm: wasm,
+          connection: this.connection,
+          amount: amount,
+          keyBasePath: CIRCUIT_BASE_PATH,
+          publicKey: publicKey,
+          transactionSigner: async (tx: VersionedTransaction) => {
+            return await signTransaction(tx);
+          },
+          storage: getStorage(),
+          encryptionService,
+          mintAddress: token.mint,
+          referrer: referrer || '',
+        });
+      }
 
       // Get updated balance
-      const newBalance = await this.getPrivateBalance(publicKey, signMessage);
+      const newBalance = await this.getPrivateBalance(publicKey, signMessage, tokenSymbol);
 
       return {
         success: true,
         signature: result?.tx || 'success',
         action: 'deposit',
-        amount: amountInSOL,
+        amount: amount,
         newPrivateBalance: newBalance.balance,
       };
     } catch (error) {
-      console.error('Privacy deposit error:', error);
+      console.error(`Privacy ${tokenSymbol} deposit error:`, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Deposit failed',
         action: 'deposit',
-        amount: amountInSOL,
+        amount: amount,
       };
     }
   }
 
   /**
-   * Withdraw SOL from privacy pool (unshield funds)
+   * Withdraw SOL or SPL token from privacy pool (unshield funds)
    */
   async withdraw(
     publicKey: PublicKey,
-    amountInSOL: number,
+    amount: number,
     recipientAddress: string,
     signMessage: (message: Uint8Array) => Promise<Uint8Array>,
+    tokenSymbol: PrivacyCashTokenSymbol = 'SOL',
     referrer?: string
   ): Promise<PrivacyTxResult> {
     try {
       const encryptionService = await this.initEncryption(signMessage);
       const wasm = await initLightWasm();
+      const token = getPrivacyCashToken(tokenSymbol);
 
-      const amountInLamports = Math.floor(amountInSOL * LAMPORTS_PER_SOL);
+      if (!token) {
+        throw new Error(`Unknown token: ${tokenSymbol}`);
+      }
 
-      const result = await withdraw({
-        amount_in_lamports: amountInLamports,
-        connection: this.connection,
-        encryptionService,
-        keyBasePath: CIRCUIT_BASE_PATH,
-        publicKey: publicKey,
-        storage: getStorage(),
-        recipient: new PublicKey(recipientAddress),
-        lightWasm: wasm,
-        referrer: referrer || '',
-      });
+      let result;
+
+      if (tokenSymbol === 'SOL') {
+        // Native SOL withdraw
+        const amountInLamports = Math.floor(amount * LAMPORTS_PER_SOL);
+
+        result = await withdraw({
+          amount_in_lamports: amountInLamports,
+          connection: this.connection,
+          encryptionService,
+          keyBasePath: CIRCUIT_BASE_PATH,
+          publicKey: publicKey,
+          storage: getStorage(),
+          recipient: new PublicKey(recipientAddress),
+          lightWasm: wasm,
+          referrer: referrer || '',
+        });
+      } else {
+        // SPL token withdraw
+        result = await withdrawSPL({
+          connection: this.connection,
+          encryptionService,
+          keyBasePath: CIRCUIT_BASE_PATH,
+          publicKey: publicKey,
+          storage: getStorage(),
+          recipient: new PublicKey(recipientAddress),
+          lightWasm: wasm,
+          mintAddress: token.mint,
+          amount: amount,
+          referrer: referrer || '',
+        });
+      }
 
       // Get updated balance
-      const newBalance = await this.getPrivateBalance(publicKey, signMessage);
+      const newBalance = await this.getPrivateBalance(publicKey, signMessage, tokenSymbol);
 
       return {
         success: true,
         signature: result?.tx || 'success',
         action: 'withdraw',
-        amount: amountInSOL,
+        amount: amount,
         newPrivateBalance: newBalance.balance,
       };
     } catch (error) {
-      console.error('Privacy withdraw error:', error);
+      console.error(`Privacy ${tokenSymbol} withdraw error:`, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Withdrawal failed',
         action: 'withdraw',
-        amount: amountInSOL,
-      };
-    }
-  }
-
-  /**
-   * Deposit SPL token (USDC, USDT) into privacy pool
-   * @param amount - Amount in token units (e.g., 1.5 USDC)
-   */
-  async depositSPL(
-    publicKey: PublicKey,
-    amount: number,
-    mintAddress: string,
-    signMessage: (message: Uint8Array) => Promise<Uint8Array>,
-    signTransaction: (tx: VersionedTransaction) => Promise<VersionedTransaction>,
-    referrer?: string
-  ): Promise<PrivacyTxResult> {
-    try {
-      const encryptionService = await this.initEncryption(signMessage);
-      const wasm = await initLightWasm();
-
-      const result = await depositSPL({
-        lightWasm: wasm,
-        connection: this.connection,
-        amount: amount,
-        keyBasePath: CIRCUIT_BASE_PATH,
-        publicKey: publicKey,
-        transactionSigner: async (tx: VersionedTransaction) => {
-          return await signTransaction(tx);
-        },
-        storage: getStorage(),
-        encryptionService,
-        mintAddress,
-        referrer: referrer || '',
-      });
-
-      return {
-        success: true,
-        signature: result?.tx || 'success',
-        action: 'deposit',
-        amount: amount,
-      };
-    } catch (error) {
-      console.error('Privacy SPL deposit error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'SPL Deposit failed',
-        action: 'deposit',
         amount: amount,
       };
     }
   }
 
-  /**
-   * Withdraw SPL token from privacy pool
-   * @param amount - Amount in token units (e.g., 1.5 USDC)
-   */
-  async withdrawSPL(
-    publicKey: PublicKey,
-    amount: number,
-    mintAddress: string,
-    recipientAddress: string,
-    signMessage: (message: Uint8Array) => Promise<Uint8Array>,
-    referrer?: string
-  ): Promise<PrivacyTxResult> {
-    try {
-      const encryptionService = await this.initEncryption(signMessage);
-      const wasm = await initLightWasm();
-
-      const result = await withdrawSPL({
-        connection: this.connection,
-        encryptionService,
-        keyBasePath: CIRCUIT_BASE_PATH,
-        publicKey: publicKey,
-        storage: getStorage(),
-        recipient: new PublicKey(recipientAddress),
-        lightWasm: wasm,
-        mintAddress,
-        amount,
-        referrer: referrer || '',
-      });
-
-      return {
-        success: true,
-        signature: result?.tx || 'success',
-        action: 'withdraw',
-        amount: amount,
-      };
-    } catch (error) {
-      console.error('Privacy SPL withdraw error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'SPL Withdrawal failed',
-        action: 'withdraw',
-        amount: amount,
-      };
-    }
-  }
-
-  /**
-   * Get private balance for SPL token
-   */
-  async getPrivateBalanceSPL(
-    publicKey: PublicKey,
-    mintAddress: string,
-    signMessage: (message: Uint8Array) => Promise<Uint8Array>
-  ): Promise<{ amount: number; baseUnits: number }> {
-    try {
-      const encryptionService = await this.initEncryption(signMessage);
-
-      const utxos = await getUtxosSPL({
-        publicKey,
-        connection: this.connection,
-        encryptionService,
-        storage: getStorage(),
-        mintAddress,
-      });
-
-      const { base_units, amount } = getBalanceFromUtxosSPL(utxos);
-
-      return { amount, baseUnits: base_units };
-    } catch (error) {
-      console.error('Error fetching private SPL balance:', error);
-      return { amount: 0, baseUnits: 0 };
-    }
-  }
 
   /**
    * Estimate fees for privacy operations
    */
-  estimateFee(action: PrivacyAction): number {
+  estimateFee(action: PrivacyAction, tokenSymbol: PrivacyCashTokenSymbol = 'SOL'): number {
+    const fees = getTokenFees(tokenSymbol);
     if (action === 'withdraw') {
-      return PRIVACY_FEES.WITHDRAWAL_FEE;
+      return fees.WITHDRAWAL_FEE;
     }
-    return PRIVACY_FEES.DEPOSIT_FEE;
+    return fees.DEPOSIT_FEE;
   }
 
   /**
    * Validate withdrawal parameters
    * @param amountFromBalance - The amount to withdraw FROM the private balance (not what user receives)
-   * @param privateBalanceSOL - Current private balance
+   * @param privateBalance - Current private balance
+   * @param tokenSymbol - Token symbol
    */
-  validateWithdrawal(amountFromBalance: number, privateBalanceSOL: number): ValidationResult {
-    const fee = PRIVACY_FEES.WITHDRAWAL_FEE;
-
-    // Use lamports for precise integer comparison (avoid floating point issues)
-    const balanceLamports = Math.round(privateBalanceSOL * LAMPORTS_PER_SOL);
-    const amountLamports = Math.round(amountFromBalance * LAMPORTS_PER_SOL);
+  validateWithdrawal(
+    amountFromBalance: number,
+    privateBalance: number,
+    tokenSymbol: PrivacyCashTokenSymbol = 'SOL'
+  ): ValidationResult {
+    const fees = getTokenFees(tokenSymbol);
+    const totalFee = calculateWithdrawalFee(amountFromBalance, tokenSymbol);
+    const receiveAmount = amountFromBalance - totalFee;
 
     if (amountFromBalance <= 0) {
       return {
@@ -459,21 +488,30 @@ class PrivacyCashService {
       };
     }
 
-    if (amountFromBalance <= fee) {
+    // Check minimum withdrawal
+    if (amountFromBalance < fees.MIN_WITHDRAWAL) {
       return {
         valid: false,
-        error: `Amount must be greater than the relay fee (${fee} SOL). You would receive nothing.`,
+        error: `Minimum withdrawal is ${fees.MIN_WITHDRAWAL} ${tokenSymbol}`,
       };
     }
 
-    if (balanceLamports < amountLamports) {
+    // Check if user would receive something after fees
+    if (receiveAmount <= 0) {
       return {
         valid: false,
-        error: `Insufficient balance. You have ${privateBalanceSOL.toFixed(4)} SOL but trying to withdraw ${amountFromBalance.toFixed(4)} SOL`,
+        error: `Amount too low. After fees (~${totalFee.toFixed(4)} ${tokenSymbol}), you would receive nothing.`,
+      };
+    }
+
+    if (privateBalance < amountFromBalance) {
+      return {
+        valid: false,
+        error: `Insufficient balance. You have ${privateBalance.toFixed(4)} ${tokenSymbol} but trying to withdraw ${amountFromBalance.toFixed(4)} ${tokenSymbol}`,
         details: {
           required: amountFromBalance,
-          available: privateBalanceSOL,
-          fee,
+          available: privateBalance,
+          fee: totalFee,
         },
       };
     }
@@ -482,53 +520,61 @@ class PrivacyCashService {
       valid: true,
       details: {
         required: amountFromBalance,
-        available: privateBalanceSOL,
-        fee,
+        available: privateBalance,
+        fee: totalFee,
       }
     };
   }
 
   /**
    * Calculate what user receives after fee
+   * Fee = (amount * 0.35%) + rent_fee
    */
-  calculateReceiveAmount(amountFromBalance: number): number {
-    const receiveLamports = Math.round(amountFromBalance * LAMPORTS_PER_SOL) - Math.round(PRIVACY_FEES.WITHDRAWAL_FEE * LAMPORTS_PER_SOL);
-    return Math.max(0, receiveLamports / LAMPORTS_PER_SOL);
+  calculateReceiveAmount(amountFromBalance: number, tokenSymbol: PrivacyCashTokenSymbol = 'SOL'): number {
+    const totalFee = calculateWithdrawalFee(amountFromBalance, tokenSymbol);
+    return Math.max(0, amountFromBalance - totalFee);
   }
 
   /**
    * Validate deposit parameters
    */
-  validateDeposit(amountInSOL: number, walletBalanceSOL: number): ValidationResult {
-    const fee = PRIVACY_FEES.DEPOSIT_FEE;
-    const totalRequired = amountInSOL + fee;
+  validateDeposit(
+    amount: number,
+    walletBalance: number,
+    tokenSymbol: PrivacyCashTokenSymbol = 'SOL'
+  ): ValidationResult {
+    const fees = getTokenFees(tokenSymbol);
+    const token = getPrivacyCashToken(tokenSymbol);
+    const decimals = token?.decimals || 9;
+    const multiplier = Math.pow(10, decimals);
+    const totalRequired = amount + fees.DEPOSIT_FEE;
 
-    // Use lamports for precise integer comparison
-    const balanceLamports = Math.round(walletBalanceSOL * LAMPORTS_PER_SOL);
-    const requiredLamports = Math.round(totalRequired * LAMPORTS_PER_SOL);
+    // Use smallest units for precise integer comparison
+    const balanceUnits = Math.round(walletBalance * multiplier);
+    const requiredUnits = Math.round(totalRequired * multiplier);
 
-    if (amountInSOL <= 0) {
+    if (amount <= 0) {
       return {
         valid: false,
         error: 'Deposit amount must be greater than 0',
       };
     }
 
-    if (amountInSOL < PRIVACY_FEES.MIN_DEPOSIT) {
+    if (amount < fees.MIN_DEPOSIT) {
       return {
         valid: false,
-        error: `Minimum deposit is ${PRIVACY_FEES.MIN_DEPOSIT} SOL`,
+        error: `Minimum deposit is ${fees.MIN_DEPOSIT} ${tokenSymbol}`,
       };
     }
 
-    if (balanceLamports < requiredLamports) {
+    if (balanceUnits < requiredUnits) {
       return {
         valid: false,
-        error: `Insufficient wallet balance. You need ${totalRequired.toFixed(4)} SOL (${amountInSOL} + ~${fee} fee), but only have ${walletBalanceSOL.toFixed(4)} SOL`,
+        error: `Insufficient wallet balance. You need ${totalRequired.toFixed(4)} ${tokenSymbol}, but only have ${walletBalance.toFixed(4)} ${tokenSymbol}`,
         details: {
           required: totalRequired,
-          available: walletBalanceSOL,
-          fee,
+          available: walletBalance,
+          fee: fees.DEPOSIT_FEE,
         },
       };
     }
@@ -540,19 +586,24 @@ class PrivacyCashService {
    * Get maximum amount that can be withdrawn FROM balance
    * Returns the full balance (user can withdraw all, will receive balance - fee)
    */
-  getMaxWithdrawable(privateBalanceSOL: number): number {
+  getMaxWithdrawable(privateBalance: number): number {
     // User can withdraw their entire balance
     // They will receive (balance - fee)
-    return privateBalanceSOL;
+    return privateBalance;
   }
 
   /**
    * Check if balance is withdrawable (greater than fee)
    */
-  canWithdraw(privateBalanceSOL: number): boolean {
-    const balanceLamports = Math.round(privateBalanceSOL * LAMPORTS_PER_SOL);
-    const feeLamports = Math.round(PRIVACY_FEES.WITHDRAWAL_FEE * LAMPORTS_PER_SOL);
-    return balanceLamports > feeLamports;
+  canWithdraw(privateBalance: number, tokenSymbol: PrivacyCashTokenSymbol = 'SOL'): boolean {
+    const fees = getTokenFees(tokenSymbol);
+    const token = getPrivacyCashToken(tokenSymbol);
+    const decimals = token?.decimals || 9;
+    const multiplier = Math.pow(10, decimals);
+
+    const balanceUnits = Math.round(privateBalance * multiplier);
+    const feeUnits = Math.round(fees.WITHDRAWAL_FEE * multiplier);
+    return balanceUnits > feeUnits;
   }
 
   /**

@@ -8,17 +8,26 @@ import {
   PrivacyAction,
   PrivacyTxResult,
   PrivateBalance,
+  PrivateBalances,
   PRIVACY_FEES,
+  getTokenFees,
   ValidationResult,
+  PRIVACY_CASH_TOKENS,
+  type PrivacyCashTokenSymbol,
 } from '@/lib/privacy-sdks/privacy-cash';
 
 export interface PrivacyCashState {
   privateBalance: PrivateBalance | null;
+  privateBalances: PrivateBalances; // All token balances
+  selectedToken: PrivacyCashTokenSymbol;
   loading: boolean;
   error: string | null;
   result: PrivacyTxResult | null;
   initialized: boolean;
 }
+
+// Re-export for convenience
+export { PRIVACY_CASH_TOKENS, type PrivacyCashTokenSymbol };
 
 export function usePrivacyCash() {
   const { wallets } = useWallets();
@@ -41,11 +50,20 @@ export function usePrivacyCash() {
 
   const [state, setState] = useState<PrivacyCashState>({
     privateBalance: null,
+    privateBalances: {},
+    selectedToken: 'SOL',
     loading: false,
     error: null,
     result: null,
     initialized: false,
   });
+
+  /**
+   * Set the selected token
+   */
+  const setSelectedToken = useCallback((token: PrivacyCashTokenSymbol) => {
+    setState(prev => ({ ...prev, selectedToken: token }));
+  }, []);
 
   /**
    * Wrapper for signMessage that works with Privacy Cash SDK
@@ -88,34 +106,79 @@ export function usePrivacyCash() {
   }, [wallet, privySignTransaction]);
 
   /**
-   * Fetch private balance
+   * Fetch private balance for selected token (or specified token)
    */
-  const fetchPrivateBalance = useCallback(async () => {
+  const fetchPrivateBalance = useCallback(async (tokenSymbol?: PrivacyCashTokenSymbol) => {
     if (!publicKey || !walletAddress) return;
 
+    const token = tokenSymbol || state.selectedToken;
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
-      const balance = await privacyCashService.getPrivateBalance(publicKey, signMessage);
+      const balance = await privacyCashService.getPrivateBalance(publicKey, signMessage, token);
       encryptionInitialized.current = true;
       currentWallet.current = walletAddress;
 
       setState((prev) => ({
         ...prev,
         privateBalance: balance,
+        privateBalances: {
+          ...prev.privateBalances,
+          [token]: balance,
+        },
         loading: false,
         initialized: true,
       }));
+
+      return balance;
     } catch (error) {
-      console.error('Error fetching private balance:', error);
+      console.error(`Error fetching private ${token} balance:`, error);
       setState((prev) => ({
         ...prev,
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to fetch balance',
         initialized: false,
       }));
+      return null;
     }
-  }, [publicKey, walletAddress, signMessage]);
+  }, [publicKey, walletAddress, signMessage, state.selectedToken]);
+
+  /**
+   * Fetch all private balances for all supported tokens
+   */
+  const fetchAllPrivateBalances = useCallback(async () => {
+    if (!publicKey || !walletAddress) return;
+
+    setState((prev) => ({ ...prev, loading: true, error: null }));
+
+    try {
+      const balances = await privacyCashService.getAllPrivateBalances(publicKey, signMessage);
+      encryptionInitialized.current = true;
+      currentWallet.current = walletAddress;
+
+      // Get the balance for currently selected token
+      const currentBalance = balances[state.selectedToken] || null;
+
+      setState((prev) => ({
+        ...prev,
+        privateBalance: currentBalance,
+        privateBalances: balances,
+        loading: false,
+        initialized: true,
+      }));
+
+      return balances;
+    } catch (error) {
+      console.error('Error fetching all private balances:', error);
+      setState((prev) => ({
+        ...prev,
+        loading: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch balances',
+        initialized: false,
+      }));
+      return null;
+    }
+  }, [publicKey, walletAddress, signMessage, state.selectedToken]);
 
   // Reset state when wallet changes
   useEffect(() => {
@@ -155,14 +218,16 @@ export function usePrivacyCash() {
   }, [publicKey, walletAddress, fetchPrivateBalance]);
 
   /**
-   * Deposit SOL into privacy pool
+   * Deposit token into privacy pool
    */
   const deposit = useCallback(
-    async (amount: number) => {
+    async (amount: number, tokenSymbol?: PrivacyCashTokenSymbol) => {
       if (!publicKey || !walletAddress) {
         setState((prev) => ({ ...prev, error: 'Wallet not connected. Please connect your wallet first.' }));
         return null;
       }
+
+      const token = tokenSymbol || state.selectedToken;
 
       setState((prev) => ({ ...prev, loading: true, error: null, result: null }));
 
@@ -171,26 +236,33 @@ export function usePrivacyCash() {
           publicKey,
           amount,
           signMessage,
-          signTransaction
+          signTransaction,
+          token
         );
+
+        const newBalance: PrivateBalance | null = result.newPrivateBalance !== undefined
+          ? {
+              balance: result.newPrivateBalance,
+              baseUnits: result.newPrivateBalance * Math.pow(10, PRIVACY_CASH_TOKENS.find(t => t.symbol === token)?.decimals || 9),
+              lastUpdated: Date.now(),
+              token,
+            }
+          : null;
 
         setState((prev) => ({
           ...prev,
           loading: false,
           result,
-          privateBalance: result.newPrivateBalance !== undefined
-            ? {
-                balance: result.newPrivateBalance,
-                lamports: result.newPrivateBalance * 1e9,
-                lastUpdated: Date.now(),
-              }
-            : prev.privateBalance,
+          privateBalance: newBalance || prev.privateBalance,
+          privateBalances: newBalance
+            ? { ...prev.privateBalances, [token]: newBalance }
+            : prev.privateBalances,
         }));
 
         return result;
       } catch (error) {
         let errorMessage = error instanceof Error ? error.message : 'Deposit failed';
-        console.error('Privacy deposit error:', error);
+        console.error(`Privacy ${token} deposit error:`, error);
 
         // Provide better error messages for common errors
         if (errorMessage.includes('block height exceeded') || errorMessage.includes('has expired')) {
@@ -216,57 +288,73 @@ export function usePrivacyCash() {
         return result;
       }
     },
-    [publicKey, walletAddress, signMessage, signTransaction]
+    [publicKey, walletAddress, signMessage, signTransaction, state.selectedToken]
   );
 
   /**
    * Validate withdrawal before attempting
    * @param amountFromBalance - Amount to withdraw FROM private balance
+   * @param tokenSymbol - Token to validate for
    */
   const validateWithdrawal = useCallback(
-    (amountFromBalance: number): ValidationResult => {
-      const privateBalance = state.privateBalance?.balance || 0;
-      return privacyCashService.validateWithdrawal(amountFromBalance, privateBalance);
+    (amountFromBalance: number, tokenSymbol?: PrivacyCashTokenSymbol): ValidationResult => {
+      const token = tokenSymbol || state.selectedToken;
+      const balance = state.privateBalances[token]?.balance || state.privateBalance?.balance || 0;
+      return privacyCashService.validateWithdrawal(amountFromBalance, balance, token);
     },
-    [state.privateBalance]
+    [state.privateBalance, state.privateBalances, state.selectedToken]
   );
 
   /**
    * Get maximum withdrawable amount (full balance)
    */
-  const getMaxWithdrawable = useCallback((): number => {
-    const privateBalance = state.privateBalance?.balance || 0;
-    return privacyCashService.getMaxWithdrawable(privateBalance);
-  }, [state.privateBalance]);
+  const getMaxWithdrawable = useCallback((tokenSymbol?: PrivacyCashTokenSymbol): number => {
+    const token = tokenSymbol || state.selectedToken;
+    const balance = state.privateBalances[token]?.balance || state.privateBalance?.balance || 0;
+    return privacyCashService.getMaxWithdrawable(balance);
+  }, [state.privateBalance, state.privateBalances, state.selectedToken]);
 
   /**
    * Calculate what user will receive after fee
    */
-  const calculateReceiveAmount = useCallback((amountFromBalance: number): number => {
-    return privacyCashService.calculateReceiveAmount(amountFromBalance);
-  }, []);
+  const calculateReceiveAmount = useCallback((amountFromBalance: number, tokenSymbol?: PrivacyCashTokenSymbol): number => {
+    const token = tokenSymbol || state.selectedToken;
+    return privacyCashService.calculateReceiveAmount(amountFromBalance, token);
+  }, [state.selectedToken]);
 
   /**
    * Check if balance is withdrawable
    */
-  const canWithdrawBalance = useCallback((): boolean => {
-    const privateBalance = state.privateBalance?.balance || 0;
-    return privacyCashService.canWithdraw(privateBalance);
-  }, [state.privateBalance]);
+  const canWithdrawBalance = useCallback((tokenSymbol?: PrivacyCashTokenSymbol): boolean => {
+    const token = tokenSymbol || state.selectedToken;
+    const balance = state.privateBalances[token]?.balance || state.privateBalance?.balance || 0;
+    return privacyCashService.canWithdraw(balance, token);
+  }, [state.privateBalance, state.privateBalances, state.selectedToken]);
 
   /**
-   * Withdraw SOL from privacy pool
+   * Get fees for selected token
+   */
+  const getSelectedTokenFees = useCallback((tokenSymbol?: PrivacyCashTokenSymbol) => {
+    const token = tokenSymbol || state.selectedToken;
+    return getTokenFees(token);
+  }, [state.selectedToken]);
+
+  /**
+   * Withdraw token from privacy pool
    */
   const withdraw = useCallback(
-    async (amount: number, recipientAddress?: string) => {
+    async (amount: number, recipientAddress?: string, tokenSymbol?: PrivacyCashTokenSymbol) => {
       if (!publicKey || !walletAddress) {
         setState((prev) => ({ ...prev, error: 'Wallet not connected. Please connect your wallet first.' }));
         return null;
       }
 
+      const token = tokenSymbol || state.selectedToken;
+      const tokenFees = getTokenFees(token);
+
       // Validate before proceeding
-      const privateBalance = state.privateBalance?.balance || 0;
-      const validation = privacyCashService.validateWithdrawal(amount, privateBalance);
+      const balance = state.privateBalances[token]?.balance || state.privateBalance?.balance || 0;
+      const validation = privacyCashService.validateWithdrawal(amount, balance, token);
 
       if (!validation.valid) {
         const result: PrivacyTxResult = {
@@ -293,20 +381,27 @@ export function usePrivacyCash() {
           publicKey,
           amount,
           recipient,
-          signMessage
+          signMessage,
+          token
         );
+
+        const newBalance: PrivateBalance | null = result.newPrivateBalance !== undefined
+          ? {
+              balance: result.newPrivateBalance,
+              baseUnits: result.newPrivateBalance * Math.pow(10, PRIVACY_CASH_TOKENS.find(t => t.symbol === token)?.decimals || 9),
+              lastUpdated: Date.now(),
+              token,
+            }
+          : null;
 
         setState((prev) => ({
           ...prev,
           loading: false,
           result,
-          privateBalance: result.newPrivateBalance !== undefined
-            ? {
-                balance: result.newPrivateBalance,
-                lamports: result.newPrivateBalance * 1e9,
-                lastUpdated: Date.now(),
-              }
-            : prev.privateBalance,
+          privateBalance: newBalance || prev.privateBalance,
+          privateBalances: newBalance
+            ? { ...prev.privateBalances, [token]: newBalance }
+            : prev.privateBalances,
         }));
 
         return result;
@@ -315,14 +410,14 @@ export function usePrivacyCash() {
 
         // Provide better error messages for common SDK errors
         if (errorMessage.includes('No enough balance')) {
-          errorMessage = `Insufficient private balance. You need at least ${(amount + PRIVACY_FEES.WITHDRAWAL_FEE).toFixed(4)} SOL (amount + ${PRIVACY_FEES.WITHDRAWAL_FEE} fee).`;
+          errorMessage = `Insufficient private balance. You need at least ${(amount + tokenFees.WITHDRAWAL_FEE).toFixed(4)} ${token} (amount + ${tokenFees.WITHDRAWAL_FEE} fee).`;
         } else if (errorMessage.includes('block height exceeded') || errorMessage.includes('has expired')) {
           errorMessage = 'Transaction expired. Please try again - ZK proof generation took too long.';
         } else if (errorMessage.includes('response not ok')) {
           errorMessage = 'Relayer error. Please try again in a moment.';
         }
 
-        console.error('Privacy withdraw error:', error);
+        console.error(`Privacy ${token} withdraw error:`, error);
 
         const result: PrivacyTxResult = {
           success: false,
@@ -341,7 +436,7 @@ export function usePrivacyCash() {
         return result;
       }
     },
-    [publicKey, walletAddress, signMessage, state.privateBalance]
+    [publicKey, walletAddress, signMessage, state.privateBalance, state.privateBalances, state.selectedToken]
   );
 
   /**
@@ -371,6 +466,8 @@ export function usePrivacyCash() {
     encryptionInitialized.current = false;
     setState({
       privateBalance: null,
+      privateBalances: {},
+      selectedToken: 'SOL',
       loading: false,
       error: null,
       result: null,
@@ -386,9 +483,13 @@ export function usePrivacyCash() {
     withdraw,
     estimateFee,
     fetchPrivateBalance,
+    fetchAllPrivateBalances,
     initialize,
     reset,
     clearCache,
+    // Token selection
+    setSelectedToken,
+    getSelectedTokenFees,
     // Validation helpers
     validateWithdrawal,
     getMaxWithdrawable,

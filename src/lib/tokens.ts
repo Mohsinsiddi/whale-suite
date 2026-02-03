@@ -232,3 +232,141 @@ export function getTokenDecimals(symbolOrMint: string): number {
 }
 
 export default TOKENS;
+
+// =============================================================================
+// PRIVACY CASH TOKEN CONFIGURATION
+// Separate from ShadowWire to avoid breaking existing functionality
+// Based on Privacy Cash SDK: SOL, USDC, USDT, ZEC, ORE, STORE
+// =============================================================================
+
+export interface PrivacyCashToken {
+  symbol: string;
+  name: string;
+  icon: string;
+  mint: string;
+  decimals: number;
+  logoURI: string;
+  // Privacy Cash specific
+  unitsPerToken: number;  // SDK's units_per_token value
+  prefix: string;         // SDK's storage prefix
+  withdrawalFee: number;  // Withdrawal fee in token units (relay fee)
+  minDeposit: number;     // Minimum deposit amount
+  minWithdrawal: number;  // Minimum withdrawal amount
+}
+
+// Privacy Cash fee structure from API (https://api3.privacycash.org/config):
+// - withdraw_fee_rate: 0.35% of amount
+// - rent_fees: flat fee per token (covers relayer costs)
+// Total fee = (amount * 0.0035) + rent_fee
+
+export const PRIVACY_CASH_TOKENS: PrivacyCashToken[] = [
+  {
+    symbol: 'SOL',
+    name: 'Solana',
+    icon: '◎',
+    mint: 'So11111111111111111111111111111111111111112',
+    decimals: 9,
+    logoURI: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
+    unitsPerToken: 1e9,
+    prefix: '',
+    withdrawalFee: 0.006,    // rent_fee from API
+    minDeposit: 0.001,
+    minWithdrawal: 0.01,     // minimum_withdrawal from API
+  },
+  {
+    symbol: 'USDC',
+    name: 'USD Coin',
+    icon: '$',
+    mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    decimals: 6,
+    logoURI: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
+    unitsPerToken: 1e6,
+    prefix: 'usdc_',
+    withdrawalFee: 0.623,    // rent_fee from API (~$0.62)
+    minDeposit: 0.01,
+    minWithdrawal: 2,        // minimum_withdrawal from API
+  },
+  {
+    symbol: 'USDT',
+    name: 'Tether USD',
+    icon: '₮',
+    mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+    decimals: 6,
+    logoURI: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.svg',
+    unitsPerToken: 1e6,
+    prefix: 'usdt_',
+    withdrawalFee: 0.623,    // rent_fee from API (~$0.62)
+    minDeposit: 0.01,
+    minWithdrawal: 2,        // minimum_withdrawal from API
+  },
+  {
+    symbol: 'ZEC',
+    name: 'Zcash (Wormhole)',
+    icon: '🔐',
+    mint: 'A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS',
+    decimals: 8,
+    logoURI: '', // Use icon fallback
+    unitsPerToken: 1e8,
+    prefix: 'zec_',
+    withdrawalFee: 0.00216,  // rent_fee from API
+    minDeposit: 0.001,
+    minWithdrawal: 0.01,     // minimum_withdrawal from API
+  },
+  {
+    symbol: 'ORE',
+    name: 'Ore',
+    icon: '⛏️',
+    mint: 'oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp',
+    decimals: 11,
+    logoURI: '', // Use icon fallback
+    unitsPerToken: 1e11,
+    prefix: 'ore_',
+    withdrawalFee: 0.00864,  // rent_fee from API
+    minDeposit: 0.001,
+    minWithdrawal: 0.02,     // minimum_withdrawal from API
+  },
+  {
+    symbol: 'STORE',
+    name: 'Store Protocol',
+    icon: '🏪',
+    mint: 'sTorERYB6xAZ1SSbwpK3zoK2EEwbBrc7TZAzg1uCGiH',
+    decimals: 11,
+    logoURI: '', // Use icon fallback
+    unitsPerToken: 1e11,
+    prefix: 'store_',
+    withdrawalFee: 0.00851,  // rent_fee from API
+    minDeposit: 0.001,
+    minWithdrawal: 0.02,     // minimum_withdrawal from API
+  },
+];
+
+// Privacy Cash token types
+export type PrivacyCashTokenSymbol = 'SOL' | 'USDC' | 'USDT' | 'ZEC' | 'ORE' | 'STORE';
+
+// Get Privacy Cash token by symbol
+export function getPrivacyCashToken(symbol: string): PrivacyCashToken | undefined {
+  return PRIVACY_CASH_TOKENS.find(t => t.symbol.toUpperCase() === symbol.toUpperCase());
+}
+
+// Get Privacy Cash token by mint
+export function getPrivacyCashTokenByMint(mint: string): PrivacyCashToken | undefined {
+  return PRIVACY_CASH_TOKENS.find(t => t.mint.toLowerCase() === mint.toLowerCase());
+}
+
+// Get withdrawal fee for a Privacy Cash token
+export function getPrivacyCashWithdrawalFee(symbol: string): number {
+  const token = getPrivacyCashToken(symbol);
+  return token?.withdrawalFee || 0.006; // Default to SOL fee
+}
+
+// Get minimum deposit for a Privacy Cash token
+export function getPrivacyCashMinDeposit(symbol: string): number {
+  const token = getPrivacyCashToken(symbol);
+  return token?.minDeposit || 0.001;
+}
+
+// Get minimum withdrawal for a Privacy Cash token
+export function getPrivacyCashMinWithdrawal(symbol: string): number {
+  const token = getPrivacyCashToken(symbol);
+  return token?.minWithdrawal || 0.007;
+}
