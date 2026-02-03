@@ -86,16 +86,47 @@ export default function Header({ variant = "landing", wallet }: HeaderProps) {
 
           {/* Nav Links - Desktop (Landing only) */}
           {variant === "landing" && (
-            <nav className="hidden md:flex items-center gap-6">
-              <Link href="#features" className="text-sm text-text-secondary hover:text-neon-green transition-colors">
+            <nav className="hidden lg:flex items-center gap-1">
+              <Link href="#features" className="px-3 py-1.5 text-sm text-text-secondary hover:text-neon-green hover:bg-neon-green/5 rounded-lg transition-colors">
                 Features
               </Link>
-              <Link href="#pricing" className="text-sm text-text-secondary hover:text-neon-green transition-colors">
+              <NavDropdown
+                label="Products"
+                items={[
+                  { href: "/privacy", label: "Privacy Cash", desc: "Shield your SOL balance", icon: "🔒" },
+                  { href: "/transfer", label: "Ghost Send", desc: "Private transfers", icon: "👻" },
+                  { href: "/swap", label: "Jupiter Swap", desc: "Best DEX rates", icon: "💱" },
+                  { href: "/private-swap", label: "Private Swap", desc: "ZK-powered swaps", icon: "🔐" },
+                  { href: "/markets", label: "PNP Markets", desc: "Prediction markets", icon: "📊" },
+                  { href: "/cards", label: "Virtual Cards", desc: "Crypto to cards", icon: "💳" },
+                  { href: "/launch", label: "Token Launcher", desc: "Gasless creation", icon: "🚀" },
+                  { href: "/badges", label: "INCO Badges", desc: "FHE confidential tiers", icon: "🔐" },
+                ]}
+              />
+              <NavDropdown
+                label="Community"
+                items={[
+                  { href: "/channels", label: "Channels", desc: "Tier-gated chat rooms", icon: "💬" },
+                  { href: "/badges", label: "Badge NFTs", desc: "Claim your badge", icon: "🏆" },
+                  { href: "/portfolio", label: "Portfolio", desc: "Track your assets", icon: "📈" },
+                  { href: "/affiliate", label: "Affiliate", desc: "Earn referral rewards", icon: "🤝" },
+                ]}
+              />
+              <Link href="#pricing" className="px-3 py-1.5 text-sm text-text-secondary hover:text-neon-green hover:bg-neon-green/5 rounded-lg transition-colors">
                 Pricing
               </Link>
-              <Link href="/docs" className="text-sm text-text-secondary hover:text-neon-green transition-colors">
+              <Link href="/docs" className="px-3 py-1.5 text-sm text-text-secondary hover:text-neon-green hover:bg-neon-green/5 rounded-lg transition-colors">
                 Docs
               </Link>
+              <a
+                href="https://github.com/Mohsinsiddi/whale-suite"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 text-sm text-text-secondary hover:text-neon-green hover:bg-neon-green/5 rounded-lg transition-colors flex items-center gap-1"
+              >
+                <GithubIcon className="w-4 h-4" />
+                GitHub
+              </a>
             </nav>
           )}
 
@@ -204,8 +235,8 @@ export default function Header({ variant = "landing", wallet }: HeaderProps) {
 
       {/* Mobile Menu (Landing) */}
       {mobileMenuOpen && variant === "landing" && (
-        <div className="md:hidden border-t border-border-primary bg-bg-primary/95 backdrop-blur-xl">
-          <nav className="px-4 py-4 flex flex-col gap-2">
+        <div className="lg:hidden border-t border-border-primary bg-bg-primary/95 backdrop-blur-xl max-h-[80vh] overflow-y-auto">
+          <nav className="px-4 py-4 flex flex-col gap-1">
             <Link
               href="#features"
               className="px-3 py-2 text-sm text-text-secondary hover:text-neon-green transition-colors"
@@ -213,13 +244,84 @@ export default function Header({ variant = "landing", wallet }: HeaderProps) {
             >
               Features
             </Link>
-            <Link
-              href="#pricing"
-              className="px-3 py-2 text-sm text-text-secondary hover:text-neon-green transition-colors"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Pricing
-            </Link>
+
+            {/* Products Section */}
+            <div className="mt-2">
+              <p className="px-3 py-1 text-xs font-semibold text-text-muted uppercase tracking-wider">Products</p>
+              <div className="mt-1 space-y-0.5">
+                {[
+                  { href: "/privacy", label: "Privacy Cash", icon: "🔒" },
+                  { href: "/transfer", label: "Ghost Send", icon: "👻" },
+                  { href: "/swap", label: "Jupiter Swap", icon: "💱" },
+                  { href: "/private-swap", label: "Private Swap", icon: "🔐" },
+                  { href: "/markets", label: "PNP Markets", icon: "📊" },
+                  { href: "/cards", label: "Virtual Cards", icon: "💳" },
+                  { href: "/launch", label: "Token Launcher", icon: "🚀" },
+                  { href: "/badges", label: "INCO Badges", icon: "🔐" },
+                ].map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-neon-green hover:bg-neon-green/5 rounded-lg transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <span>{item.icon}</span>
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            {/* Community Section */}
+            <div className="mt-2">
+              <p className="px-3 py-1 text-xs font-semibold text-text-muted uppercase tracking-wider">Community</p>
+              <div className="mt-1 space-y-0.5">
+                {[
+                  { href: "/channels", label: "Channels", icon: "💬" },
+                  { href: "/badges", label: "Badge NFTs", icon: "🏆" },
+                  { href: "/portfolio", label: "Portfolio", icon: "📈" },
+                  { href: "/affiliate", label: "Affiliate", icon: "🤝" },
+                ].map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-neon-green hover:bg-neon-green/5 rounded-lg transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <span>{item.icon}</span>
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            {/* Other Links */}
+            <div className="mt-2 pt-2 border-t border-border-primary space-y-0.5">
+              <Link
+                href="#pricing"
+                className="px-3 py-2 text-sm text-text-secondary hover:text-neon-green transition-colors block"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Pricing
+              </Link>
+              <Link
+                href="/docs"
+                className="px-3 py-2 text-sm text-text-secondary hover:text-neon-green transition-colors block"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Documentation
+              </Link>
+              <a
+                href="https://github.com/Mohsinsiddi/whale-suite"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-neon-green transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <GithubIcon className="w-4 h-4" />
+                GitHub
+              </a>
+            </div>
           </nav>
         </div>
       )}
@@ -571,3 +673,53 @@ const AlertIcon = ({ className = "w-4 h-4" }) => (
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
   </svg>
 );
+
+const GithubIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+    <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+  </svg>
+);
+
+// Navigation Dropdown Component for Landing Page
+function NavDropdown({
+  label,
+  items
+}: {
+  label: string;
+  items: Array<{ href: string; label: string; desc: string; icon: string }>;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+    >
+      <button className="flex items-center gap-1 px-3 py-1.5 text-sm text-text-secondary hover:text-neon-green hover:bg-neon-green/5 rounded-lg transition-colors">
+        {label}
+        <ChevronDownIcon className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1 w-64 p-2 rounded-xl bg-bg-secondary/95 backdrop-blur-xl border border-border-primary shadow-xl z-50">
+          {items.map((item, i) => (
+            <Link
+              key={i}
+              href={item.href}
+              className="flex items-start gap-3 p-2 rounded-lg hover:bg-neon-green/10 transition-colors group"
+            >
+              <span className="text-lg mt-0.5">{item.icon}</span>
+              <div>
+                <p className="text-sm font-medium text-text-primary group-hover:text-neon-green transition-colors">
+                  {item.label}
+                </p>
+                <p className="text-xs text-text-muted">{item.desc}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
