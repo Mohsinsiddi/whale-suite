@@ -11,6 +11,7 @@ import { useShadowWire, useWalletBalance, useWhaleFeed, useNetwork, useUserStats
 import { usePrivacyCash } from "@/hooks/usePrivacyCash";
 import { usePNP } from "@/hooks/usePNP";
 import { useAuth } from "@/lib/privy/hooks";
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 
 export default function DashboardPage() {
   return (
@@ -125,6 +126,9 @@ function DashboardContent() {
           <Badge variant="success" dot pulse>Premium Active</Badge>
         </div>
       </div>
+
+      {/* Wallet Mismatch Banner */}
+      <WalletMismatchBanner />
 
       {/* Network Banner - Show on Devnet */}
       {!isMainnet && (

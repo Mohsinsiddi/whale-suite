@@ -11,7 +11,6 @@ export function useAuth() {
   // Get the primary Solana wallet
   const primaryWallet = useMemo(() => {
     if (!solanaWallets || solanaWallets.length === 0) return null;
-    // Return first available Solana wallet
     return solanaWallets[0];
   }, [solanaWallets]);
 

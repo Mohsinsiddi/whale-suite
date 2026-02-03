@@ -24,6 +24,7 @@ import {
   ArrowDownCircle,
 } from "lucide-react";
 import LearnMoreLink from "@/components/ui/LearnMoreLink";
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 
 // Alias for Flame
 const Fire = Flame;
@@ -370,6 +371,8 @@ export default function BadgesPage() {
 
   return (
     <div className="space-y-6">
+      <WalletMismatchBanner />
+
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -389,6 +392,9 @@ export default function BadgesPage() {
           </div>
         )}
       </div>
+
+      {/* Wallet Mismatch Banner */}
+      <WalletMismatchBanner compact />
 
       {/* Stats Overview */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/privy/hooks";
 import { useUser, useWallet, useUI } from "@/store";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useNetwork, FEATURE_NETWORK_SUPPORT, type FeatureKey } from "@/hooks/useNetwork";
+import { useWalletMismatch } from "@/hooks/useWalletMismatch";
 
 interface HeaderProps {
   variant?: "landing" | "app";
@@ -26,6 +27,9 @@ export default function Header({ variant = "landing", wallet }: HeaderProps) {
 
   // Use network context
   const { network, isFeatureAvailable } = useNetwork();
+
+  // Detect wallet mismatch (Phantom vs Privy)
+  const { isMismatch, phantomWallet } = useWalletMismatch();
 
   // Fetch real SOL balance from blockchain
   const displayWalletAddr = wallet || walletAddress;
@@ -106,6 +110,26 @@ export default function Header({ variant = "landing", wallet }: HeaderProps) {
               </Link>
             ) : authenticated ? (
               <>
+                {/* Wallet Changed Warning Icon with Tooltip */}
+                {isMismatch && (
+                  <div className="relative group">
+                    <div className="p-2 rounded-lg bg-warning/10 border border-warning/30 cursor-help">
+                      <AlertIcon className="w-4 h-4 text-warning" />
+                      <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-warning opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-warning"></span>
+                      </span>
+                    </div>
+                    {/* Hover Tooltip */}
+                    <div className="absolute right-0 top-full mt-2 w-52 p-2 rounded-lg bg-bg-secondary border border-warning/30 shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                      <p className="text-xs text-warning font-medium mb-1">Wallet Changed</p>
+                      <p className="text-[10px] text-text-muted">
+                        Disconnect & login again for fresh auth →
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Wallet/Balance Dropdown - Desktop only */}
                 <div className="hidden sm:block">
                   <WalletDropdown
@@ -129,6 +153,8 @@ export default function Header({ variant = "landing", wallet }: HeaderProps) {
                   hiddenBalance={hiddenBalance}
                   onDisconnect={handleDisconnect}
                   isFeatureAvailable={isFeatureAvailable}
+                  walletChanged={isMismatch}
+                  newWallet={phantomWallet}
                 />
               </>
             ) : (
@@ -294,6 +320,8 @@ function ProfileDropdown({
   hiddenBalance,
   onDisconnect,
   isFeatureAvailable,
+  walletChanged,
+  newWallet,
 }: {
   displayWallet: string | null;
   shortWallet: string;
@@ -306,27 +334,34 @@ function ProfileDropdown({
   hiddenBalance: number;
   onDisconnect: () => void;
   isFeatureAvailable: (feature: FeatureKey) => boolean;
+  walletChanged?: boolean;
+  newWallet?: string | null;
 }) {
   const router = useRouter();
+  const shortNewWallet = newWallet ? `${newWallet.slice(0, 4)}...${newWallet.slice(-4)}` : '';
 
   return (
     <Dropdown
       trigger={
-        <button className="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-bg-tertiary/80 hover:bg-bg-tertiary transition-all border border-border-primary hover:border-neon-green/30 hover:shadow-glow-sm">
-          {/* Connected indicator */}
+        <button className={`flex items-center gap-2 px-2 py-1.5 rounded-xl bg-bg-tertiary/80 hover:bg-bg-tertiary transition-all border ${walletChanged ? 'border-warning/50' : 'border-border-primary'} hover:border-neon-green/30 hover:shadow-glow-sm`}>
+          {/* Connected indicator - orange when wallet changed */}
           <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-neon-green opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-neon-green"></span>
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${walletChanged ? 'bg-warning' : 'bg-neon-green'} opacity-75`}></span>
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${walletChanged ? 'bg-warning' : 'bg-neon-green'}`}></span>
           </span>
           <WalletAvatar address={displayWallet || "0x0000"} size="sm" showAddress={false} />
           <div className="hidden sm:flex flex-col items-start">
-            <span className="text-[10px] text-neon-green font-medium">Connected</span>
+            <span className={`text-[10px] font-medium ${walletChanged ? 'text-warning' : 'text-neon-green'}`}>
+              {walletChanged ? 'Wallet Changed' : 'Connected'}
+            </span>
             <span className="text-xs font-semibold text-text-primary">
               {userNumber ? `Whale #${userNumber}` : shortWallet}
             </span>
           </div>
-          {/* Mobile: Just show "Connected" text */}
-          <span className="sm:hidden text-xs font-medium text-neon-green">Connected</span>
+          {/* Mobile: Show status */}
+          <span className={`sm:hidden text-xs font-medium ${walletChanged ? 'text-warning' : 'text-neon-green'}`}>
+            {walletChanged ? 'Changed' : 'Connected'}
+          </span>
           <ChevronDownIcon className="w-3 h-3 text-text-muted" />
         </button>
       }
@@ -410,6 +445,24 @@ function ProfileDropdown({
           </div>
         </div>
 
+        {/* Wallet Changed Warning */}
+        {walletChanged && (
+          <div className="px-3 py-2 border-b border-warning/30 bg-warning/5">
+            <div className="flex items-start gap-2">
+              <AlertIcon className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-warning">Wallet Changed</p>
+                <p className="text-[10px] text-text-muted mt-0.5">
+                  Now using <span className="font-mono text-neon-cyan">{shortNewWallet}</span>
+                </p>
+                <p className="text-[10px] text-text-muted mt-1">
+                  Disconnect below and login again for fresh auth.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Menu Items */}
         <div className="py-1">
           <DropdownItem icon={<UserIcon />} onClick={() => router.push('/profile')}>
@@ -423,7 +476,7 @@ function ProfileDropdown({
           </DropdownItem>
           <DropdownDivider />
           <DropdownItem icon={<LogoutIcon />} variant="danger" onClick={onDisconnect}>
-            Disconnect
+            {walletChanged ? 'Disconnect & Relogin' : 'Disconnect'}
           </DropdownItem>
         </div>
       </div>
@@ -490,5 +543,11 @@ const LogoutIcon = () => (
 const BookIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+  </svg>
+);
+
+const AlertIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
   </svg>
 );

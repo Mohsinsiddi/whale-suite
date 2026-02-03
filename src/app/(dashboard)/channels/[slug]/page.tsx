@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/privy/hooks';
 import { useConfidentialBadge } from '@/hooks/useConfidentialBadge';
 import Link from 'next/link';
 import { AnonAvatar } from '@/components/ui/AnonAvatar';
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 
 type ActivityType = 'swap' | 'transfer' | 'deposit' | 'withdraw' | 'bet' | 'badge_claim';
 
@@ -270,6 +271,8 @@ export default function ChannelChatPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)]">
+      <WalletMismatchBanner />
+
       {/* Header */}
       <div className="flex-shrink-0 p-4 border-b border-border-primary bg-bg-secondary/50">
         <div className="flex items-center justify-between">

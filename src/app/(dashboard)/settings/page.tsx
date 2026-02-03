@@ -8,6 +8,7 @@ import Input from "@/components/ui/Input";
 import { TabPanel } from "@/components/ui/Tabs";
 import RPCSettings from "@/components/settings/RPCSettings";
 import { Globe, Shield, Bell, Lock, Settings, Clock } from "lucide-react";
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 
 // Coming Soon Overlay Component
 function ComingSoonOverlay({ children }: { children: React.ReactNode }) {
@@ -39,6 +40,8 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
+      <WalletMismatchBanner />
+
       {/* Page Header */}
       <div>
         <h1 className="text-xl font-bold text-text-primary">Settings</h1>

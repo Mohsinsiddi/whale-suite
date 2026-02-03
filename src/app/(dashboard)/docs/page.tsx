@@ -14,6 +14,7 @@ import {
   type BadgeTier,
   type SdkId,
 } from "@/lib/points/config";
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 
 // Icons
 const BookIcon = ({ className }: { className?: string }) => (
@@ -522,6 +523,8 @@ export default function DocsPage() {
 
   return (
     <div className="space-y-6">
+      <WalletMismatchBanner />
+
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}

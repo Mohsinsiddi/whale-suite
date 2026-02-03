@@ -17,7 +17,8 @@ import { useAuth } from '@/lib/privy/hooks';
  */
 export function useWalletChange() {
   const { walletAddress, authenticated } = useAuth();
-  const { logout } = usePrivy();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { logout } = usePrivy(); // Keep for potential future use
   const { mutate } = useSWRConfig();
 
   // Get store actions once (stable references)
@@ -31,7 +32,8 @@ export function useWalletChange() {
   const previousWalletRef = useRef<string | null>(null);
   const isInitializedRef = useRef(false);
   const hasSyncedRef = useRef(false); // Track if we've synced this session
-  const isLoggingOutRef = useRef(false); // Prevent multiple logout calls
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const isLoggingOutRef = useRef(false); // Keep for potential future use
 
   // Sync user to backend
   const syncUserToBackend = useCallback(async (wallet: string) => {
@@ -101,31 +103,30 @@ export function useWalletChange() {
       return;
     }
 
-    // Detect wallet switch while authenticated - force re-auth
+    // Detect wallet switch while authenticated - sync new wallet data (don't force logout)
     if (previousWalletRef.current && previousWalletRef.current !== walletAddress) {
-      console.log('Wallet switched while authenticated:', {
+      console.log('[WalletChange] Wallet switched while authenticated:', {
         from: previousWalletRef.current,
         to: walletAddress,
       });
 
-      // Force logout to re-authenticate with new wallet
-      if (!isLoggingOutRef.current) {
-        isLoggingOutRef.current = true;
-        console.log('Forcing logout due to wallet change...');
+      // Clear old user data and sync new wallet
+      console.log('[WalletChange] Syncing new wallet data...');
+      resetUser();
+      useStore.getState().setHasSynced(false);
 
-        // Clear state
-        resetUser();
-        resetWallet();
-        useStore.getState().setHasSynced(false);
-        mutate(() => true, undefined, { revalidate: false });
-        previousWalletRef.current = null;
-        hasSyncedRef.current = false;
+      // Update to new wallet
+      setWallet(walletAddress);
+      previousWalletRef.current = walletAddress;
+      hasSyncedRef.current = false;
 
-        // Logout from Privy
-        logout().finally(() => {
-          isLoggingOutRef.current = false;
-        });
-      }
+      // Invalidate all caches
+      mutate(() => true, undefined, { revalidate: false });
+
+      // Sync new user data
+      syncUserToBackend(walletAddress);
+      hasSyncedRef.current = true;
+
       return;
     }
 

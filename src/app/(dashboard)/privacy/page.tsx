@@ -11,6 +11,7 @@ import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useNetwork } from "@/hooks/useNetwork";
 import { PointsEarned } from "@/components/leaderboard";
 import LearnMoreLink from "@/components/ui/LearnMoreLink";
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 
 type TabType = "deposit" | "withdraw";
 
@@ -231,6 +232,8 @@ export default function PrivacyCashPage() {
 
   return (
     <div className="space-y-6">
+      <WalletMismatchBanner />
+
       {/* Page Header */}
       <div className="flex items-start justify-between">
         <div>

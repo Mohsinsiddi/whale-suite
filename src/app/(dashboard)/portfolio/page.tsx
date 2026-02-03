@@ -4,6 +4,7 @@ import Card, { CardHeader, CardTitle } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Tabs from "@/components/ui/Tabs";
 import { useState } from "react";
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 
 const holdings = [
   { token: "SOL", name: "Solana", icon: "◎", amount: 974.5, value: 146175, change: 12.5, hidden: 850 },
@@ -35,6 +36,8 @@ export default function PortfolioPage() {
 
   return (
     <div className="space-y-6">
+      <WalletMismatchBanner />
+
       {/* Page Header */}
       <div>
         <h1 className="text-xl font-bold text-text-primary">Portfolio</h1>
