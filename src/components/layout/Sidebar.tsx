@@ -250,7 +250,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       {
         title: "Predictions",
         items: [
-          { href: "/markets", icon: <MarketsIcon />, label: "Bet Markets", badge: "P2P", badgeColor: "cyan", featureKey: 'pnp-markets', tooltip: {
+          { href: "/markets", icon: <MarketsIcon />, label: "Bet Markets", badge: "PNP", badgeColor: "cyan", featureKey: 'pnp-markets', tooltip: {
             sponsor: "PNP Protocol",
             description: "Anonymous prediction markets",
             points: ["Create & bet on markets", "P2P order matching", "Private position tracking"]
@@ -285,7 +285,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       {
         title: "Launch",
         items: [
-          { href: "/launch", icon: <RocketIcon />, label: "Token Launcher", badge: "$10K", badgeColor: "cyan", tooltip: {
+          { href: "/launch", icon: <RocketIcon />, label: "Token Launcher", badge: "Anon", badgeColor: "cyan", tooltip: {
             sponsor: "Anoncoin",
             description: "Launch tokens with privacy",
             points: ["Anonymous token creation", "$10K prize pool", "Fair launch mechanisms"]

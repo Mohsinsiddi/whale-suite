@@ -264,7 +264,7 @@
   <!-- Preview Frame -->
   <div class="preview-container">
     <div class="preview-frame" id="previewFrame">
-      <iframe id="previewIframe" src="http://localhost:3000/" width="375" height="667"></iframe>
+      <iframe id="previewIframe" src="https://www.whalesuite.xyz/" width="375" height="667"></iframe>
     </div>
   </div>
 
@@ -547,11 +547,11 @@
     function changePage() {
       const page = document.getElementById('pageSelector').value;
       const iframe = document.getElementById('previewIframe');
-      iframe.src = 'http://localhost:3000' + page;
+      iframe.src = 'https://www.whalesuite.xyz' + page;
 
       // Update all viewport iframes
       document.querySelectorAll('.viewport-preview iframe').forEach(frame => {
-        frame.src = 'http://localhost:3000' + page;
+        frame.src = 'https://www.whalesuite.xyz' + page;
       });
     }
 
@@ -607,7 +607,7 @@
         preview.className = 'viewport-preview';
         preview.innerHTML = `
           <h4>${vp.name} (${vp.width}px)</h4>
-          <iframe src="http://localhost:3000${page}" width="${vp.width}" height="${vp.height}" style="transform: scale(${300/vp.width}); transform-origin: top left; height: ${vp.height * (300/vp.width)}px;"></iframe>
+          <iframe src="https://www.whalesuite.xyz${page}" width="${vp.width}" height="${vp.height}" style="transform: scale(${300/vp.width}); transform-origin: top left; height: ${vp.height * (300/vp.width)}px;"></iframe>
         `;
         container.appendChild(preview);
       });
