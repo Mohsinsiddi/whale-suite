@@ -432,17 +432,21 @@ class HeliusService {
           amount: Number(tokenAmount.amount),
           decimals: tokenAmount.decimals,
           uiAmount: tokenAmount.uiAmount || 0,
-          // Metadata will be filled from known tokens
+          // Metadata will be filled below
           symbol: undefined,
           name: undefined,
           logoURI: undefined,
         };
       });
 
-      // Add metadata for known tokens
-      for (const token of tokens) {
-        if (KNOWN_DECIMALS[token.mint]) {
-          const metadata = await this.getTokenMetadata(token.mint);
+      // Fetch metadata for ALL tokens with balance > 0 using Helius DAS API
+      const tokensWithBalance = tokens.filter(t => t.uiAmount > 0);
+      if (tokensWithBalance.length > 0) {
+        const mintAddresses = tokensWithBalance.map(t => t.mint);
+        const metadataMap = await this.getMultipleTokenMetadataDAS(mintAddresses);
+
+        for (const token of tokens) {
+          const metadata = metadataMap.get(token.mint);
           if (metadata) {
             token.symbol = metadata.symbol;
             token.name = metadata.name;
@@ -455,6 +459,90 @@ class HeliusService {
     } catch (error) {
       console.error('Error fetching balances from RPC:', error);
       return { sol: 0, tokens: [] };
+    }
+  }
+
+  /**
+   * Batch fetch token metadata using Helius DAS API (getAssetBatch)
+   */
+  async getMultipleTokenMetadataDAS(mintAddresses: string[]): Promise<Map<string, TokenMetadata>> {
+    const results = new Map<string, TokenMetadata>();
+
+    if (mintAddresses.length === 0) return results;
+
+    // Check cache first and collect uncached
+    const uncached: string[] = [];
+    for (const mint of mintAddresses) {
+      if (tokenMetadataCache.has(mint)) {
+        results.set(mint, tokenMetadataCache.get(mint)!);
+      } else {
+        uncached.push(mint);
+      }
+    }
+
+    if (uncached.length === 0) return results;
+
+    try {
+      // Use Helius DAS getAssetBatch for efficient batch fetching
+      const response = await fetch(HELIUS_RPC, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'get-asset-batch',
+          method: 'getAssetBatch',
+          params: { ids: uncached },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Helius API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.result && Array.isArray(data.result)) {
+        for (const asset of data.result) {
+          if (asset && asset.id) {
+            const metadata: TokenMetadata = {
+              mint: asset.id,
+              decimals: asset.token_info?.decimals ?? KNOWN_DECIMALS[asset.id] ?? 9,
+              symbol: asset.token_info?.symbol || asset.content?.metadata?.symbol,
+              name: asset.content?.metadata?.name,
+              logoURI: asset.content?.links?.image || asset.content?.files?.[0]?.uri,
+            };
+
+            // Cache it
+            tokenMetadataCache.set(asset.id, metadata);
+            results.set(asset.id, metadata);
+          }
+        }
+      }
+
+      // For any mints that weren't returned, try to at least get decimals from RPC
+      for (const mint of uncached) {
+        if (!results.has(mint)) {
+          // Check known decimals
+          if (KNOWN_DECIMALS[mint]) {
+            const metadata: TokenMetadata = { mint, decimals: KNOWN_DECIMALS[mint] };
+            tokenMetadataCache.set(mint, metadata);
+            results.set(mint, metadata);
+          }
+        }
+      }
+
+      return results;
+    } catch (error) {
+      console.error('Error batch fetching token metadata:', error);
+
+      // Fallback: return known decimals for any we have
+      for (const mint of uncached) {
+        if (KNOWN_DECIMALS[mint] && !results.has(mint)) {
+          results.set(mint, { mint, decimals: KNOWN_DECIMALS[mint] });
+        }
+      }
+
+      return results;
     }
   }
 
