@@ -26,8 +26,8 @@ export const FEATURE_NETWORK_SUPPORT = {
   "whale-feed": { mainnet: true, devnet: true, label: "Whale Intelligence" },
   "darklake": { mainnet: true, devnet: false, label: "Darklake Private Swap" },
 
-  // Devnet-only features (beta/testing)
-  "dark-pool": { mainnet: false, devnet: true, label: "Dark Pool (Beta)" },
+  // Darklake Dark Pool - ZK-AMM private swaps (mainnet only)
+  "dark-pool": { mainnet: true, devnet: false, label: "Dark Pool" },
 
   // Available on both networks
   "standard-transfer": { mainnet: true, devnet: true, label: "Standard Transfer" },

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode, useMemo, useState, useEffect, useCallback } from "react";
+import { ReactNode, useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TierBadge } from "../ui/Badge";
 import { WalletAvatar } from "../ui/Avatar";
@@ -19,6 +19,12 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
+interface TooltipInfo {
+  sponsor: string;
+  description: string;
+  points: string[];
+}
+
 interface NavItem {
   href: string;
   icon: ReactNode;
@@ -26,6 +32,7 @@ interface NavItem {
   badge?: string;
   badgeColor?: string;
   featureKey?: FeatureKey;
+  tooltip?: TooltipInfo;
 }
 
 interface NavGroup {
@@ -126,7 +133,12 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       icon: <ChannelsIcon />,
       label: "All Channels",
       badge: !confidentialBadge?.hasClaimed ? "Join" : undefined,
-      badgeColor: "cyan"
+      badgeColor: "cyan",
+      tooltip: {
+        sponsor: "INCO FHE",
+        description: "Private badge-gated chat channels",
+        points: ["Encrypted messaging with FHE", "Badge tier access control", "Real-time whale discussions"]
+      }
     };
 
     // Joined channels
@@ -147,6 +159,11 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             href: ch.href,
             icon: <span className="text-sm">{ch.icon}</span>,
             label: ch.label,
+            tooltip: {
+              sponsor: "INCO FHE",
+              description: `${ch.label} - Tier ${ch.tier} chat`,
+              points: ["Private encrypted channel", "Badge holder exclusive", "Real-time messaging"]
+            }
           });
         }
       }
@@ -160,6 +177,11 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         label: "Diamond Den",
         badge: "Soon",
         badgeColor: "default",
+        tooltip: {
+          sponsor: "INCO FHE",
+          description: "Diamond tier exclusive channel",
+          points: ["Coming on mainnet", "Top-tier whale access", "VIP discussions"]
+        }
       },
       {
         href: "#",
@@ -167,6 +189,11 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         label: "Legendary",
         badge: "Soon",
         badgeColor: "default",
+        tooltip: {
+          sponsor: "INCO FHE",
+          description: "Legendary tier exclusive channel",
+          points: ["Coming on mainnet", "Elite whale access", "Alpha discussions"]
+        }
       },
     ];
 
@@ -183,56 +210,111 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       {
         title: "Overview",
         items: [
-          { href: "/dashboard", icon: <DashboardIcon />, label: "Command Center" },
+          { href: "/dashboard", icon: <DashboardIcon />, label: "Command Center", tooltip: {
+            sponsor: "Whale Suite",
+            description: "Your privacy control center",
+            points: ["Real-time balance overview", "Privacy score tracking", "Quick access to all tools"]
+          }},
         ],
       },
       {
         title: "Privacy Tools",
         items: [
-          { href: "/privacy", icon: <ShieldIcon />, label: "Privacy Cash", featureKey: 'privacy-cash' },
-          { href: "/transfer", icon: <GhostIcon />, label: "Ghost Send", featureKey: 'shadow-wire' },
-          { href: "/swap", icon: <SwapIcon />, label: "Jupiter Swap", featureKey: 'jupiter-swap' },
-          { href: "/private-swap", icon: <PrivateSwapIcon />, label: "Private Swap", badge: "ZK", badgeColor: "cyan", featureKey: 'darklake' },
-          { href: "/private-payments", icon: <LockIcon />, label: "Private Payments", badge: "INCO", badgeColor: "cyan", featureKey: 'private-payments' as FeatureKey },
-          { href: "/dark-pool", icon: <DarkPoolIcon />, label: "Dark Pool", badge: "Beta", badgeColor: "warning", featureKey: 'dark-pool' },
+          { href: "/privacy", icon: <ShieldIcon />, label: "Shield Assets", badge: "ZK", badgeColor: "cyan", featureKey: 'privacy-cash', tooltip: {
+            sponsor: "Privacy Cash",
+            description: "Hide your token balances with ZK proofs",
+            points: ["Deposit SOL/USDC/tokens privately", "Withdraw to any wallet anonymously", "ZK-SNARK encryption"]
+          }},
+          { href: "/transfer", icon: <GhostIcon />, label: "Ghost Send", badge: "ZK", badgeColor: "cyan", featureKey: 'shadow-wire', tooltip: {
+            sponsor: "ShadowWire",
+            description: "Anonymous token transfers",
+            points: ["Hidden sender identity", "Encrypted transfer amounts", "Bulletproof ZK technology"]
+          }},
+          { href: "/swap", icon: <SwapIcon />, label: "Swap", featureKey: 'jupiter-swap', tooltip: {
+            sponsor: "Jupiter",
+            description: "Best rate token swaps",
+            points: ["Aggregated liquidity", "Optimal swap routes", "Minimal slippage"]
+          }},
+          { href: "/private-payments", icon: <LockIcon />, label: "Private Pay", badge: "FHE", badgeColor: "cyan", featureKey: 'private-payments' as FeatureKey, tooltip: {
+            sponsor: "INCO Network",
+            description: "Create encrypted payment links",
+            points: ["FHE-encrypted amounts", "Shareable payment URLs", "Private invoicing"]
+          }},
+          { href: "/private-swap", icon: <DarkPoolIcon />, label: "Dark Pool", badge: "ZK", badgeColor: "cyan", featureKey: 'dark-pool', tooltip: {
+            sponsor: "Darklake",
+            description: "Private OTC-style swaps",
+            points: ["Hidden order book", "Large trade execution", "No front-running"]
+          }},
         ],
       },
       {
         title: "Predictions",
         items: [
-          { href: "/markets", icon: <MarketsIcon />, label: "PNP Markets", featureKey: 'pnp-markets' },
+          { href: "/markets", icon: <MarketsIcon />, label: "Bet Markets", badge: "P2P", badgeColor: "cyan", featureKey: 'pnp-markets', tooltip: {
+            sponsor: "PNP Protocol",
+            description: "Anonymous prediction markets",
+            points: ["Create & bet on markets", "P2P order matching", "Private position tracking"]
+          }},
         ],
       },
       {
         title: "Intelligence",
         items: [
-          { href: "/intelligence", icon: <IntelligenceIcon />, label: "Whale Intel", featureKey: 'whale-feed' },
-          { href: "/portfolio", icon: <PortfolioIcon />, label: "Portfolio" },
+          { href: "/intelligence", icon: <IntelligenceIcon />, label: "Whale Intel", featureKey: 'whale-feed', tooltip: {
+            sponsor: "Helius",
+            description: "Real-time whale activity feed",
+            points: ["Large transaction alerts", "Whale wallet tracking", "Privacy pool movements"]
+          }},
+          { href: "/portfolio", icon: <PortfolioIcon />, label: "Portfolio", tooltip: {
+            sponsor: "Helius · Quicknode",
+            description: "Complete portfolio analytics",
+            points: ["Token balance tracking", "NFT holdings view", "Transaction history"]
+          }},
         ],
       },
       {
         title: "Payments",
         items: [
-          { href: "/cards", icon: <CardsIcon />, label: "Virtual Cards", badge: "New", badgeColor: "cyan", featureKey: 'virtual-cards' as FeatureKey },
+          { href: "/cards", icon: <CardsIcon />, label: "Virtual Cards", badge: "New", badgeColor: "cyan", featureKey: 'virtual-cards' as FeatureKey, tooltip: {
+            sponsor: "StarPay",
+            description: "Crypto-backed virtual cards",
+            points: ["Instant card generation", "Spend crypto anywhere", "Privacy-focused payments"]
+          }},
         ],
       },
       {
         title: "Launch",
         items: [
-          { href: "/launch", icon: <RocketIcon />, label: "Token Launcher", badge: "$10K", badgeColor: "cyan" },
+          { href: "/launch", icon: <RocketIcon />, label: "Token Launcher", badge: "$10K", badgeColor: "cyan", tooltip: {
+            sponsor: "Anoncoin",
+            description: "Launch tokens with privacy",
+            points: ["Anonymous token creation", "$10K prize pool", "Fair launch mechanisms"]
+          }},
         ],
       },
       {
         title: "Premium",
         items: [
-          { href: "/badges", icon: <BadgeIcon />, label: "NFT Badges" },
-          { href: "/affiliate", icon: <AffiliateIcon />, label: "Affiliate", badge: "Soon", badgeColor: "default" },
+          { href: "/badges", icon: <BadgeIcon />, label: "NFT Badges", badge: "FHE", badgeColor: "cyan", tooltip: {
+            sponsor: "INCO Network",
+            description: "Confidential tier badges",
+            points: ["FHE-encrypted badge tiers", "Access gated features", "Claim on Channels page"]
+          }},
+          { href: "/affiliate", icon: <AffiliateIcon />, label: "Affiliate", badge: "Soon", badgeColor: "default", tooltip: {
+            sponsor: "Whale Suite",
+            description: "Referral rewards program",
+            points: ["Earn on referrals", "Track your earnings", "Coming soon"]
+          }},
         ],
       },
       {
         title: "Help",
         items: [
-          { href: "/docs", icon: <DocsIcon />, label: "Points & Docs" },
+          { href: "/docs", icon: <DocsIcon />, label: "Points & Docs", tooltip: {
+            sponsor: "Whale Suite",
+            description: "Learn & earn points",
+            points: ["Point system guide", "Feature documentation", "Privacy best practices"]
+          }},
         ],
       },
     ];
@@ -250,10 +332,22 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [network]);
 
-  const bottomItems = [
-    { href: "/profile", icon: <ProfileIcon />, label: "Profile" },
-    { href: "/donate", icon: <DonateIcon />, label: "Donate" },
-    { href: "/settings", icon: <SettingsIcon />, label: "Settings" },
+  const bottomItems: NavItem[] = [
+    { href: "/profile", icon: <ProfileIcon />, label: "Profile", tooltip: {
+      sponsor: "Whale Suite",
+      description: "Your whale identity",
+      points: ["Privacy score display", "Badge showcase", "Activity history"]
+    }},
+    { href: "/donate", icon: <DonateIcon />, label: "Donate", tooltip: {
+      sponsor: "Whale Suite",
+      description: "Support development",
+      points: ["Fund new features", "Community driven", "Open source"]
+    }},
+    { href: "/settings", icon: <SettingsIcon />, label: "Settings", tooltip: {
+      sponsor: "Whale Suite",
+      description: "Customize your experience",
+      points: ["Network selection", "Privacy preferences", "Account management"]
+    }},
   ];
 
   // Current sidebar width
@@ -401,6 +495,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                         isActive={pathname === item.href}
                         isDisabled={!isAvailable}
                         isCollapsed={isCollapsed}
+                        tooltip={item.tooltip}
                       />
                     );
                   })}
@@ -467,6 +562,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                           badgeColor={channelData.hub.badgeColor}
                           isActive={pathname === channelData.hub.href}
                           isCollapsed={isCollapsed}
+                          tooltip={channelData.hub.tooltip}
                         />
 
                         {/* Joined Channels */}
@@ -478,6 +574,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                             label={item.label}
                             isActive={pathname === item.href}
                             isCollapsed={isCollapsed}
+                            tooltip={item.tooltip}
                           />
                         ))}
 
@@ -493,6 +590,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                             isActive={false}
                             isDisabled={true}
                             isCollapsed={isCollapsed}
+                            tooltip={item.tooltip}
                           />
                         ))}
                       </motion.div>
@@ -516,6 +614,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 label={item.label}
                 isActive={pathname === item.href}
                 isCollapsed={isCollapsed}
+                tooltip={item.tooltip}
               />
             ))}
           </div>
@@ -771,7 +870,7 @@ function MobileSidebarContent({
 }: {
   navGroups: NavGroup[];
   channelData: { hub: NavItem; joined: NavItem[]; comingSoon: NavItem[] };
-  bottomItems: { href: string; icon: ReactNode; label: string }[];
+  bottomItems: NavItem[];
   pathname: string;
   userNumber: number | null;
   badgeTier: string;
@@ -900,6 +999,7 @@ function MobileSidebarContent({
                       isDisabled={!isAvailable}
                       network={network}
                       onClick={onClose}
+                      tooltip={item.tooltip}
                     />
                   );
                 })}
@@ -946,6 +1046,7 @@ function MobileSidebarContent({
                         badgeColor={channelData.hub.badgeColor}
                         isActive={pathname === channelData.hub.href}
                         onClick={onClose}
+                        tooltip={channelData.hub.tooltip}
                       />
 
                       {/* Joined Channels */}
@@ -957,6 +1058,7 @@ function MobileSidebarContent({
                           label={item.label}
                           isActive={pathname === item.href}
                           onClick={onClose}
+                          tooltip={item.tooltip}
                         />
                       ))}
 
@@ -973,6 +1075,7 @@ function MobileSidebarContent({
                           isDisabled={true}
                           network={network}
                           onClick={onClose}
+                          tooltip={item.tooltip}
                         />
                       ))}
                     </motion.div>
@@ -994,6 +1097,7 @@ function MobileSidebarContent({
               label={item.label}
               isActive={pathname === item.href}
               onClick={onClose}
+              tooltip={item.tooltip}
             />
           ))}
         </div>
@@ -1051,6 +1155,7 @@ function MobileSidebarLink({
   isDisabled,
   network,
   onClick,
+  tooltip,
 }: {
   href: string;
   icon: ReactNode;
@@ -1061,6 +1166,7 @@ function MobileSidebarLink({
   isDisabled?: boolean;
   network?: 'mainnet' | 'devnet';
   onClick?: () => void;
+  tooltip?: TooltipInfo;
 }) {
   if (isDisabled) {
     return (
@@ -1086,7 +1192,10 @@ function MobileSidebarLink({
       }`}
     >
       <span className={isActive ? "text-neon-green" : "text-text-muted"}>{icon}</span>
-      <span className="flex-1">{label}</span>
+      <span className="flex-1 flex items-center gap-1.5">
+        {label}
+        {tooltip && <span className="text-[10px] text-neon-cyan font-medium">({tooltip.sponsor})</span>}
+      </span>
       {badge && (
         <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
           badgeColor === "green" ? "bg-neon-green/20 text-neon-green"
@@ -1100,7 +1209,7 @@ function MobileSidebarLink({
   );
 }
 
-// Desktop Sidebar Link with tooltip on collapse
+// Desktop Sidebar Link with tooltip card
 function DesktopSidebarLink({
   href,
   icon,
@@ -1110,6 +1219,7 @@ function DesktopSidebarLink({
   isActive,
   isDisabled,
   isCollapsed,
+  tooltip,
 }: {
   href: string;
   icon: ReactNode;
@@ -1119,8 +1229,11 @@ function DesktopSidebarLink({
   isActive?: boolean;
   isDisabled?: boolean;
   isCollapsed?: boolean;
+  tooltip?: TooltipInfo;
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipTop, setTooltipTop] = useState(0);
+  const linkRef = useRef<HTMLDivElement | HTMLAnchorElement>(null);
 
   // Get badge color classes
   const getBadgeClasses = (color: string) => {
@@ -1131,13 +1244,61 @@ function DesktopSidebarLink({
     }
   };
 
+  // Update tooltip position on hover
+  const handleMouseEnter = () => {
+    if (linkRef.current) {
+      const rect = linkRef.current.getBoundingClientRect();
+      setTooltipTop(rect.top);
+    }
+    setShowTooltip(true);
+  };
+
+  // Tooltip card component - positioned to the right of sidebar at element's vertical position
+  const TooltipCard = () => {
+    if (!tooltip) return null;
+    // Position based on sidebar state: collapsed (80px) or expanded (280px)
+    const leftPx = isCollapsed ? 88 : 288;
+    return (
+      <div
+        className="fixed z-[100] w-52 bg-bg-elevated border border-border-primary rounded-xl shadow-xl overflow-hidden"
+        style={{ left: `${leftPx}px`, top: `${tooltipTop}px` }}
+      >
+        {/* Header with sponsor */}
+        <div className="px-3 py-2 bg-gradient-to-r from-neon-green/10 to-neon-cyan/10 border-b border-border-primary">
+          <div className="flex items-center justify-between">
+            <span className={`text-xs font-semibold ${isActive ? 'text-neon-green' : 'text-text-primary'}`}>{label}</span>
+            {badge && (
+              <span className={`px-1.5 py-0.5 text-[8px] font-bold rounded ${getBadgeClasses(badgeColor)}`}>
+                {badge}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] font-medium text-neon-cyan">{tooltip.sponsor}</span>
+        </div>
+        {/* Content */}
+        <div className="px-3 py-2">
+          <p className="text-[11px] text-text-secondary mb-2">{tooltip.description}</p>
+          <ul className="space-y-1">
+            {tooltip.points.map((point, i) => (
+              <li key={i} className="flex items-start gap-1.5 text-[10px] text-text-muted">
+                <span className="text-neon-green mt-0.5">•</span>
+                <span>{point}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    );
+  };
+
   if (isDisabled) {
     return (
       <div
-        className={`group flex items-center gap-3 rounded-lg text-sm font-medium text-text-muted/50 opacity-60 cursor-not-allowed ${
+        ref={linkRef as React.RefObject<HTMLDivElement>}
+        className={`group relative flex items-center gap-3 rounded-lg text-sm font-medium text-text-muted/50 opacity-60 cursor-not-allowed ${
           isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2'
         }`}
-        onMouseEnter={() => setShowTooltip(true)}
+        onMouseEnter={handleMouseEnter}
         onMouseLeave={() => setShowTooltip(false)}
       >
         <span className="text-text-muted/40 flex-shrink-0">{icon}</span>
@@ -1147,12 +1308,7 @@ function DesktopSidebarLink({
             {badge && <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-bg-tertiary/50 text-text-muted/50">{badge}</span>}
           </>
         )}
-        {/* Simple Tooltip */}
-        {isCollapsed && showTooltip && (
-          <div className="fixed left-[92px] z-[100] bg-bg-elevated border border-border-primary rounded-lg shadow-lg py-1.5 px-3 whitespace-nowrap">
-            <span className="text-xs text-text-muted line-through">{label}</span>
-          </div>
-        )}
+        {showTooltip && <TooltipCard />}
       </div>
     );
   }
@@ -1160,14 +1316,15 @@ function DesktopSidebarLink({
   return (
     <Link
       href={href}
-      className={`group flex items-center gap-3 rounded-lg text-sm font-medium transition-all ${
+      ref={linkRef as React.RefObject<HTMLAnchorElement>}
+      className={`group relative flex items-center gap-3 rounded-lg text-sm font-medium transition-all ${
         isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2'
       } ${
         isActive
           ? "bg-neon-green/10 text-neon-green"
           : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50"
       }`}
-      onMouseEnter={() => setShowTooltip(true)}
+      onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setShowTooltip(false)}
     >
       <span className={`flex-shrink-0 transition-colors ${isActive ? "text-neon-green" : "text-text-muted group-hover:text-neon-green"}`}>
@@ -1199,17 +1356,8 @@ function DesktopSidebarLink({
         )}
       </AnimatePresence>
 
-      {/* Simple Tooltip on collapse */}
-      {isCollapsed && showTooltip && (
-        <div className="fixed left-[92px] z-[100] bg-bg-elevated border border-border-primary rounded-lg shadow-lg py-1.5 px-3 whitespace-nowrap flex items-center gap-2">
-          <span className={`text-xs font-medium ${isActive ? 'text-neon-green' : 'text-text-primary'}`}>{label}</span>
-          {badge && (
-            <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${getBadgeClasses(badgeColor)}`}>
-              {badge}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Tooltip Card on hover */}
+      {showTooltip && <TooltipCard />}
     </Link>
   );
 }
@@ -1266,13 +1414,6 @@ const SwapIcon = () => (
 const DarkPoolIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
-  </svg>
-);
-
-const PrivateSwapIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 3v2m0 14v2m-7-9H3m18 0h-2" />
   </svg>
 );
 

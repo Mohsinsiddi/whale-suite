@@ -283,11 +283,28 @@ export default function PrivatePaymentsPage() {
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-2">
           <h1 className="text-3xl font-bold text-text-primary">Private Payments</h1>
-          <span className="px-2 py-1 rounded-lg bg-warning/20 text-warning text-xs font-bold">DEVNET</span>
+          <span className="px-2 py-1 rounded-lg bg-neon-cyan/20 text-neon-cyan text-xs font-bold">FHE</span>
+          <span className="px-2 py-1 rounded-lg bg-warning/20 text-warning text-xs font-bold">Coming Soon</span>
         </div>
         <p className="text-text-secondary">
           Send and receive payments with complete privacy. Sender, recipient, and amount are all encrypted using INCO FHE.
         </p>
+      </div>
+
+      {/* Coming Soon Banner */}
+      <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-warning/20 via-warning/10 to-warning/20 border border-warning/40">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-warning/20 flex items-center justify-center flex-shrink-0">
+            <span className="text-2xl">🚧</span>
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-warning mb-0.5">In Development - Coming Soon</h3>
+            <p className="text-xs text-text-secondary">
+              Private Payments using INCO FHE encryption is currently under development on devnet.
+              Full functionality will be available soon.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Info Banner */}
