@@ -78,9 +78,6 @@ export function calculateWithdrawalFee(amount: number, tokenSymbol: PrivacyCashT
 import {
   PRIVACY_CASH_TOKENS,
   getPrivacyCashToken,
-  getPrivacyCashWithdrawalFee,
-  getPrivacyCashMinDeposit,
-  getPrivacyCashMinWithdrawal,
   type PrivacyCashTokenSymbol,
   type PrivacyCashToken,
 } from '@/lib/tokens';
