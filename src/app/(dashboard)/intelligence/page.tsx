@@ -33,6 +33,7 @@ import {
   BarChart3,
   Eye,
 } from 'lucide-react';
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 
 interface GlobalActivity {
   _id: string;
@@ -232,6 +233,8 @@ export default function IntelligencePage() {
 
   return (
     <div className="space-y-6">
+      <WalletMismatchBanner />
+
       {/* Hero Header */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-bg-secondary via-bg-tertiary to-bg-secondary border border-border-primary p-6">
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-5" />

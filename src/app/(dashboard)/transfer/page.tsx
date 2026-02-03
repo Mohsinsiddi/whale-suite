@@ -12,6 +12,7 @@ import { useWalletBalances } from "@/hooks/useHelius";
 import { useMultiSend, type MultiSendRecipient, type TokenType } from "@/hooks/useMultiSend";
 import { useAuth } from "@/lib/privy/hooks";
 import { useNetwork } from "@/hooks/useNetwork";
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 import { TransferType } from "@/lib/privacy-sdks";
 import { PointsEarned } from "@/components/leaderboard";
 import LearnMoreLink from "@/components/ui/LearnMoreLink";
@@ -689,6 +690,9 @@ export default function TransferPage() {
         </div>
         <LearnMoreLink section="ghost-send">How it works</LearnMoreLink>
       </div>
+
+      {/* Wallet Mismatch Banner */}
+      <WalletMismatchBanner />
 
       {/* USD1 Featured Token Banner */}
       <div className="p-3 sm:p-4 rounded-xl bg-gradient-to-r from-neon-green/5 via-neon-cyan/5 to-neon-green/5 border border-neon-green/20">

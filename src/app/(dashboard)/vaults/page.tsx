@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import { SearchInput } from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 
 // Mock vaults data
 const vaults = [
@@ -63,6 +64,8 @@ export default function VaultsPage() {
 
   return (
     <div className="space-y-6">
+      <WalletMismatchBanner />
+
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>

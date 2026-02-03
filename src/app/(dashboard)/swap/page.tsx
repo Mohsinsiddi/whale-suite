@@ -10,6 +10,7 @@ import { useSwap, usePoints } from "@/hooks";
 import { useWalletBalances } from "@/hooks/useHelius";
 import { useAuth } from "@/lib/privy/hooks";
 import { useNetwork } from "@/hooks/useNetwork";
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 import { TOKEN_MINTS } from "@/lib/privacy-sdks";
 import { SWAP_TOKENS, type TokenMetadata } from "@/lib/tokens";
 import { useWallet } from "@/store";
@@ -328,6 +329,9 @@ export default function SwapPage() {
         </div>
         <LearnMoreLink section="jupiter">Docs</LearnMoreLink>
       </div>
+
+      {/* Wallet Mismatch Banner */}
+      <WalletMismatchBanner />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Swap Card */}

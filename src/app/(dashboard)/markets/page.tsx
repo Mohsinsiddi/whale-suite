@@ -12,6 +12,7 @@ import { usePoints } from "@/hooks";
 import { useWalletBalances } from "@/hooks/useHelius";
 import { PNPMarket } from "@/lib/privacy-sdks/pnp";
 import LearnMoreLink from "@/components/ui/LearnMoreLink";
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 
 // USDC mint address on mainnet
 const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -554,6 +555,8 @@ export default function MarketsPage() {
 
   return (
     <div className="space-y-6">
+      <WalletMismatchBanner />
+
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>

@@ -17,6 +17,7 @@ import { useRequireAuth } from '@/hooks/useAuth';
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch';
 import { useNetwork } from '@/hooks/useNetwork';
 import { useTokenPrices } from '@/hooks/useTokenPrices';
+import { WalletMismatchBanner } from '@/components/ui/WalletMismatchBanner';
 import {
   CreditCard,
   Plus,
@@ -390,6 +391,9 @@ export default function ProfilePage() {
           <span className="hidden sm:inline ml-2">Refresh</span>
         </Button>
       </div>
+
+      {/* Wallet Mismatch Banner */}
+      <WalletMismatchBanner />
 
       {/* Identity Card */}
       <Card variant="glow" padding="md" className="lg:p-6">

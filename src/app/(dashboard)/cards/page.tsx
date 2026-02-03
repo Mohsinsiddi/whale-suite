@@ -43,6 +43,7 @@ import {
   X,
   Timer,
 } from 'lucide-react';
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 
 // Simplified order from DB (just orderId, fetch details from API)
 interface SavedCardOrder {
@@ -407,6 +408,8 @@ export default function CardsPage() {
 
   return (
     <div className="min-h-screen p-4 md:p-6 lg:p-8">
+      <WalletMismatchBanner />
+
       {/* Auth Banner */}
       {AuthBanner}
 

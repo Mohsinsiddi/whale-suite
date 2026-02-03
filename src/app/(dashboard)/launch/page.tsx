@@ -10,6 +10,7 @@ import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
 import { useAuth } from "@/lib/privy/hooks";
 import LearnMoreLink from "@/components/ui/LearnMoreLink";
 import { usePoints } from "@/hooks";
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 
 interface TokenLinks {
   dexscreener: string;
@@ -843,6 +844,8 @@ export default function LaunchPage() {
 
   return (
     <div className="space-y-6">
+      <WalletMismatchBanner />
+
       {/* Page Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}

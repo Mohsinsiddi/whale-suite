@@ -13,6 +13,7 @@ import { useNetwork } from "@/hooks/useNetwork";
 import { SWAP_TOKENS, type TokenMetadata } from "@/lib/tokens";
 import { PointsEarned } from "@/components/leaderboard";
 import LearnMoreLink from "@/components/ui/LearnMoreLink";
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 
 interface Token {
   symbol: string;
@@ -398,6 +399,8 @@ export default function PrivateSwapPage() {
 
   return (
     <div className="space-y-6">
+      <WalletMismatchBanner />
+
       {/* Page Header */}
       <div className="flex items-start justify-between">
         <div>

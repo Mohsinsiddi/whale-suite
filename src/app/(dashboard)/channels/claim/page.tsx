@@ -8,6 +8,7 @@ import { useNetwork } from '@/hooks/useNetwork';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 import { useClaimBadge } from '@/hooks/useClaimBadge';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 
 type ClaimStep = 'select' | 'confirm' | 'processing' | 'grant-access' | 'success' | 'error';
 
@@ -143,6 +144,8 @@ export default function ClaimBadgePage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
+      <WalletMismatchBanner />
+
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-text-primary mb-2">Claim Your Whale Badge</h1>

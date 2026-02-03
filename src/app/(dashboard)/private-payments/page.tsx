@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/privy/hooks';
 import { useNetwork } from '@/hooks/useNetwork';
 import { TransactionModal, SuccessModal } from '@/components/ui/Modal';
+import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 
 interface Payment {
   id: string;
@@ -275,6 +276,8 @@ export default function PrivatePaymentsPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
+      <WalletMismatchBanner />
+
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-2">

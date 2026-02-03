@@ -17,7 +17,8 @@ import { useAuth } from '@/lib/privy/hooks';
  */
 export function useWalletChange() {
   const { walletAddress, authenticated } = useAuth();
-  const { logout } = usePrivy();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { logout } = usePrivy(); // Keep for potential future use
   const { mutate } = useSWRConfig();
 
   // Get store actions once (stable references)
@@ -31,7 +32,8 @@ export function useWalletChange() {
   const previousWalletRef = useRef<string | null>(null);
   const isInitializedRef = useRef(false);
   const hasSyncedRef = useRef(false); // Track if we've synced this session
-  const isLoggingOutRef = useRef(false); // Prevent multiple logout calls
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const isLoggingOutRef = useRef(false); // Keep for potential future use
 
   // Sync user to backend
   const syncUserToBackend = useCallback(async (wallet: string) => {
