@@ -61,6 +61,9 @@ export interface Transaction {
   fee: number;
   status: 'success' | 'failed';
   description: string;
+  // Direction - outgoing (user initiated), incoming (received), or self (internal)
+  direction: 'outgoing' | 'incoming' | 'self';
+  feePayer?: string;
   // Swap specific
   swapIn?: { symbol: string; amount: number; mint: string };
   swapOut?: { symbol: string; amount: number; mint: string };
@@ -130,11 +133,16 @@ export function usePortfolio(walletAddress: string | null) {
   // Pagination state
   const [tokenPage, setTokenPage] = useState(1);
   const [nftPage, setNftPage] = useState(1);
-  const [hasMoreTokens, setHasMoreTokens] = useState(true);
-  const [hasMoreNfts, setHasMoreNfts] = useState(true);
+  const [activityPage, setActivityPage] = useState(1);
 
-  const TOKENS_PER_PAGE = 20;
-  const NFTS_PER_PAGE = 12;
+  const TOKENS_PER_PAGE = 10;
+  const NFTS_PER_PAGE = 8;
+  const ACTIVITY_PER_PAGE = 10; // Show 10 transactions per page, paginated
+  const TX_FETCH_LIMIT = 100; // Fetch 100 at a time from API
+
+  // Track if there are more transactions to load from API
+  const [hasMoreTxFromAPI, setHasMoreTxFromAPI] = useState(true);
+  const [loadingMoreTx, setLoadingMoreTx] = useState(false);
 
   // Get RPC URL based on provider
   const rpcUrl = useMemo(() => {
@@ -310,19 +318,30 @@ export function usePortfolio(walletAddress: string | null) {
   }, []);
 
   // Fetch transaction history with enhanced parsing
-  const fetchTransactions = useCallback(async (wallet: string, limit: number = 30): Promise<Transaction[]> => {
+  const fetchTransactions = useCallback(async (
+    wallet: string,
+    limit: number = 100,
+    before?: string // Cursor for pagination
+  ): Promise<{ txs: Transaction[]; hasMore: boolean }> => {
     try {
+      // Build URL with optional cursor
+      let url = `${HELIUS_API}/addresses/${wallet}/transactions?api-key=${HELIUS_API_KEY}&limit=${limit}`;
+      if (before) {
+        url += `&before=${before}`;
+      }
+
       // Fetch both Helius transactions and our app activity in parallel
       const [heliusResponse, appActivity] = await Promise.all([
-        fetch(`${HELIUS_API}/addresses/${wallet}/transactions?api-key=${HELIUS_API_KEY}&limit=${limit}`),
-        fetchAppActivity(wallet),
+        fetch(url),
+        before ? Promise.resolve(new Map()) : fetchAppActivity(wallet), // Only fetch app activity on first load
       ]);
 
-      if (!heliusResponse.ok) return [];
+      if (!heliusResponse.ok) return { txs: [], hasMore: false };
 
-      const txs = await heliusResponse.json();
+      const rawTxs = await heliusResponse.json();
+      const hasMore = rawTxs.length >= limit; // If we got full page, there's likely more
 
-      return txs.map((tx: {
+      const parsedTxs: Transaction[] = rawTxs.map((tx: {
         signature: string;
         type: string;
         source?: string;
@@ -525,6 +544,50 @@ export function usePortfolio(walletAddress: string | null) {
           nftName = tx.events.nft.description?.split(' ')[0] || 'NFT';
         }
 
+        // Determine transaction direction
+        let direction: 'outgoing' | 'incoming' | 'self' = 'self';
+        const isFeePayer = tx.feePayer?.toLowerCase() === wallet.toLowerCase();
+
+        // Check native transfers for direction
+        if (tx.nativeTransfers && tx.nativeTransfers.length > 0) {
+          const hasIncoming = tx.nativeTransfers.some(
+            t => t.toUserAccount?.toLowerCase() === wallet.toLowerCase() &&
+                 t.fromUserAccount?.toLowerCase() !== wallet.toLowerCase()
+          );
+          const hasOutgoing = tx.nativeTransfers.some(
+            t => t.fromUserAccount?.toLowerCase() === wallet.toLowerCase() &&
+                 t.toUserAccount?.toLowerCase() !== wallet.toLowerCase()
+          );
+
+          if (hasIncoming && !hasOutgoing) direction = 'incoming';
+          else if (hasOutgoing) direction = 'outgoing';
+        }
+
+        // Check token transfers for direction
+        if (direction === 'self' && tx.tokenTransfers && tx.tokenTransfers.length > 0) {
+          const hasIncoming = tx.tokenTransfers.some(
+            t => t.toUserAccount?.toLowerCase() === wallet.toLowerCase() &&
+                 t.fromUserAccount?.toLowerCase() !== wallet.toLowerCase()
+          );
+          const hasOutgoing = tx.tokenTransfers.some(
+            t => t.fromUserAccount?.toLowerCase() === wallet.toLowerCase() &&
+                 t.toUserAccount?.toLowerCase() !== wallet.toLowerCase()
+          );
+
+          if (hasIncoming && !hasOutgoing) direction = 'incoming';
+          else if (hasOutgoing) direction = 'outgoing';
+        }
+
+        // Swaps are typically "self" unless it's a direct swap output
+        if (tx.events?.swap) {
+          direction = 'self';
+        }
+
+        // If user is fee payer and direction is still self, it's likely outgoing
+        if (isFeePayer && direction === 'self' && tx.type !== 'SWAP') {
+          direction = 'outgoing';
+        }
+
         return {
           signature: tx.signature,
           type: customType || tx.type || 'UNKNOWN',
@@ -543,14 +606,18 @@ export function usePortfolio(walletAddress: string | null) {
           amount,
           tokenSymbol,
           description,
+          direction,
+          feePayer: tx.feePayer,
           swapIn,
           swapOut,
           nftName,
         };
       });
+
+      return { txs: parsedTxs, hasMore };
     } catch (err) {
       console.error('Error fetching transactions:', err);
-      return [];
+      return { txs: [], hasMore: false };
     }
   }, [fetchAppActivity]);
 
@@ -737,13 +804,12 @@ export function usePortfolio(walletAddress: string | null) {
       fetchedTokens.sort((a, b) => b.usdValue - a.usdValue);
 
       // Fetch transactions
-      const txs = await fetchTransactions(walletAddress);
+      const { txs, hasMore } = await fetchTransactions(walletAddress, TX_FETCH_LIMIT);
 
       setTokens(fetchedTokens);
       setNfts(fetchedNfts);
       setTransactions(txs);
-      setHasMoreTokens(fetchedTokens.length >= TOKENS_PER_PAGE);
-      setHasMoreNfts(fetchedNfts.length >= NFTS_PER_PAGE);
+      setHasMoreTxFromAPI(hasMore);
 
     } catch (err) {
       console.error('Error fetching portfolio:', err);
@@ -782,29 +848,76 @@ export function usePortfolio(walletAddress: string | null) {
 
   // Paginated data
   const paginatedTokens = useMemo(() => {
-    return tokens.slice(0, tokenPage * TOKENS_PER_PAGE);
+    const start = (tokenPage - 1) * TOKENS_PER_PAGE;
+    const end = start + TOKENS_PER_PAGE;
+    return tokens.slice(start, end);
   }, [tokens, tokenPage]);
 
   const paginatedNfts = useMemo(() => {
-    return nfts.slice(0, nftPage * NFTS_PER_PAGE);
+    const start = (nftPage - 1) * NFTS_PER_PAGE;
+    const end = start + NFTS_PER_PAGE;
+    return nfts.slice(start, end);
   }, [nfts, nftPage]);
 
-  // Load more functions
+  const paginatedTransactions = useMemo(() => {
+    const start = (activityPage - 1) * ACTIVITY_PER_PAGE;
+    const end = start + ACTIVITY_PER_PAGE;
+    return transactions.slice(start, end);
+  }, [transactions, activityPage]);
+
+  // Total pages
+  const totalTokenPages = Math.ceil(tokens.length / TOKENS_PER_PAGE);
+  const totalNftPages = Math.ceil(nfts.length / NFTS_PER_PAGE);
+  const totalActivityPages = Math.ceil(transactions.length / ACTIVITY_PER_PAGE);
+
+  // Page navigation functions
+  const setTokenPageSafe = useCallback((page: number) => {
+    setTokenPage(Math.max(1, Math.min(page, totalTokenPages || 1)));
+  }, [totalTokenPages]);
+
+  const setNftPageSafe = useCallback((page: number) => {
+    setNftPage(Math.max(1, Math.min(page, totalNftPages || 1)));
+  }, [totalNftPages]);
+
+  const setActivityPageSafe = useCallback((page: number) => {
+    setActivityPage(Math.max(1, Math.min(page, totalActivityPages || 1)));
+  }, [totalActivityPages]);
+
+  // Load more functions (keeping for backward compatibility)
   const loadMoreTokens = useCallback(() => {
-    if (hasMoreTokens && tokenPage * TOKENS_PER_PAGE < tokens.length) {
+    if (tokenPage < totalTokenPages) {
       setTokenPage(p => p + 1);
-    } else {
-      setHasMoreTokens(false);
     }
-  }, [hasMoreTokens, tokenPage, tokens.length]);
+  }, [tokenPage, totalTokenPages]);
 
   const loadMoreNfts = useCallback(() => {
-    if (hasMoreNfts && nftPage * NFTS_PER_PAGE < nfts.length) {
+    if (nftPage < totalNftPages) {
       setNftPage(p => p + 1);
-    } else {
-      setHasMoreNfts(false);
     }
-  }, [hasMoreNfts, nftPage, nfts.length]);
+  }, [nftPage, totalNftPages]);
+
+  // Load more transactions from API (when user reaches end of current data)
+  const loadMoreTransactionsFromAPI = useCallback(async () => {
+    if (!walletAddress || !hasMoreTxFromAPI || loadingMoreTx) return;
+
+    // Get the last transaction signature as cursor
+    const lastTx = transactions[transactions.length - 1];
+    if (!lastTx) return;
+
+    setLoadingMoreTx(true);
+    try {
+      const { txs: newTxs, hasMore } = await fetchTransactions(walletAddress, TX_FETCH_LIMIT, lastTx.signature);
+
+      if (newTxs.length > 0) {
+        setTransactions(prev => [...prev, ...newTxs]);
+      }
+      setHasMoreTxFromAPI(hasMore);
+    } catch (err) {
+      console.error('Error loading more transactions:', err);
+    } finally {
+      setLoadingMoreTx(false);
+    }
+  }, [walletAddress, hasMoreTxFromAPI, loadingMoreTx, transactions, fetchTransactions]);
 
   // Fetch on mount and when wallet/provider changes
   useEffect(() => {
@@ -841,7 +954,8 @@ export function usePortfolio(walletAddress: string | null) {
     allTokens: tokens,
     nfts: paginatedNfts,
     allNfts: nfts,
-    transactions,
+    transactions: paginatedTransactions,
+    allTransactions: transactions,
     stats,
     globalStats,
 
@@ -856,11 +970,33 @@ export function usePortfolio(walletAddress: string | null) {
     switching, // Provider switching state for overlay
     error,
 
-    // Pagination
-    hasMoreTokens: tokenPage * TOKENS_PER_PAGE < tokens.length,
-    hasMoreNfts: nftPage * NFTS_PER_PAGE < nfts.length,
+    // Pagination - Tokens
+    tokenPage,
+    totalTokenPages,
+    totalTokens: tokens.length,
+    setTokenPage: setTokenPageSafe,
+    tokensPerPage: TOKENS_PER_PAGE,
+    hasMoreTokens: tokenPage < totalTokenPages,
     loadMoreTokens,
+
+    // Pagination - NFTs
+    nftPage,
+    totalNftPages,
+    totalNfts: nfts.length,
+    setNftPage: setNftPageSafe,
+    nftsPerPage: NFTS_PER_PAGE,
+    hasMoreNfts: nftPage < totalNftPages,
     loadMoreNfts,
+
+    // Pagination - Activity
+    activityPage,
+    totalActivityPages,
+    totalActivity: transactions.length,
+    setActivityPage: setActivityPageSafe,
+    activityPerPage: ACTIVITY_PER_PAGE,
+    hasMoreTxFromAPI,
+    loadingMoreTx,
+    loadMoreTransactionsFromAPI,
 
     // Actions
     refresh: () => fetchPortfolio(true),

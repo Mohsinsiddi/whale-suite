@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -16,6 +16,7 @@ import { findAllUserBadges, UserBadge } from "@/hooks/useChannelJoin";
 import { useRevealBadge, TIER_INFO } from "@/hooks/useRevealBadge";
 import { Connection, PublicKey } from "@solana/web3.js";
 import Link from "next/link";
+import Pagination from "@/components/ui/Pagination";
 import {
   Wallet,
   TrendingUp,
@@ -24,7 +25,6 @@ import {
   Activity,
   RefreshCw,
   ExternalLink,
-  ChevronRight,
   Layers,
   Sparkles,
   Lock,
@@ -34,8 +34,10 @@ import {
   BarChart3,
   AlertCircle,
   ArrowUpRight,
+  ArrowDownLeft,
   Eye,
   EyeOff,
+  Filter,
 } from "lucide-react";
 
 // INCO Devnet RPC
@@ -48,7 +50,7 @@ export default function PortfolioPage() {
   const {
     tokens,
     nfts,
-    transactions,
+    allTransactions, // Use full transactions for filtering/pagination in the page
     stats,
     globalStats,
     provider,
@@ -57,10 +59,25 @@ export default function PortfolioPage() {
     loading,
     switching,
     error,
-    hasMoreTokens,
-    hasMoreNfts,
-    loadMoreTokens,
-    loadMoreNfts,
+    // Token pagination
+    tokenPage,
+    totalTokenPages,
+    totalTokens,
+    setTokenPage,
+    tokensPerPage,
+    // NFT pagination
+    nftPage,
+    totalNftPages,
+    totalNfts,
+    setNftPage,
+    nftsPerPage,
+    // Activity pagination
+    activityPage,
+    setActivityPage,
+    activityPerPage,
+    hasMoreTxFromAPI,
+    loadingMoreTx,
+    loadMoreTransactionsFromAPI,
     refresh,
   } = usePortfolio(walletAddress);
 
@@ -130,6 +147,113 @@ export default function PortfolioPage() {
   };
 
   const [activeTab, setActiveTab] = useState("holdings");
+  const [activityFilter, setActivityFilter] = useState<'all' | 'outgoing' | 'incoming'>('all');
+  const [sdkFilter, setSdkFilter] = useState<string>('all');
+
+  // Sponsor SDKs only (not system programs) - matches Helius source labels
+  // altLabels are alternative names that Helius might use for the same SDK
+  const SPONSOR_SDKS = [
+    { id: 'PRIVACY_CASH', name: 'Privacy Cash', icon: '🔒', color: '#00ff88', programId: '9fhQBbumKEFuXtMBDw8AaQyAjCorLGJQiS3skWZdQyQD', altLabels: ['ELUSIV', 'PRIVACY'] },
+    { id: 'DARKLAKE', name: 'Darklake', icon: '🌑', color: '#6366f1', programId: 'darkr3FB87qAZmgLwKov6Hk9Yiah5UT4rUYu8Zhthw1', altLabels: ['DARK_LAKE', 'DARKLAKE_AMM'] },
+    { id: 'SHADOWWIRE', name: 'ShadowWire', icon: '👻', color: '#8b5cf6', programId: 'GQBqwwoikYh7p6KEUHDUu5r9dHHXx9tMGskAPubmFPzD', altLabels: ['SHADOW_WIRE', 'SHADOW'] },
+    { id: 'PNP', name: 'PNP', icon: '🎲', color: '#f59e0b', programId: '6fnYZUSyp3vJxTNnayq5S62d363EFaGARnqYux5bqrxb', altLabels: ['PNP_EXCHANGE', 'PRIVACY_PNP'] },
+    { id: 'JUPITER', name: 'Jupiter', icon: '🪐', color: '#00D18C', programId: 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4', altLabels: ['JUP', 'JUPITER_V6'] },
+    { id: 'RAYDIUM', name: 'Raydium', icon: '☀️', color: '#58c4f6', programId: '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8', altLabels: ['RAYDIUM_V4', 'RAY'] },
+    { id: 'ORCA', name: 'Orca', icon: '🐋', color: '#FFCE4F', programId: 'whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc', altLabels: ['ORCA_WHIRLPOOL', 'WHIRLPOOL'] },
+    { id: 'METEORA', name: 'Meteora', icon: '☄️', color: '#00F0FF', programId: 'LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo', altLabels: ['METEORA_DLMM'] },
+    { id: 'PUMP_FUN', name: 'Pump.fun', icon: '🎈', color: '#39FF14', programId: '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P', altLabels: ['PUMPFUN', 'PUMP'] },
+    { id: 'MAGIC_EDEN', name: 'Magic Eden', icon: '✨', color: '#E42575', programId: 'M2mx93ekt1fmXSVkTrUL9xVFHkmME8HTUi5Cyc5aF7K', altLabels: ['MAGICEDEN', 'ME'] },
+    { id: 'TENSOR', name: 'Tensor', icon: '🟣', color: '#7c3aed', programId: 'TSWAPaqyCSx2KABk68Shruf4rp7CxcNi8hAsbdwmHbN', altLabels: ['TENSORSWAP'] },
+  ];
+
+  // Helper function to match a transaction to an SDK
+  const matchTxToSdk = (tx: typeof allTransactions[0]) => {
+    const sourceUpper = tx.sourceLabel?.toUpperCase() || '';
+    const descLower = tx.description?.toLowerCase() || '';
+
+    return SPONSOR_SDKS.find(sdk => {
+      // Match by SDK id
+      if (sdk.id === sourceUpper) return true;
+      // Match by SDK name
+      if (sdk.name.toUpperCase() === sourceUpper) return true;
+      // Match by alternative labels
+      if (sdk.altLabels?.some(alt => alt === sourceUpper)) return true;
+      // Match by description containing SDK name
+      if (descLower.includes(sdk.name.toLowerCase())) return true;
+      // Match by description containing alternative labels
+      if (sdk.altLabels?.some(alt => descLower.includes(alt.toLowerCase()))) return true;
+      return false;
+    });
+  };
+
+  // Get sponsor SDKs that have transactions (check both source label and program ID)
+  const availableSdks = useMemo(() => {
+    const sdkCounts = new Map<string, number>();
+
+    allTransactions.forEach(tx => {
+      const matchedSdk = matchTxToSdk(tx);
+      if (matchedSdk) {
+        const count = sdkCounts.get(matchedSdk.id) || 0;
+        sdkCounts.set(matchedSdk.id, count + 1);
+      }
+    });
+
+    return SPONSOR_SDKS
+      .filter(sdk => sdkCounts.has(sdk.id))
+      .map(sdk => ({
+        ...sdk,
+        count: sdkCounts.get(sdk.id) || 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [allTransactions]);
+
+  // Filter transactions based on direction and SDK filter
+  const filteredTransactions = useMemo(() => {
+    let filtered = allTransactions;
+
+    // Apply direction filter
+    if (activityFilter !== 'all') {
+      filtered = filtered.filter(tx => tx.direction === activityFilter);
+    }
+
+    // Apply SDK filter
+    if (sdkFilter !== 'all') {
+      const selectedSdk = SPONSOR_SDKS.find(s => s.id === sdkFilter);
+      if (selectedSdk) {
+        filtered = filtered.filter(tx => {
+          const sourceUpper = tx.sourceLabel?.toUpperCase() || '';
+          const descLower = tx.description?.toLowerCase() || '';
+          // Match by SDK id
+          if (selectedSdk.id === sourceUpper) return true;
+          // Match by SDK name
+          if (selectedSdk.name.toUpperCase() === sourceUpper) return true;
+          // Match by alternative labels
+          if (selectedSdk.altLabels?.some(alt => alt === sourceUpper)) return true;
+          // Match by description containing SDK name
+          if (descLower.includes(selectedSdk.name.toLowerCase())) return true;
+          // Match by description containing alternative labels
+          if (selectedSdk.altLabels?.some(alt => descLower.includes(alt.toLowerCase()))) return true;
+          return false;
+        });
+      }
+    }
+
+    return filtered;
+  }, [allTransactions, activityFilter, sdkFilter]);
+
+  // Recalculate pagination for filtered transactions
+  const filteredActivityPage = activityPage;
+  const filteredTotalPages = Math.ceil(filteredTransactions.length / activityPerPage);
+  const paginatedFilteredTransactions = useMemo(() => {
+    const start = (filteredActivityPage - 1) * activityPerPage;
+    const end = start + activityPerPage;
+    return filteredTransactions.slice(start, end);
+  }, [filteredTransactions, filteredActivityPage, activityPerPage]);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setActivityPage(1);
+  }, [activityFilter, sdkFilter, setActivityPage]);
 
   const tabs = [
     { id: "holdings", label: "Holdings", icon: Wallet },
@@ -260,26 +384,26 @@ export default function PortfolioPage() {
 
       {/* Global App Stats */}
       <Card variant="default" padding="sm">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div className="flex items-center gap-2 text-xs text-text-muted">
             <Globe className="w-4 h-4 text-neon-cyan" />
             <span>Global Stats</span>
           </div>
-          <div className="flex flex-wrap items-center gap-6">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6 w-full sm:w-auto justify-between sm:justify-end">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <Users className="w-4 h-4 text-neon-green" />
               <span className="text-sm font-medium text-text-primary">{globalStats.totalUsers.toLocaleString()}</span>
-              <span className="text-xs text-text-muted">Users</span>
+              <span className="text-xs text-text-muted hidden sm:inline">Users</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <Zap className="w-4 h-4 text-yellow-400" />
               <span className="text-sm font-medium text-text-primary">{globalStats.transactionsToday.toLocaleString()}</span>
-              <span className="text-xs text-text-muted">Txs Today</span>
+              <span className="text-xs text-text-muted hidden sm:inline">Txs Today</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <TrendingUp className="w-4 h-4 text-purple-400" />
               <span className="text-sm font-medium text-text-primary">{formatUSD(globalStats.totalVolume)}</span>
-              <span className="text-xs text-text-muted">Volume</span>
+              <span className="text-xs text-text-muted hidden sm:inline">Volume</span>
             </div>
           </div>
         </div>
@@ -354,7 +478,53 @@ export default function PortfolioPage() {
                 </div>
               ) : (
                 <>
-                  <div className="overflow-x-auto">
+                  {/* Mobile Card View */}
+                  <div className="md:hidden divide-y divide-border-secondary">
+                    {tokens.map((token, i) => (
+                      <motion.div
+                        key={token.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        className="p-4 hover:bg-bg-tertiary/50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-bg-tertiary flex items-center justify-center overflow-hidden flex-shrink-0">
+                              {token.logoURI ? (
+                                <img src={token.logoURI} alt={token.symbol} className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-lg font-bold text-text-muted">{token.symbol.charAt(0)}</span>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-text-primary">{token.symbol}</span>
+                                {token.isNative && <Badge variant="success" size="xs">Native</Badge>}
+                              </div>
+                              <div className="text-xs text-text-muted truncate">{token.name}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-medium text-text-primary">{formatUSD(token.usdValue)}</div>
+                            <div className="text-xs text-neon-green">+{token.pnl24h.toFixed(1)}%</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-border-secondary/30">
+                          <div className="text-xs text-text-muted">
+                            <span className="font-mono">{token.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
+                            <span className="ml-1">{token.symbol}</span>
+                          </div>
+                          <div className="text-xs text-text-secondary">
+                            ${token.price.toFixed(token.price < 1 ? 6 : 2)}
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-border-secondary bg-bg-tertiary">
@@ -418,12 +588,16 @@ export default function PortfolioPage() {
                     </table>
                   </div>
 
-                  {hasMoreTokens && (
+                  {/* Pagination */}
+                  {totalTokenPages > 1 && (
                     <div className="p-4 border-t border-border-primary">
-                      <Button variant="ghost" size="sm" onClick={loadMoreTokens} fullWidth>
-                        Load More
-                        <ChevronRight className="w-4 h-4 ml-1" />
-                      </Button>
+                      <Pagination
+                        currentPage={tokenPage}
+                        totalPages={totalTokenPages}
+                        totalItems={totalTokens}
+                        itemsPerPage={tokensPerPage}
+                        onPageChange={setTokenPage}
+                      />
                     </div>
                   )}
                 </>
@@ -509,13 +683,17 @@ export default function PortfolioPage() {
                   ))}
                 </div>
 
-                {hasMoreNfts && (
-                  <div className="mt-4">
-                    <Button variant="ghost" size="sm" onClick={loadMoreNfts} fullWidth>
-                      Load More NFTs
-                      <ChevronRight className="w-4 h-4 ml-1" />
-                    </Button>
-                  </div>
+                {/* Pagination */}
+                {totalNftPages > 1 && (
+                  <Card variant="default" padding="md" className="mt-4">
+                    <Pagination
+                      currentPage={nftPage}
+                      totalPages={totalNftPages}
+                      totalItems={totalNfts}
+                      itemsPerPage={nftsPerPage}
+                      onPageChange={setNftPage}
+                    />
+                  </Card>
                 )}
               </>
             )}
@@ -544,6 +722,33 @@ export default function PortfolioPage() {
               revealedTier={revealedTier}
               txSignature={revealTxSignature}
             />
+
+            {/* Network Switch Banner - Show when on mainnet */}
+            {!isOnDevnet && (
+              <Card variant="default" padding="md" className="bg-gradient-to-r from-warning/10 to-orange-500/10 border-warning/40">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-warning/20 flex items-center justify-center flex-shrink-0">
+                      <AlertCircle className="w-5 h-5 text-warning" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-warning mb-1">Switch to Devnet Required</h3>
+                      <p className="text-xs text-text-secondary">
+                        FHE Badges are deployed on INCO Devnet. Switch your wallet network to Devnet to view and reveal your badges.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => switchNetwork('devnet')}
+                    className="whitespace-nowrap"
+                  >
+                    Switch to Devnet
+                  </Button>
+                </div>
+              </Card>
+            )}
 
             {/* Info Banner */}
             <Card variant="default" padding="md" className="bg-gradient-to-r from-neon-cyan/5 to-purple-500/5 border-neon-cyan/30">
@@ -590,17 +795,17 @@ export default function PortfolioPage() {
                         animate={{ opacity: 1, scale: 1 }}
                       >
                         <Card variant="glow" padding="md" style={{ borderColor: `${tierInfo.hex}40` }}>
-                          <div className="flex items-start gap-4">
+                          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
                             {/* Revealed Badge Icon */}
                             <div
-                              className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-lg bg-gradient-to-br ${tierInfo.color}`}
+                              className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shadow-lg bg-gradient-to-br ${tierInfo.color} flex-shrink-0`}
                               style={{ boxShadow: `0 8px 32px ${tierInfo.hex}30` }}
                             >
                               {tierInfo.icon}
                             </div>
 
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
+                            <div className="flex-1 text-center sm:text-left w-full">
+                              <div className="flex items-center justify-center sm:justify-start gap-2 mb-2 flex-wrap">
                                 <h3 className="font-semibold text-text-primary">{tierInfo.name}</h3>
                                 <Badge variant="success" size="xs">Revealed</Badge>
                                 {userBadges.length > 1 && (
@@ -609,10 +814,10 @@ export default function PortfolioPage() {
                               </div>
 
                               {/* Badge PDA */}
-                              <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-bg-tertiary">
+                              <div className="flex items-center justify-center sm:justify-start gap-2 mb-3 p-2 rounded-lg bg-bg-tertiary">
                                 <Eye className="w-4 h-4 text-neon-green flex-shrink-0" />
                                 <span className="text-xs font-mono text-text-muted truncate">
-                                  {pdaKey.slice(0, 8)}...{pdaKey.slice(-8)}
+                                  {pdaKey.slice(0, 6)}...{pdaKey.slice(-6)}
                                 </span>
                                 <a
                                   href={`https://solscan.io/account/${pdaKey}?cluster=devnet`}
@@ -626,14 +831,14 @@ export default function PortfolioPage() {
                               </div>
 
                               {/* Tier Benefits */}
-                              <div className="flex flex-wrap gap-2">
+                              <div className="flex flex-wrap justify-center sm:justify-start gap-1.5 sm:gap-2">
                                 <Badge variant="default" size="xs">{[1, 1.25, 1.5, 1.75, 2][tierNum! - 1]}x Multiplier</Badge>
                                 <Badge variant="default" size="xs">{[5, 10, 15, 20, 25][tierNum! - 1]}% Commission</Badge>
                                 {tierNum! >= 3 && <Badge variant="default" size="xs">Priority Support</Badge>}
                               </div>
 
                               {/* Badge ID */}
-                              <div className="flex items-center gap-2 mt-3 text-xs text-text-muted">
+                              <div className="flex items-center justify-center sm:justify-start gap-2 mt-3 text-xs text-text-muted">
                                 <span>Badge ID: {badge.badgeId.toString()}</span>
                                 <span className="text-text-muted/50">•</span>
                                 <span className="flex items-center gap-1">
@@ -660,16 +865,16 @@ export default function PortfolioPage() {
                         {/* Mystery overlay effect */}
                         <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-neon-cyan/5 pointer-events-none" />
 
-                        <div className="relative flex items-start gap-4">
+                        <div className="relative flex flex-col sm:flex-row items-center sm:items-start gap-4">
                           {/* Mystery Badge Icon */}
-                          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-lg bg-gradient-to-br from-gray-600 to-gray-800 relative">
+                          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shadow-lg bg-gradient-to-br from-gray-600 to-gray-800 relative flex-shrink-0">
                             <span className="opacity-50">?</span>
                             <div className="absolute inset-0 backdrop-blur-[2px] rounded-2xl" />
-                            <Lock className="absolute w-6 h-6 text-purple-400" />
+                            <Lock className="absolute w-5 h-5 sm:w-6 sm:h-6 text-purple-400" />
                           </div>
 
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
+                          <div className="flex-1 text-center sm:text-left w-full">
+                            <div className="flex items-center justify-center sm:justify-start gap-2 mb-2 flex-wrap">
                               <h3 className="font-semibold text-text-primary">Mystery Badge</h3>
                               <Badge variant="warning" size="xs">
                                 <EyeOff className="w-3 h-3 mr-1" />
@@ -681,10 +886,10 @@ export default function PortfolioPage() {
                             </div>
 
                             {/* Badge PDA */}
-                            <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-bg-tertiary">
+                            <div className="flex items-center justify-center sm:justify-start gap-2 mb-3 p-2 rounded-lg bg-bg-tertiary">
                               <Lock className="w-4 h-4 text-purple-400 flex-shrink-0" />
                               <span className="text-xs font-mono text-text-muted truncate">
-                                {pdaKey.slice(0, 8)}...{pdaKey.slice(-8)}
+                                {pdaKey.slice(0, 6)}...{pdaKey.slice(-6)}
                               </span>
                               <a
                                 href={`https://solscan.io/account/${pdaKey}?cluster=devnet`}
@@ -698,7 +903,7 @@ export default function PortfolioPage() {
                             </div>
 
                             {/* Hidden benefits */}
-                            <div className="flex flex-wrap gap-2 mb-3">
+                            <div className="flex flex-wrap justify-center sm:justify-start gap-1.5 sm:gap-2 mb-3">
                               <Badge variant="default" size="xs" className="opacity-60">??? Multiplier</Badge>
                               <Badge variant="default" size="xs" className="opacity-60">???% Commission</Badge>
                             </div>
@@ -715,9 +920,9 @@ export default function PortfolioPage() {
                             </Button>
 
                             {/* Badge ID */}
-                            <div className="flex items-center gap-2 mt-3 text-xs text-text-muted">
+                            <div className="flex items-center justify-center sm:justify-start gap-2 mt-3 text-xs text-text-muted flex-wrap">
                               <span>Badge ID: {badge.badgeId.toString()}</span>
-                              <span className="text-text-muted/50">•</span>
+                              <span className="text-text-muted/50 hidden sm:inline">•</span>
                               <span className="flex items-center gap-1">
                                 <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></span>
                                 FHE Encrypted
@@ -748,16 +953,16 @@ export default function PortfolioPage() {
 
             {/* Link to Channels */}
             <Card variant="default" padding="md">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <Layers className="w-5 h-5 text-neon-cyan" />
+                  <Layers className="w-5 h-5 text-neon-cyan flex-shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-text-primary">Manage Badges on Channels</p>
                     <p className="text-xs text-text-muted">Claim, upgrade, and view badge details</p>
                   </div>
                 </div>
-                <Link href="/channels">
-                  <Button variant="secondary" size="sm">
+                <Link href="/channels" className="w-full sm:w-auto">
+                  <Button variant="secondary" size="sm" className="w-full sm:w-auto">
                     View Channels
                     <ExternalLink className="w-4 h-4 ml-2" />
                   </Button>
@@ -774,28 +979,152 @@ export default function PortfolioPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
+            className="space-y-4"
           >
+            {/* Activity Filter Tabs */}
+            <Card variant="default" padding="sm">
+              <div className="flex flex-col gap-3">
+                {/* Direction Filter */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-xs text-text-muted">
+                    <Filter className="w-4 h-4" />
+                    <span>Direction</span>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    {[
+                      { id: 'all', label: 'All', icon: Activity, count: allTransactions.length },
+                      { id: 'outgoing', label: 'Sent', icon: ArrowUpRight, count: allTransactions.filter((t: { direction: string }) => t.direction === 'outgoing').length },
+                      { id: 'incoming', label: 'Received', icon: ArrowDownLeft, count: allTransactions.filter((t: { direction: string }) => t.direction === 'incoming').length },
+                    ].map((filter) => {
+                      const Icon = filter.icon;
+                      const isActive = activityFilter === filter.id;
+                      return (
+                        <button
+                          key={filter.id}
+                          onClick={() => setActivityFilter(filter.id as 'all' | 'outgoing' | 'incoming')}
+                          className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                            isActive
+                              ? filter.id === 'outgoing'
+                                ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                                : filter.id === 'incoming'
+                                ? 'bg-neon-green/20 text-neon-green border border-neon-green/30'
+                                : 'bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/30'
+                              : 'text-text-muted hover:text-text-primary hover:bg-bg-elevated border border-transparent'
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">{filter.label}</span>
+                          <Badge variant="default" size="xs" className="ml-1">{filter.count}</Badge>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* SDK Filter (Sponsors Only) */}
+                {availableSdks.length > 0 && (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-border-secondary">
+                    <div className="flex items-center gap-2 text-xs text-text-muted">
+                      <Layers className="w-4 h-4" />
+                      <span>SDK</span>
+                    </div>
+
+                    {/* Mobile: Dropdown */}
+                    <div className="sm:hidden w-full">
+                      <select
+                        value={sdkFilter}
+                        onChange={(e) => setSdkFilter(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg text-xs font-medium bg-bg-elevated text-text-primary border border-border-primary focus:outline-none focus:border-neon-cyan"
+                      >
+                        <option value="all">All SDKs</option>
+                        {availableSdks.map((sdk) => (
+                          <option key={sdk.id} value={sdk.id}>
+                            {sdk.icon} {sdk.name} ({sdk.count})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Desktop: Buttons */}
+                    <div className="hidden sm:flex items-center gap-2 overflow-x-auto pb-1">
+                      <button
+                        onClick={() => setSdkFilter('all')}
+                        className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                          sdkFilter === 'all'
+                            ? 'bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/30'
+                            : 'text-text-muted hover:text-text-primary hover:bg-bg-elevated border border-transparent'
+                        }`}
+                      >
+                        All
+                      </button>
+                      {availableSdks.map((sdk) => (
+                        <button
+                          key={sdk.id}
+                          onClick={() => setSdkFilter(sdk.id)}
+                          className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                            sdkFilter === sdk.id
+                              ? 'border'
+                              : 'text-text-muted hover:text-text-primary hover:bg-bg-elevated border border-transparent'
+                          }`}
+                          style={sdkFilter === sdk.id ? {
+                            backgroundColor: `${sdk.color}20`,
+                            color: sdk.color,
+                            borderColor: `${sdk.color}40`,
+                          } : undefined}
+                        >
+                          <span>{sdk.icon}</span>
+                          {sdk.name}
+                          <Badge variant="default" size="xs">{sdk.count}</Badge>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+
             <Card variant="default" padding="none">
-              {transactions.length === 0 ? (
+              {filteredTransactions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16">
                   <Activity className="w-12 h-12 text-text-muted mb-4" />
-                  <p className="text-text-muted font-medium">No recent activity</p>
-                  <p className="text-xs text-text-muted mt-1">Your transactions will appear here</p>
+                  <p className="text-text-muted font-medium">
+                    {activityFilter === 'all' && sdkFilter === 'all'
+                      ? 'No recent activity'
+                      : sdkFilter !== 'all'
+                      ? `No ${sdkFilter} transactions`
+                      : `No ${activityFilter} transactions`}
+                  </p>
+                  <p className="text-xs text-text-muted mt-1">
+                    {activityFilter === 'all' && sdkFilter === 'all'
+                      ? 'Your transactions will appear here'
+                      : 'Try selecting a different filter'}
+                  </p>
+                  {(activityFilter !== 'all' || sdkFilter !== 'all') && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setActivityFilter('all'); setSdkFilter('all'); }}
+                      className="mt-3"
+                    >
+                      Clear Filters
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="divide-y divide-border-secondary">
-                  {transactions.map((tx, i) => (
+                  {paginatedFilteredTransactions.map((tx, i) => (
                     <motion.div
                       key={tx.signature}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.03 }}
-                      className="flex items-center justify-between p-4 hover:bg-bg-tertiary/50 transition-colors"
+                      className="p-3 sm:p-4 hover:bg-bg-tertiary/50 transition-colors"
                     >
-                      <div className="flex items-center gap-3">
+                      {/* Mobile Layout */}
+                      <div className="flex items-start gap-3">
                         {/* Transaction Type Icon */}
                         <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
+                          className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-base sm:text-lg flex-shrink-0"
                           style={{
                             backgroundColor: `${tx.typeColor}20`,
                             color: tx.typeColor,
@@ -804,91 +1133,103 @@ export default function PortfolioPage() {
                           {tx.typeIcon}
                         </div>
 
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {/* Transaction Type */}
-                            <span
-                              className="font-medium text-sm"
-                              style={{ color: tx.typeColor }}
-                            >
-                              {tx.typeLabel}
-                            </span>
-
-                            {/* Source Badge (Jupiter, Raydium, etc.) */}
-                            {tx.sourceLabel && (
-                              <span
-                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border"
-                                style={{
-                                  backgroundColor: `${tx.sourceColor}20`,
-                                  color: tx.sourceColor,
-                                  borderColor: `${tx.sourceColor}40`,
-                                }}
-                              >
-                                {tx.sourceLabel}
-                              </span>
-                            )}
-
-                            {/* Program Badge */}
-                            {tx.programLabel && !tx.sourceLabel && (
-                              <Badge variant="default" size="xs" className="text-[10px]">
-                                {tx.programLabel}
-                              </Badge>
-                            )}
-
-                            {/* Status Badge */}
-                            <Badge
-                              variant={tx.status === 'success' ? 'success' : 'error'}
-                              size="xs"
-                            >
-                              {tx.status}
-                            </Badge>
-                          </div>
-
-                          {/* Description or Swap Details */}
-                          <div className="text-xs text-text-muted mt-0.5 truncate max-w-[300px]">
-                            {tx.swapIn?.amount !== undefined && tx.swapOut?.amount !== undefined ? (
-                              <span className="flex items-center gap-1">
-                                <span className="text-text-secondary">
-                                  {tx.swapIn.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {tx.swapIn.symbol}
+                        <div className="flex-1 min-w-0">
+                          {/* Header Row */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                {/* Transaction Type */}
+                                <span
+                                  className="font-medium text-sm"
+                                  style={{ color: tx.typeColor }}
+                                >
+                                  {tx.typeLabel}
                                 </span>
-                                <span className="text-text-muted">→</span>
-                                <span className="text-neon-green">
-                                  {tx.swapOut.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {tx.swapOut.symbol}
-                                </span>
-                              </span>
-                            ) : (
-                              tx.description
-                            )}
-                          </div>
-                        </div>
-                      </div>
 
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          {/* Amount */}
-                          {tx.amount && !tx.swapIn && (
-                            <div className="text-sm font-medium text-text-primary font-mono">
-                              {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {tx.tokenSymbol || 'SOL'}
+                                {/* Source Badge (Jupiter, Raydium, etc.) */}
+                                {tx.sourceLabel && (
+                                  <span
+                                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border"
+                                    style={{
+                                      backgroundColor: `${tx.sourceColor}20`,
+                                      color: tx.sourceColor,
+                                      borderColor: `${tx.sourceColor}40`,
+                                    }}
+                                  >
+                                    {tx.sourceLabel}
+                                  </span>
+                                )}
+
+                                {/* Program Badge - Hide on mobile if source exists */}
+                                {tx.programLabel && !tx.sourceLabel && (
+                                  <Badge variant="default" size="xs" className="text-[10px] hidden sm:inline-flex">
+                                    {tx.programLabel}
+                                  </Badge>
+                                )}
+
+                                {/* Status Badge */}
+                                <Badge
+                                  variant={tx.status === 'success' ? 'success' : 'error'}
+                                  size="xs"
+                                >
+                                  {tx.status}
+                                </Badge>
+                              </div>
+
+                              {/* Description or Swap Details */}
+                              <div className="text-xs text-text-muted mt-0.5 truncate max-w-[200px] sm:max-w-[300px]">
+                                {tx.swapIn?.amount !== undefined && tx.swapOut?.amount !== undefined ? (
+                                  <span className="flex items-center gap-1 flex-wrap">
+                                    <span className="text-text-secondary">
+                                      {tx.swapIn.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} {tx.swapIn.symbol}
+                                    </span>
+                                    <span className="text-text-muted">→</span>
+                                    <span className="text-neon-green">
+                                      {tx.swapOut.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} {tx.swapOut.symbol}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span className="truncate block">{tx.description}</span>
+                                )}
+                              </div>
                             </div>
-                          )}
 
-                          {/* Fee */}
-                          <div className="text-xs text-text-muted flex items-center gap-2 justify-end">
-                            <span>{formatTimeAgo(tx.timestamp)}</span>
-                            <span className="text-text-muted/50">•</span>
-                            <span className="font-mono">{tx.fee.toFixed(6)} SOL</span>
+                            {/* Amount + Link (Desktop aligned right) */}
+                            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+                              {/* Amount - Only show on desktop or if no swap */}
+                              {tx.amount && !tx.swapIn && (
+                                <div className="text-sm font-medium text-text-primary font-mono hidden sm:block">
+                                  {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {tx.tokenSymbol || 'SOL'}
+                                </div>
+                              )}
+
+                              {/* External Link */}
+                              <a
+                                href={`https://solscan.io/tx/${tx.signature}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 sm:p-2 rounded-lg hover:bg-bg-elevated text-text-muted hover:text-neon-cyan transition-colors"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                              </a>
+                            </div>
+                          </div>
+
+                          {/* Footer Row - Time & Fee */}
+                          <div className="flex items-center justify-between mt-2 pt-2 border-t border-border-secondary/30 sm:border-0 sm:pt-0 sm:mt-1">
+                            <span className="text-xs text-text-muted">{formatTimeAgo(tx.timestamp)}</span>
+                            <div className="flex items-center gap-2 text-xs text-text-muted">
+                              {/* Amount on mobile */}
+                              {tx.amount && !tx.swapIn && (
+                                <span className="font-mono sm:hidden">
+                                  {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} {tx.tokenSymbol || 'SOL'}
+                                </span>
+                              )}
+                              <span className="hidden sm:inline text-text-muted/50">•</span>
+                              <span className="font-mono text-[10px] sm:text-xs">{tx.fee.toFixed(5)} SOL</span>
+                            </div>
                           </div>
                         </div>
-
-                        {/* External Link */}
-                        <a
-                          href={`https://solscan.io/tx/${tx.signature}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 rounded-lg hover:bg-bg-elevated text-text-muted hover:text-neon-cyan transition-colors flex-shrink-0"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
                       </div>
                     </motion.div>
                   ))}
@@ -896,10 +1237,52 @@ export default function PortfolioPage() {
               )}
             </Card>
 
+            {/* Pagination */}
+            {(filteredTotalPages > 1 || hasMoreTxFromAPI) && (
+              <Card variant="default" padding="md" className="mt-4">
+                <div className="space-y-3">
+                  {filteredTotalPages > 1 && (
+                    <Pagination
+                      currentPage={activityPage}
+                      totalPages={filteredTotalPages}
+                      totalItems={filteredTransactions.length}
+                      itemsPerPage={activityPerPage}
+                      onPageChange={setActivityPage}
+                    />
+                  )}
+
+                  {/* Load More from API - show when on last page and more available */}
+                  {hasMoreTxFromAPI && activityPage >= filteredTotalPages && (
+                    <div className="pt-3 border-t border-border-secondary">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={loadMoreTransactionsFromAPI}
+                        disabled={loadingMoreTx}
+                        fullWidth
+                      >
+                        {loadingMoreTx ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            Loading more transactions...
+                          </>
+                        ) : (
+                          <>
+                            <Activity className="w-4 h-4 mr-2" />
+                            Load More Transactions
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
             {/* Activity Legend */}
             <Card variant="default" padding="md" className="mt-4">
-              <div className="flex flex-wrap items-center gap-4 text-xs">
-                <span className="text-text-muted">Transaction Types:</span>
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs">
+                <span className="text-text-muted">Types:</span>
                 <div className="flex items-center gap-1">
                   <span className="text-[#00D18C]">🔄</span>
                   <span className="text-text-secondary">Swap</span>
@@ -914,7 +1297,7 @@ export default function PortfolioPage() {
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-[#14F195]">🔒</span>
-                  <span className="text-text-secondary">Staking</span>
+                  <span className="text-text-secondary">Stake</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-[#8b5cf6]">🐋</span>

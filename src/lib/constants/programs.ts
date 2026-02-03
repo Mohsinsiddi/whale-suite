@@ -18,9 +18,8 @@ export const PRIVACY_PROGRAMS = {
   PRIVACY_CASH: '9fhQBbumKEFuXtMBDw8AaQyAjCorLGJQiS3skWZdQyQD',
   ELUSIV: '9fhQBbumKEFuXtMBDw8AaQyAjCorLGJQiS3skWZdQyQD', // Same as Privacy Cash
 
-  // ShadowWire - Private transfers
-  // Real program ID from mainnet transactions
-  SHADOW_WIRE: '6fnYZUSyp3vJxTNnayq5S62d363EFaGARnqYux5bqrxb',
+  // ShadowWire - Private transfers (mainnet)
+  SHADOW_WIRE: 'GQBqwwoikYh7p6KEUHDUu5r9dHHXx9tMGskAPubmFPzD',
 
   // Dark Pool / Darklake - Private OTC
   // Real program ID from mainnet transactions
@@ -115,8 +114,8 @@ export const LENDING_PROGRAMS = {
 
 // === PREDICTION MARKETS ===
 export const PREDICTION_PROGRAMS = {
-  // PNP Exchange (Anonymous betting)
-  PNP: 'PNP11111111111111111111111111111111111111', // Placeholder
+  // PNP Exchange (Anonymous betting) - Mainnet
+  PNP: '6fnYZUSyp3vJxTNnayq5S62d363EFaGARnqYux5bqrxb',
 
   // Hedgehog
   HEDGEHOG: 'HHog1111111111111111111111111111111111111', // Placeholder
@@ -180,6 +179,9 @@ export const PROGRAM_LABELS: Record<string, { name: string; category: string; ic
   [LENDING_PROGRAMS.MARGINFI]: { name: 'Marginfi', category: 'lending', icon: '📊', color: '#FFD93D' },
   [LENDING_PROGRAMS.KAMINO]: { name: 'Kamino', category: 'lending', icon: '🏛️', color: '#8B5CF6' },
   [LENDING_PROGRAMS.DRIFT]: { name: 'Drift', category: 'perps', icon: '🌊', color: '#14F195' },
+
+  // Prediction Markets
+  [PREDICTION_PROGRAMS.PNP]: { name: 'PNP Exchange', category: 'betting', icon: '🎲', color: '#f59e0b' },
 
   // System
   [SYSTEM_PROGRAMS.SYSTEM]: { name: 'System', category: 'system', icon: '⚙️', color: '#6b7280' },
@@ -247,21 +249,39 @@ export const HELIUS_TX_TYPE_LABELS: Record<string, { label: string; icon: string
 
 // === HELIUS SOURCE TO LABELS ===
 export const HELIUS_SOURCE_LABELS: Record<string, { name: string; color: string }> = {
+  // Privacy SDKs (Our Sponsors)
+  'PRIVACY_CASH': { name: 'Privacy Cash', color: '#00ff88' },
+  'ELUSIV': { name: 'Privacy Cash', color: '#00ff88' },
+  'DARKLAKE': { name: 'Darklake', color: '#6366f1' },
+  'DARK_LAKE': { name: 'Darklake', color: '#6366f1' },
+  'SHADOWWIRE': { name: 'ShadowWire', color: '#8b5cf6' },
+  'SHADOW_WIRE': { name: 'ShadowWire', color: '#8b5cf6' },
+  'PNP': { name: 'PNP Exchange', color: '#f59e0b' },
+  'PNP_EXCHANGE': { name: 'PNP Exchange', color: '#f59e0b' },
+
+  // DEXs
   'JUPITER': { name: 'Jupiter', color: '#00D18C' },
   'RAYDIUM': { name: 'Raydium', color: '#58c4f6' },
   'ORCA': { name: 'Orca', color: '#FFCE4F' },
   'METEORA': { name: 'Meteora', color: '#00F0FF' },
   'PUMP_AMM': { name: 'Pump.fun', color: '#39FF14' },
+  'PUMP_FUN': { name: 'Pump.fun', color: '#39FF14' },
   'PHOENIX': { name: 'Phoenix', color: '#FF6B35' },
   'OPENBOOK_V2': { name: 'OpenBook', color: '#0066FF' },
+
+  // NFT
   'MAGIC_EDEN': { name: 'Magic Eden', color: '#E42575' },
   'TENSOR': { name: 'Tensor', color: '#7c3aed' },
+
+  // Staking/Lending
   'MARINADE': { name: 'Marinade', color: '#36E899' },
   'JITO': { name: 'Jito', color: '#8B5CF6' },
   'SOLEND': { name: 'Solend', color: '#14F195' },
   'MARGINFI': { name: 'Marginfi', color: '#FFD93D' },
   'KAMINO': { name: 'Kamino', color: '#8B5CF6' },
   'DRIFT': { name: 'Drift', color: '#14F195' },
+
+  // System
   'SYSTEM_PROGRAM': { name: 'System', color: '#6b7280' },
   'BUBBLEGUM': { name: 'Bubblegum', color: '#FF6B35' },
   'ASSOCIATED_TOKEN_PROGRAM': { name: 'ATA', color: '#6b7280' },
