@@ -8,11 +8,12 @@ import Button from "@/components/ui/Button";
 import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 import RPCProviderSelector from "@/components/portfolio/RPCProviderSelector";
 import ProviderSwitchingOverlay from "@/components/portfolio/ProviderSwitchingOverlay";
+import RevealBadgeModal from "@/components/modals/RevealBadgeModal";
 import { usePortfolio } from "@/hooks/usePortfolio";
 import { useWalletAddress } from "@/lib/privy/hooks";
 import { useNetworkContext } from "@/providers/NetworkProvider";
-import { useConfidentialBadge, TIER_INFO } from "@/hooks/useConfidentialBadge";
 import { findAllUserBadges, UserBadge } from "@/hooks/useChannelJoin";
+import { useRevealBadge, TIER_INFO } from "@/hooks/useRevealBadge";
 import { Connection, PublicKey } from "@solana/web3.js";
 import Link from "next/link";
 import {
@@ -33,6 +34,8 @@ import {
   BarChart3,
   AlertCircle,
   ArrowUpRight,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 // INCO Devnet RPC
@@ -61,12 +64,26 @@ export default function PortfolioPage() {
     refresh,
   } = usePortfolio(walletAddress);
 
-  // FHE Badge state (from devnet - independent of mainnet portfolio)
-  const { badge: confidentialBadge, loading: badgeLoading } = useConfidentialBadge();
+  // FHE Badge state (pure on-chain, no MongoDB)
   const [userBadges, setUserBadges] = useState<UserBadge[]>([]);
   const [badgesLoadingState, setBadgesLoadingState] = useState(false);
+  const [revealedTiers, setRevealedTiers] = useState<Record<string, number>>({}); // pda -> tier
+  const [selectedBadgeForReveal, setSelectedBadgeForReveal] = useState<UserBadge | null>(null);
 
-  // Fetch user badges from INCO devnet
+  // FHE Reveal hook
+  const {
+    loading: revealLoading,
+    currentStep,
+    steps,
+    error: revealError,
+    success: revealSuccess,
+    revealedTier,
+    txSignature: revealTxSignature,
+    revealBadge,
+    reset: resetReveal,
+  } = useRevealBadge();
+
+  // Fetch user badges from INCO devnet (on-chain only)
   useEffect(() => {
     async function fetchBadges() {
       if (!walletAddress) {
@@ -90,6 +107,27 @@ export default function PortfolioPage() {
 
     fetchBadges();
   }, [walletAddress]);
+
+  // Handle reveal success - store the tier
+  useEffect(() => {
+    if (revealSuccess && revealedTier && selectedBadgeForReveal) {
+      const pdaKey = selectedBadgeForReveal.pda.toBase58();
+      setRevealedTiers(prev => ({ ...prev, [pdaKey]: revealedTier }));
+    }
+  }, [revealSuccess, revealedTier, selectedBadgeForReveal]);
+
+  // Start reveal flow
+  const handleRevealBadge = async (badge: UserBadge) => {
+    setSelectedBadgeForReveal(badge);
+    resetReveal();
+    await revealBadge(badge);
+  };
+
+  // Close reveal modal
+  const handleCloseRevealModal = () => {
+    setSelectedBadgeForReveal(null);
+    resetReveal();
+  };
 
   const [activeTab, setActiveTab] = useState("holdings");
 
@@ -493,6 +531,20 @@ export default function PortfolioPage() {
             exit={{ opacity: 0, y: -10 }}
             className="space-y-4"
           >
+            {/* Reveal Badge Modal */}
+            <RevealBadgeModal
+              isOpen={!!selectedBadgeForReveal}
+              onClose={handleCloseRevealModal}
+              badgeId={selectedBadgeForReveal?.pda.toBase58() || ''}
+              steps={steps}
+              currentStep={currentStep}
+              loading={revealLoading}
+              error={revealError}
+              success={revealSuccess}
+              revealedTier={revealedTier}
+              txSignature={revealTxSignature}
+            />
+
             {/* Info Banner */}
             <Card variant="default" padding="md" className="bg-gradient-to-r from-neon-cyan/5 to-purple-500/5 border-neon-cyan/30">
               <div className="flex items-start gap-3">
@@ -502,8 +554,8 @@ export default function PortfolioPage() {
                 <div className="flex-1">
                   <h3 className="text-sm font-semibold text-neon-cyan mb-1">INCO FHE Encrypted Badges</h3>
                   <p className="text-xs text-text-secondary">
-                    Your badge data is encrypted using Fully Homomorphic Encryption (FHE) on INCO Network.
-                    Badge tier is verified without revealing your actual holdings.
+                    Your badge tier is encrypted using Fully Homomorphic Encryption (FHE) on INCO Network.
+                    Click &quot;Reveal Tier&quot; to decrypt and see your actual badge tier.
                   </p>
                 </div>
                 <Badge variant="warning" size="sm">Devnet</Badge>
@@ -511,7 +563,7 @@ export default function PortfolioPage() {
             </Card>
 
             {/* Loading State */}
-            {(badgesLoadingState || badgeLoading) && (
+            {badgesLoadingState && (
               <Card variant="default" padding="lg">
                 <div className="flex flex-col items-center justify-center py-8">
                   <RefreshCw className="w-8 h-8 text-neon-cyan animate-spin mb-4" />
@@ -520,87 +572,165 @@ export default function PortfolioPage() {
               </Card>
             )}
 
-            {/* FHE Badges - Real Data */}
-            {!badgesLoadingState && !badgeLoading && userBadges.length > 0 ? (
+            {/* FHE Badges - Mystery or Revealed */}
+            {!badgesLoadingState && userBadges.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {userBadges.map((badge, index) => {
-                  // Determine highest tier for this badge
-                  const tierNum = badge.data.proofLegendary ? 5 :
-                                  badge.data.proofDiamond ? 4 :
-                                  badge.data.proofGold ? 3 :
-                                  badge.data.proofSilver ? 2 :
-                                  badge.data.proofBronze ? 1 : 1;
-                  const tierInfo = TIER_INFO[tierNum as keyof typeof TIER_INFO] || TIER_INFO[1];
+                  const pdaKey = badge.pda.toBase58();
+                  const isRevealed = revealedTiers[pdaKey] !== undefined;
+                  const tierNum = isRevealed ? revealedTiers[pdaKey] : null;
+                  const tierInfo = tierNum ? TIER_INFO[tierNum] : null;
 
-                  // Map tier to hex colors for styling
-                  const tierColors: Record<number, string> = {
-                    1: '#CD7F32', // Bronze
-                    2: '#C0C0C0', // Silver
-                    3: '#FFD700', // Gold
-                    4: '#00D4FF', // Diamond
-                    5: '#8B5CF6', // Legendary
-                  };
-                  const tierColor = tierColors[tierNum] || tierColors[1];
-
-                  return (
-                    <Card key={badge.pda.toBase58()} variant="glow" padding="md" style={{ borderColor: `${tierColor}40` }}>
-                      <div className="flex items-start gap-4">
-                        {/* Badge Icon */}
-                        <div
-                          className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-lg bg-gradient-to-br ${tierInfo.color}`}
-                          style={{ boxShadow: `0 8px 32px ${tierColor}30` }}
-                        >
-                          {tierInfo.icon}
-                        </div>
-
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h3 className="font-semibold text-text-primary">{tierInfo.name}</h3>
-                            <Badge variant="success" size="xs">Active</Badge>
-                            {userBadges.length > 1 && (
-                              <Badge variant="default" size="xs">#{index + 1}</Badge>
-                            )}
-                          </div>
-
-                          {/* Badge PDA (encrypted reference) */}
-                          <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-bg-tertiary">
-                            <Lock className="w-4 h-4 text-neon-cyan flex-shrink-0" />
-                            <span className="text-xs font-mono text-text-muted truncate">
-                              {badge.pda.toBase58().slice(0, 8)}...{badge.pda.toBase58().slice(-8)}
-                            </span>
-                            <a
-                              href={`https://solscan.io/account/${badge.pda.toBase58()}?cluster=devnet`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1 hover:text-neon-cyan transition-colors flex-shrink-0"
+                  // If revealed, show the actual tier
+                  if (isRevealed && tierInfo) {
+                    return (
+                      <motion.div
+                        key={pdaKey}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                      >
+                        <Card variant="glow" padding="md" style={{ borderColor: `${tierInfo.hex}40` }}>
+                          <div className="flex items-start gap-4">
+                            {/* Revealed Badge Icon */}
+                            <div
+                              className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-lg bg-gradient-to-br ${tierInfo.color}`}
+                              style={{ boxShadow: `0 8px 32px ${tierInfo.hex}30` }}
                             >
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
+                              {tierInfo.icon}
+                            </div>
+
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="font-semibold text-text-primary">{tierInfo.name}</h3>
+                                <Badge variant="success" size="xs">Revealed</Badge>
+                                {userBadges.length > 1 && (
+                                  <Badge variant="default" size="xs">#{index + 1}</Badge>
+                                )}
+                              </div>
+
+                              {/* Badge PDA */}
+                              <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-bg-tertiary">
+                                <Eye className="w-4 h-4 text-neon-green flex-shrink-0" />
+                                <span className="text-xs font-mono text-text-muted truncate">
+                                  {pdaKey.slice(0, 8)}...{pdaKey.slice(-8)}
+                                </span>
+                                <a
+                                  href={`https://solscan.io/account/${pdaKey}?cluster=devnet`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1 hover:text-neon-cyan transition-colors flex-shrink-0"
+                                  title="View on Solscan"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              </div>
+
+                              {/* Tier Benefits */}
+                              <div className="flex flex-wrap gap-2">
+                                <Badge variant="default" size="xs">{[1, 1.25, 1.5, 1.75, 2][tierNum! - 1]}x Multiplier</Badge>
+                                <Badge variant="default" size="xs">{[5, 10, 15, 20, 25][tierNum! - 1]}% Commission</Badge>
+                                {tierNum! >= 3 && <Badge variant="default" size="xs">Priority Support</Badge>}
+                              </div>
+
+                              {/* Badge ID */}
+                              <div className="flex items-center gap-2 mt-3 text-xs text-text-muted">
+                                <span>Badge ID: {badge.badgeId.toString()}</span>
+                                <span className="text-text-muted/50">•</span>
+                                <span className="flex items-center gap-1">
+                                  <span className="w-2 h-2 rounded-full bg-neon-green"></span>
+                                  FHE Decrypted
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </Card>
+                      </motion.div>
+                    );
+                  }
+
+                  // Mystery badge - not revealed yet
+                  return (
+                    <motion.div
+                      key={pdaKey}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.1 }}
+                    >
+                      <Card variant="default" padding="md" className="border-purple-500/30 relative overflow-hidden">
+                        {/* Mystery overlay effect */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-neon-cyan/5 pointer-events-none" />
+
+                        <div className="relative flex items-start gap-4">
+                          {/* Mystery Badge Icon */}
+                          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-lg bg-gradient-to-br from-gray-600 to-gray-800 relative">
+                            <span className="opacity-50">?</span>
+                            <div className="absolute inset-0 backdrop-blur-[2px] rounded-2xl" />
+                            <Lock className="absolute w-6 h-6 text-purple-400" />
                           </div>
 
-                          {/* Tier Benefits */}
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant="default" size="xs">{[1, 1.25, 1.5, 1.75, 2][tierNum - 1] || 1}x Multiplier</Badge>
-                            <Badge variant="default" size="xs">{[5, 10, 15, 20, 25][tierNum - 1] || 5}% Commission</Badge>
-                            {tierNum >= 3 && <Badge variant="default" size="xs">Priority Support</Badge>}
-                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h3 className="font-semibold text-text-primary">Mystery Badge</h3>
+                              <Badge variant="warning" size="xs">
+                                <EyeOff className="w-3 h-3 mr-1" />
+                                Hidden
+                              </Badge>
+                              {userBadges.length > 1 && (
+                                <Badge variant="default" size="xs">#{index + 1}</Badge>
+                              )}
+                            </div>
 
-                          {/* Proof Status */}
-                          <div className="flex items-center gap-2 mt-3 text-xs text-text-muted">
-                            <span>Badge ID: {badge.badgeId.toString()}</span>
-                            <span className="text-text-muted/50">•</span>
-                            <span className="flex items-center gap-1">
-                              <span className="w-2 h-2 rounded-full bg-neon-green"></span>
-                              FHE Verified
-                            </span>
+                            {/* Badge PDA */}
+                            <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-bg-tertiary">
+                              <Lock className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                              <span className="text-xs font-mono text-text-muted truncate">
+                                {pdaKey.slice(0, 8)}...{pdaKey.slice(-8)}
+                              </span>
+                              <a
+                                href={`https://solscan.io/account/${pdaKey}?cluster=devnet`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1 hover:text-neon-cyan transition-colors flex-shrink-0"
+                                title="View on Solscan"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
+
+                            {/* Hidden benefits */}
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              <Badge variant="default" size="xs" className="opacity-60">??? Multiplier</Badge>
+                              <Badge variant="default" size="xs" className="opacity-60">???% Commission</Badge>
+                            </div>
+
+                            {/* Reveal Button */}
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => handleRevealBadge(badge)}
+                              className="w-full"
+                            >
+                              <Sparkles className="w-4 h-4 mr-2" />
+                              Reveal Tier
+                            </Button>
+
+                            {/* Badge ID */}
+                            <div className="flex items-center gap-2 mt-3 text-xs text-text-muted">
+                              <span>Badge ID: {badge.badgeId.toString()}</span>
+                              <span className="text-text-muted/50">•</span>
+                              <span className="flex items-center gap-1">
+                                <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></span>
+                                FHE Encrypted
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </Card>
+                      </Card>
+                    </motion.div>
                   );
                 })}
               </div>
-            ) : !badgesLoadingState && !badgeLoading && (
+            ) : !badgesLoadingState && (
               <Card variant="default" padding="lg">
                 <div className="flex flex-col items-center justify-center py-12">
                   <Shield className="w-12 h-12 text-text-muted mb-4" />
@@ -612,30 +742,6 @@ export default function PortfolioPage() {
                       Go to Channels
                     </Button>
                   </Link>
-                </div>
-              </Card>
-            )}
-
-            {/* MongoDB Badge Status (if different from on-chain) */}
-            {confidentialBadge?.hasClaimed && (
-              <Card variant="default" padding="md" className="border-neon-green/30">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-neon-green/20 flex items-center justify-center">
-                      <Shield className="w-5 h-5 text-neon-green" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-text-primary">
-                        {confidentialBadge.tier && confidentialBadge.tier >= 1 && confidentialBadge.tier <= 5
-                          ? TIER_INFO[confidentialBadge.tier as 1 | 2 | 3 | 4 | 5]?.name
-                          : 'Badge'} (Backend Record)
-                      </p>
-                      <p className="text-xs text-text-muted">
-                        Claimed on {confidentialBadge.claimedAt ? new Date(confidentialBadge.claimedAt).toLocaleDateString() : 'N/A'}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant="success" size="sm">Synced</Badge>
                 </div>
               </Card>
             )}
