@@ -9,6 +9,7 @@ import { useClaimBadge } from '@/hooks/useClaimBadge';
 import { useChannelJoin, findAllUserBadges, UserBadge } from '@/hooks/useChannelJoin';
 import { useRouter } from 'next/navigation';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
+import { WalletMismatchBanner } from '@/components/ui/WalletMismatchBanner';
 import { PublicKey, Connection } from '@solana/web3.js';
 import {
   deriveConfigPda,
@@ -55,7 +56,7 @@ interface OnChainBadge {
 
 export default function ChannelsPage() {
   const router = useRouter();
-  const { walletAddress, authenticated } = useAuth();
+  const { walletAddress, authenticated, logout } = useAuth();
   const { network, rpcPing } = useNetwork();
   const { badge, loading: badgeLoading, refetch: refetchBadge } = useConfidentialBadge();
   const { balance, loading: balanceLoading } = useWalletBalance(walletAddress);
@@ -97,7 +98,7 @@ export default function ChannelsPage() {
   const [userBadges, setUserBadges] = useState<UserBadge[]>([]);
   const [, setSelectedBadge] = useState<UserBadge | null>(null);
   const [showBadgeSelector, setShowBadgeSelector] = useState(false);
-  const [, setBadgesLoading] = useState(false);
+  const [badgesLoading, setBadgesLoading] = useState(false);
 
   // Claim/upgrade badge modal state
   const [showClaimModal, setShowClaimModal] = useState(false);
@@ -311,7 +312,10 @@ export default function ChannelsPage() {
 
   // Handle join channel
   const handleJoinChannel = async (channel: Channel) => {
-    if (!walletAddress) return;
+    if (!walletAddress) {
+      console.error('[Channels] Wallet not connected');
+      return;
+    }
 
     // Diamond and Legendary coming soon
     if (channel.tier >= 4) return;
@@ -322,6 +326,12 @@ export default function ChannelsPage() {
     }
 
     if (channel.userAccess === 'locked') return;
+
+    // Wait for badges to load
+    if (badgesLoading) {
+      console.log('[Channels] Still loading badges, please wait...');
+      return;
+    }
 
     if (userBadges.length > 1) {
       setJoiningChannel(channel);
@@ -334,7 +344,9 @@ export default function ChannelsPage() {
       return;
     }
 
+    // No badges found - prompt user to check their badge
     console.error('[Channels] No badges available for joining');
+    alert('No badge found. Please make sure your badge is loaded or claim a badge first.');
   };
 
   const startJoinFlow = async (channel: Channel, badgeToUse: UserBadge) => {
@@ -438,6 +450,30 @@ export default function ChannelsPage() {
           </div>
         </div>
       </div>
+
+      {/* Wallet Mismatch Banner */}
+      <WalletMismatchBanner className="mb-4" />
+
+      {/* Wallet Session Error Banner - Shows when join fails due to wallet auth */}
+      {joinError && (joinError.includes('not been authorized') || joinError.includes('Wallet authorization')) && (
+        <div className="mb-4 p-4 rounded-xl bg-error/10 border border-error/30">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-2 flex-1">
+              <span className="text-xl">⚠️</span>
+              <div>
+                <p className="font-semibold text-error text-sm">Wallet Session Expired</p>
+                <p className="text-text-muted text-xs">Disconnect and login again to fix.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => logout()}
+              className="px-4 py-2 rounded-lg bg-error text-white text-sm font-medium hover:bg-error/90 transition-colors"
+            >
+              Disconnect
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Network Education Banners */}
       {network === 'mainnet' ? (
@@ -715,9 +751,13 @@ export default function ChannelsPage() {
                                   <p className="text-xs text-text-muted">{channel.memberCount} members</p>
                                 </div>
                               </div>
-                              {joiningChannel?.id === channel.id ? (
+                              {joiningChannel?.id === channel.id || (joinLoading && !joiningChannel) ? (
                                 <span className="px-4 py-2 rounded-lg text-xs bg-neon-cyan/10 text-neon-cyan">
                                   <LoadingSpinner className="w-3 h-3 inline mr-1" /> Joining...
+                                </span>
+                              ) : badgesLoading ? (
+                                <span className="px-4 py-2 rounded-lg text-xs bg-bg-primary text-text-muted">
+                                  <LoadingSpinner className="w-3 h-3 inline mr-1" /> Loading...
                                 </span>
                               ) : canAccess ? (
                                 <span className="px-4 py-2 rounded-lg text-xs bg-neon-cyan/10 text-neon-cyan font-medium">

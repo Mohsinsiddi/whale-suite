@@ -553,6 +553,8 @@ export function useChannelJoin() {
         errorMsg = 'This badge is inactive. Please use an active badge.';
       } else if (errorMsg.includes('Unauthorized')) {
         errorMsg = 'You do not own this badge.';
+      } else if (errorMsg.includes('not been authorized') || errorMsg.includes('requested method')) {
+        errorMsg = 'Wallet authorization failed. Please ensure your wallet is on Devnet and try reconnecting.';
       }
 
       // Update current step to error
