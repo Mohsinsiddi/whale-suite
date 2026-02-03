@@ -69,6 +69,7 @@ export default function TransferPage() {
     initialized: shadowWireInitialized,
     wasmSupported,
     reset: resetShadowWire,
+    checkRecipientPool,
   } = useShadowWire();
   const { awardPoints } = usePoints();
   const { network } = useNetwork();
@@ -117,7 +118,6 @@ export default function TransferPage() {
   ]);
   const [multiSendToken, setMultiSendToken] = useState<TokenType>('SOL');
   const [multiSendType, setMultiSendType] = useState<'internal' | 'external'>('internal');
-  const [isMultiSendExecuting, setIsMultiSendExecuting] = useState(false);
   const [showMultiSendSuccess, setShowMultiSendSuccess] = useState(false);
   const [showMultiSendTxModal, setShowMultiSendTxModal] = useState(false);
   const [multiSendCurrentStep, setMultiSendCurrentStep] = useState(0);
@@ -252,7 +252,6 @@ export default function TransferPage() {
   const handleMultiSendExecute = async () => {
     if (!walletAddress || !multiSendValidation.valid) return;
 
-    setIsMultiSendExecuting(true);
     setShowMultiSendTxModal(true);
     setMultiSendCurrentStep(0);
 
@@ -276,7 +275,6 @@ export default function TransferPage() {
       }
     );
 
-    setIsMultiSendExecuting(false);
     setShowMultiSendTxModal(false);
     setShowMultiSendSuccess(true);
 
@@ -492,6 +490,13 @@ export default function TransferPage() {
 
       if (amountValue > shieldedPoolBalance) {
         setAmountError(`Insufficient shielded balance. Please deposit at least ${amountValue.toFixed(4)} ${poolToken} to the pool first.`);
+        return;
+      }
+
+      // Validate recipient has a pool for this token
+      const poolCheck = await checkRecipientPool(recipient, poolToken);
+      if (!poolCheck.hasPool) {
+        setRecipientError(poolCheck.error || `Recipient has no ${poolToken} pool. They need to deposit ${poolToken} first.`);
         return;
       }
     }
@@ -1666,7 +1671,7 @@ export default function TransferPage() {
             ? `Successfully deposited ${lastOperation.amount} ${lastOperation.token} to shielded pool`
             : lastOperation?.type === 'withdraw'
             ? `Successfully withdrew ${lastOperation.amount} ${lastOperation.token} from shielded pool`
-            : `Successfully sent ${lastOperation?.amount || amount} SOL ${activeTab === 'private' ? (privateTransferType === 'internal' ? 'with hidden amount' : 'anonymously') : ''}`
+            : `Successfully sent ${lastOperation?.amount || amount} ${lastOperation?.token || poolToken} ${activeTab === 'private' ? (privateTransferType === 'internal' ? 'with hidden amount' : 'anonymously') : ''}`
         }
         txSignature={lastOperation?.signature || combinedResult?.signature || ''}
         actions={pointsEarned ? <PointsEarned points={pointsEarned} action="Transfer" /> : undefined}

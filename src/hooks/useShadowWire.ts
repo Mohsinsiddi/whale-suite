@@ -541,6 +541,26 @@ export function useShadowWire() {
   );
 
   /**
+   * Check if a recipient has a pool account for a specific token
+   */
+  const checkRecipientPool = useCallback(
+    async (recipient: string, token: TokenSymbol = 'SOL') => {
+      return shadowWireService.checkRecipientPool(recipient, token);
+    },
+    []
+  );
+
+  /**
+   * Validate multiple recipients have pools for a specific token
+   */
+  const validateRecipientsPool = useCallback(
+    async (recipients: string[], token: TokenSymbol = 'SOL') => {
+      return shadowWireService.validateRecipientsPool(recipients, token);
+    },
+    []
+  );
+
+  /**
    * Reset state
    */
   const reset = useCallback(() => {
@@ -574,6 +594,10 @@ export function useShadowWire() {
     calculateFee,
     getMinimumAmount,
     getFeePercentage,
+
+    // Recipient Validation
+    checkRecipientPool,
+    validateRecipientsPool,
   };
 }
 
