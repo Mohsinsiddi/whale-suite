@@ -73,6 +73,7 @@ export const useUser = () =>
       termsVersion: state.termsVersion,
       userLoading: state.userLoading,
       hasSynced: state.hasSynced,
+      userNotFound: state.userNotFound,
       setUser: state.setUser,
       setUserNumber: state.setUserNumber,
       setBadgeTier: state.setBadgeTier,
@@ -82,6 +83,7 @@ export const useUser = () =>
       setTermsAccepted: state.setTermsAccepted,
       setUserLoading: state.setUserLoading,
       setHasSynced: state.setHasSynced,
+      setUserNotFound: state.setUserNotFound,
       resetUser: state.resetUser,
     }))
   );

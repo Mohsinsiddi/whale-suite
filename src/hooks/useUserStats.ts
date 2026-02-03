@@ -96,7 +96,18 @@ export function useUserStats() {
         const data = await response.json();
 
         if (!data.success) {
+          // Check specifically for "User not found" error (user exists in Privy but not in DB)
+          if (data.error === 'User not found') {
+            const store = useStore.getState();
+            store.setUserNotFound(true);
+          }
           throw new Error(data.error || 'Failed to fetch stats');
+        }
+
+        // User was found, ensure userNotFound is false
+        const storeState = useStore.getState();
+        if (storeState.userNotFound) {
+          storeState.setUserNotFound(false);
         }
 
         // Update cache

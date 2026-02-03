@@ -34,6 +34,7 @@ export interface UserSlice {
   termsVersion: string | null;
   userLoading: boolean;
   hasSynced: boolean; // True after first sync completes
+  userNotFound: boolean; // True if user doesn't exist in DB (needs re-login)
 
   // Actions
   setUser: (user: Partial<UserSlice>) => void;
@@ -45,6 +46,7 @@ export interface UserSlice {
   setTermsAccepted: (termsAcceptedAt: Date, termsVersion: string) => void;
   setUserLoading: (loading: boolean) => void;
   setHasSynced: (synced: boolean) => void;
+  setUserNotFound: (notFound: boolean) => void;
   resetUser: () => void;
 }
 
@@ -75,6 +77,7 @@ const initialUserState = {
   termsVersion: null,
   userLoading: false,
   hasSynced: false,
+  userNotFound: false,
 };
 
 export const createUserSlice: StateCreator<UserSlice, [], [], UserSlice> = (set) => ({
@@ -115,6 +118,9 @@ export const createUserSlice: StateCreator<UserSlice, [], [], UserSlice> = (set)
 
   setHasSynced: (synced: boolean) =>
     set({ hasSynced: synced }),
+
+  setUserNotFound: (notFound: boolean) =>
+    set({ userNotFound: notFound }),
 
   resetUser: () =>
     set(initialUserState),
