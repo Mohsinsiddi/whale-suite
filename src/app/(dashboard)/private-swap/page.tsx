@@ -387,7 +387,11 @@ export default function PrivateSwapPage() {
         },
       ];
 
+  // Feature is now live
+  const isComingSoon = false;
+
   const isSwapDisabled =
+    isComingSoon ||
     !authenticated ||
     !fromAmount ||
     parseFloat(fromAmount) <= 0 ||
@@ -401,12 +405,31 @@ export default function PrivateSwapPage() {
     <div className="space-y-6">
       <WalletMismatchBanner />
 
+      {/* Coming Soon Banner */}
+      {isComingSoon && (
+        <div className="p-4 rounded-xl bg-gradient-to-r from-warning/20 via-warning/10 to-warning/20 border border-warning/40">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-warning/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-2xl">🚧</span>
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-warning mb-0.5">Coming Soon - In Development</h3>
+              <p className="text-xs text-text-secondary">
+                Dark Pool (ZK-AMM) is currently in development and will be available on mainnet soon.
+                Stay tuned for MEV-protected private swaps powered by Darklake.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Page Header */}
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-xl font-bold text-text-primary">Private Swap</h1>
-            <Badge variant="default" size="sm">ZK-AMM</Badge>
+            <h1 className="text-xl font-bold text-text-primary">Dark Pool</h1>
+            <Badge variant="cyan" size="sm">ZK</Badge>
+            <Badge variant="default" size="sm">Darklake</Badge>
           </div>
           <p className="text-sm text-text-secondary">
             MEV-resistant swaps powered by Darklake zero-knowledge proofs
@@ -622,7 +645,9 @@ export default function PrivateSwapPage() {
                 disabled={isSwapDisabled}
                 loading={swapLoading}
               >
-                {swapLoading
+                {isComingSoon
+                  ? "Coming Soon"
+                  : swapLoading
                   ? currentStep?.step === "commit"
                     ? "Step 1/2: Creating Encrypted Order..."
                     : "Step 2/2: Settling with ZK Proof..."
