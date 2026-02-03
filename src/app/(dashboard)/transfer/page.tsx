@@ -7,7 +7,7 @@ import Badge from "@/components/ui/Badge";
 import Input, { AmountInput } from "@/components/ui/Input";
 import Tabs, { TabPanel } from "@/components/ui/Tabs";
 import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
-import { useTransfer, useWalletBalance, useShadowWire, usePoints } from "@/hooks";
+import { useTransfer, useWalletBalance, useShadowWire, usePoints, useRecentTransfers } from "@/hooks";
 import { useWalletBalances } from "@/hooks/useHelius";
 import { useMultiSend, type MultiSendRecipient, type TokenType } from "@/hooks/useMultiSend";
 import { useAuth } from "@/lib/privy/hooks";
@@ -23,8 +23,20 @@ import {
   type ShadowWireTokenSymbol,
 } from "@/lib/tokens";
 
+import { PublicKey } from "@solana/web3.js";
+
 // Generate unique ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
+
+// Validate Solana address using @solana/web3.js
+const isValidSolanaAddress = (address: string): boolean => {
+  try {
+    new PublicKey(address);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 export default function TransferPage() {
   const { walletAddress } = useAuth();
@@ -74,6 +86,9 @@ export default function TransferPage() {
     getPrice,
   } = useMultiSend();
 
+  // Recent transfers hook
+  const { transfers: recentTransfers, loading: recentTransfersLoading, refresh: refreshRecentTransfers } = useRecentTransfers(walletAddress, 5);
+
   const [activeTab, setActiveTab] = useState("private");
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
@@ -104,6 +119,8 @@ export default function TransferPage() {
   const [multiSendType, setMultiSendType] = useState<'internal' | 'external'>('internal');
   const [isMultiSendExecuting, setIsMultiSendExecuting] = useState(false);
   const [showMultiSendSuccess, setShowMultiSendSuccess] = useState(false);
+  const [showMultiSendTxModal, setShowMultiSendTxModal] = useState(false);
+  const [multiSendCurrentStep, setMultiSendCurrentStep] = useState(0);
 
   // Track last operation for success modal
   const [lastOperation, setLastOperation] = useState<{
@@ -188,7 +205,7 @@ export default function TransferPage() {
   const tabs = [
     { id: "private", label: "Single Send", icon: <GhostIcon /> },
     { id: "multi", label: "Multi-Send", icon: <MultiSendIcon /> },
-    { id: "standard", label: "Standard", icon: <TransferIcon /> },
+    { id: "standard", label: "Standard", icon: <TransferIcon />, disabled: true },
   ];
 
   // Multi-send validation - pass actual shieldedPoolBalance for accurate validation
@@ -236,15 +253,31 @@ export default function TransferPage() {
     if (!walletAddress || !multiSendValidation.valid) return;
 
     setIsMultiSendExecuting(true);
+    setShowMultiSendTxModal(true);
+    setMultiSendCurrentStep(0);
 
     const result = await executeMultiSend(
       walletAddress,
       multiSendRecipients,
       multiSendToken,
-      multiSendType
+      multiSendType,
+      (progress) => {
+        // Map progress phases to step numbers
+        const phaseToStep: Record<string, number> = {
+          'initializing': 0,
+          'generating_proofs': 1,
+          'building_transactions': 2,
+          'signing': 3,
+          'submitting': 4,
+          'complete': 5,
+        };
+        const step = phaseToStep[progress.phase] ?? 0;
+        setMultiSendCurrentStep(step);
+      }
     );
 
     setIsMultiSendExecuting(false);
+    setShowMultiSendTxModal(false);
     setShowMultiSendSuccess(true);
 
     // Refresh the transfer page's pool balance after multi-send
@@ -258,7 +291,11 @@ export default function TransferPage() {
   const handleMultiSendReset = () => {
     setMultiSendRecipients([{ id: generateId(), address: '', amount: '', usdValue: 0, status: 'pending' }]);
     setShowMultiSendSuccess(false);
+    setShowMultiSendTxModal(false);
+    setMultiSendCurrentStep(0);
     resetMultiSend();
+    // Refresh recent transfers with a delay
+    setTimeout(() => refreshRecentTransfers(), 2000);
   };
 
   // Handle pool token change from the pool card - sync both pool token and multi-send token
@@ -405,6 +442,42 @@ export default function TransferPage() {
     },
   ];
 
+  // Get step status for multi-send
+  const getMultiSendStepStatus = (stepIndex: number): "pending" | "active" | "completed" => {
+    if (multiSendCurrentStep > stepIndex) return "completed";
+    if (multiSendCurrentStep === stepIndex) return "active";
+    return "pending";
+  };
+
+  // Steps for multi-send operations
+  const multiSendTxSteps = [
+    {
+      label: "Initializing ZK Environment",
+      status: getMultiSendStepStatus(0),
+      description: "Loading WebAssembly cryptographic modules..."
+    },
+    {
+      label: `Generating Bulletproof ZK Proofs (${multiSendProgress?.current !== undefined ? Math.min(multiSendProgress.current + 1, multiSendRecipients.length) : 0}/${multiSendRecipients.length})`,
+      status: getMultiSendStepStatus(1),
+      description: `Creating ${multiSendRecipients.length} ZK proofs to hide transaction amounts. ~30-45 seconds per recipient.`
+    },
+    {
+      label: "Building Transactions",
+      status: getMultiSendStepStatus(2),
+      description: `Preparing ${multiSendRecipients.length} private transactions...`
+    },
+    {
+      label: "Signing with Wallet",
+      status: getMultiSendStepStatus(3),
+      description: "Please approve the transactions in your wallet..."
+    },
+    {
+      label: "Broadcasting to ShadowWire",
+      status: getMultiSendStepStatus(4),
+      description: `Submitting ${multiSendRecipients.length} private transactions to network...`
+    },
+  ];
+
   const handleSend = async () => {
     if (!amount || !recipient || recipientError) return;
 
@@ -536,9 +609,11 @@ export default function TransferPage() {
     setPointsEarned(null);
     resetTransfer();
     resetShadowWire();
-    // Refresh shielded balance after successful operation
+    // Refresh shielded balance and recent transfers after successful operation
     if (walletAddress) {
       fetchShieldedBalance(poolToken);
+      // Refresh recent transfers with a delay to allow DB to update
+      setTimeout(() => refreshRecentTransfers(), 2000);
     }
   };
 
@@ -1029,7 +1104,7 @@ export default function TransferPage() {
                 {/* Recipient */}
                 <Input
                   label="Recipient Address"
-                  placeholder="Enter Solana address"
+                  placeholder="Enter Solana address (32-44 characters)"
                   value={recipient}
                   onChange={(e) => setRecipient(e.target.value)}
                   error={recipientError || undefined}
@@ -1136,21 +1211,7 @@ export default function TransferPage() {
 
             {/* Multi-Send Tab */}
             <TabPanel value="multi" activeValue={activeTab} className="mt-6">
-              {/* Multi-Send Progress View */}
-              {(isMultiSendExecuting || multiSendProgress) && !showMultiSendSuccess ? (
-                <MultiSendProgressView
-                  progress={multiSendProgress}
-                  recipients={multiSendRecipients}
-                  token={multiSendToken}
-                />
-              ) : showMultiSendSuccess && multiSendResult ? (
-                <MultiSendSuccessView
-                  result={multiSendResult}
-                  token={multiSendToken}
-                  onClose={handleMultiSendReset}
-                />
-              ) : (
-                <div className="space-y-4 sm:space-y-5">
+              <div className="space-y-4 sm:space-y-5">
                   {/* Sending Token Display - same as Single Send */}
                   <div>
                     <label className="block text-xs font-medium text-text-secondary mb-1.5">
@@ -1239,59 +1300,81 @@ export default function TransferPage() {
                     </div>
 
                     <div className="space-y-2 max-h-64 sm:max-h-72 overflow-y-auto pr-1">
-                      {multiSendRecipients.map((r, index) => (
-                        <div
-                          key={r.id}
-                          className="p-2.5 sm:p-3 rounded-lg bg-bg-tertiary border border-border-secondary"
-                        >
-                          <div className="flex items-start gap-2">
-                            <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-bg-elevated flex items-center justify-center text-[10px] sm:text-xs font-medium text-text-muted flex-shrink-0 mt-1.5">
-                              {index + 1}
-                            </div>
-                            <div className="flex-1 space-y-2 min-w-0">
-                              <input
-                                type="text"
-                                placeholder="Wallet address"
-                                value={r.address}
-                                onChange={(e) => updateMultiSendRecipient(r.id, 'address', e.target.value)}
-                                className="w-full px-2.5 sm:px-3 py-2 rounded-lg bg-bg-elevated border border-border-secondary text-xs sm:text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-neon-green font-mono truncate"
-                              />
-                              <div className="flex flex-col xs:flex-row gap-2">
-                                <div className="flex-1 relative">
+                      {multiSendRecipients.map((r, index) => {
+                        const hasAddressError = r.address.length > 0 && !isValidSolanaAddress(r.address);
+                        const hasAmountError = r.amount && (parseFloat(r.amount) <= 0 || isNaN(parseFloat(r.amount)));
+
+                        return (
+                          <div
+                            key={r.id}
+                            className={`p-2.5 sm:p-3 rounded-lg bg-bg-tertiary border ${
+                              hasAddressError || hasAmountError ? 'border-error/50' : 'border-border-secondary'
+                            }`}
+                          >
+                            <div className="flex items-start gap-2">
+                              <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-medium flex-shrink-0 mt-1.5 ${
+                                hasAddressError || hasAmountError ? 'bg-error/20 text-error' : 'bg-bg-elevated text-text-muted'
+                              }`}>
+                                {index + 1}
+                              </div>
+                              <div className="flex-1 space-y-2 min-w-0">
+                                <div>
                                   <input
-                                    type="number"
-                                    placeholder="Amount"
-                                    value={r.amount}
-                                    onChange={(e) => updateMultiSendRecipient(r.id, 'amount', e.target.value)}
-                                    min="0.1"
-                                    step="0.1"
-                                    className="w-full px-2.5 sm:px-3 py-2 pr-14 sm:pr-16 rounded-lg bg-bg-elevated border border-border-secondary text-xs sm:text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-neon-green"
+                                    type="text"
+                                    placeholder="Enter Solana address (32-44 characters)"
+                                    value={r.address}
+                                    onChange={(e) => updateMultiSendRecipient(r.id, 'address', e.target.value)}
+                                    className={`w-full px-2.5 sm:px-3 py-2 rounded-lg bg-bg-elevated border text-xs sm:text-sm text-text-primary placeholder:text-text-muted focus:outline-none font-mono truncate ${
+                                      hasAddressError
+                                        ? 'border-error/50 focus:border-error'
+                                        : 'border-border-secondary focus:border-neon-green'
+                                    }`}
                                   />
-                                  <span className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-[10px] sm:text-xs text-text-muted">
-                                    {multiSendToken}
-                                  </span>
+                                  {hasAddressError && (
+                                    <p className="text-[10px] text-error mt-1">Invalid Solana address</p>
+                                  )}
                                 </div>
-                                <div className="px-2.5 sm:px-3 py-2 rounded-lg bg-bg-elevated border border-border-secondary text-xs sm:text-sm text-text-secondary min-w-[70px] sm:min-w-[85px] text-center">
-                                  ${r.usdValue > 0
-                                    ? r.usdValue < 0.01
-                                      ? r.usdValue.toFixed(6)
-                                      : r.usdValue.toFixed(2)
-                                    : '0.00'
-                                  }
+                                <div className="flex flex-col xs:flex-row gap-2">
+                                  <div className="flex-1 relative">
+                                    <input
+                                      type="number"
+                                      placeholder="Amount"
+                                      value={r.amount}
+                                      onChange={(e) => updateMultiSendRecipient(r.id, 'amount', e.target.value)}
+                                      min="0.1"
+                                      step="0.1"
+                                      className={`w-full px-2.5 sm:px-3 py-2 pr-14 sm:pr-16 rounded-lg bg-bg-elevated border text-xs sm:text-sm text-text-primary placeholder:text-text-muted focus:outline-none ${
+                                        hasAmountError
+                                          ? 'border-error/50 focus:border-error'
+                                          : 'border-border-secondary focus:border-neon-green'
+                                      }`}
+                                    />
+                                    <span className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-[10px] sm:text-xs text-text-muted">
+                                      {multiSendToken}
+                                    </span>
+                                  </div>
+                                  <div className="px-2.5 sm:px-3 py-2 rounded-lg bg-bg-elevated border border-border-secondary text-xs sm:text-sm text-text-secondary min-w-[70px] sm:min-w-[85px] text-center">
+                                    ${r.usdValue > 0
+                                      ? r.usdValue < 0.01
+                                        ? r.usdValue.toFixed(6)
+                                        : r.usdValue.toFixed(2)
+                                      : '0.00'
+                                    }
+                                  </div>
                                 </div>
                               </div>
+                              {multiSendRecipients.length > 1 && (
+                                <button
+                                  onClick={() => removeMultiSendRecipient(r.id)}
+                                  className="p-1 sm:p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-colors flex-shrink-0"
+                                >
+                                  <XIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                </button>
+                              )}
                             </div>
-                            {multiSendRecipients.length > 1 && (
-                              <button
-                                onClick={() => removeMultiSendRecipient(r.id)}
-                                className="p-1 sm:p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-colors flex-shrink-0"
-                              >
-                                <XIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                              </button>
-                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -1387,7 +1470,6 @@ export default function TransferPage() {
                     </div>
                   </div>
                 </div>
-              )}
             </TabPanel>
 
             <TabPanel value="standard" activeValue={activeTab} className="mt-6">
@@ -1423,7 +1505,7 @@ export default function TransferPage() {
                 {/* Recipient */}
                 <Input
                   label="Recipient Address"
-                  placeholder="Enter Solana address"
+                  placeholder="Enter Solana address (32-44 characters)"
                   value={recipient}
                   onChange={(e) => setRecipient(e.target.value)}
                   error={recipientError || undefined}
@@ -1482,27 +1564,55 @@ export default function TransferPage() {
           {/* Recent Transfers */}
           <Card variant="default" padding="md">
             <CardHeader>
-              <CardTitle>Recent Transfers</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Recent Transfers</CardTitle>
+                <button
+                  onClick={() => refreshRecentTransfers()}
+                  className="p-1 rounded-lg hover:bg-bg-elevated text-text-muted hover:text-neon-green transition-colors"
+                  title="Refresh"
+                >
+                  <RefreshIcon className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </CardHeader>
             <div className="space-y-2">
-              {[
-                { to: "0x7c1d...2e5f", amount: "50 SOL", time: "2h ago", type: "private" },
-                { to: "0x9a3b...1c4d", amount: "25 SOL", time: "1d ago", type: "internal" },
-                { to: "0x2d5e...9f1a", amount: "100 SOL", time: "3d ago", type: "private" },
-              ].map((tx, i) => (
-                <div key={i} className="p-2.5 rounded-lg bg-bg-tertiary hover:bg-bg-elevated transition-colors">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-mono text-text-secondary">{tx.to}</span>
-                    <Badge size="xs" variant={tx.type === "private" ? "default" : "cyan"}>
-                      {tx.type}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-text-primary">{tx.amount}</span>
-                    <span className="text-xs text-text-muted">{tx.time}</span>
-                  </div>
+              {recentTransfersLoading ? (
+                <div className="text-center py-4">
+                  <div className="w-5 h-5 mx-auto border-2 border-neon-green/30 border-t-neon-green rounded-full animate-spin" />
                 </div>
-              ))}
+              ) : recentTransfers.length === 0 ? (
+                <div className="text-center py-4 text-xs text-text-muted">
+                  No recent transfers
+                </div>
+              ) : (
+                recentTransfers.map((tx) => (
+                  <a
+                    key={tx.id}
+                    href={`https://solscan.io/tx/${tx.signature}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block p-2.5 rounded-lg bg-bg-tertiary hover:bg-bg-elevated transition-colors group"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-mono text-text-secondary group-hover:text-neon-cyan transition-colors">
+                        {tx.to}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {tx.isMultiSend && (
+                          <Badge size="xs" variant="cyan">multi</Badge>
+                        )}
+                        <Badge size="xs" variant={tx.type === "external" ? "default" : "cyan"}>
+                          {tx.type === "external" ? "anon" : "hidden"}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-text-primary">{tx.amount}</span>
+                      <span className="text-xs text-text-muted">{tx.time}</span>
+                    </div>
+                  </a>
+                ))
+              )}
             </div>
           </Card>
 
@@ -1562,259 +1672,30 @@ export default function TransferPage() {
         actions={pointsEarned ? <PointsEarned points={pointsEarned} action="Transfer" /> : undefined}
       />
 
-    </div>
-  );
-}
+      {/* Multi-Send Transaction Progress Modal */}
+      <TransactionModal
+        isOpen={showMultiSendTxModal}
+        onClose={() => {}} // Don't allow closing during execution
+        title={`Multi-Send to ${multiSendRecipients.length} Recipients`}
+        steps={multiSendTxSteps}
+        currentStep={multiSendCurrentStep}
+      />
 
-// Multi-Send Progress View Component
-function MultiSendProgressView({
-  progress,
-  recipients,
-  token,
-}: {
-  progress: ReturnType<typeof useMultiSend>['progress'];
-  recipients: MultiSendRecipient[];
-  token: TokenType;
-}) {
-  const currentPhase = progress?.phase || 'initializing';
+      {/* Multi-Send Success Modal */}
+      <SuccessModal
+        isOpen={showMultiSendSuccess}
+        onClose={handleMultiSendReset}
+        title="Multi-Send Complete!"
+        message={
+          multiSendResult
+            ? multiSendResult.failedCount === 0
+              ? `Successfully sent ${multiSendToken} to ${multiSendResult.completedCount} recipients`
+              : `Sent to ${multiSendResult.completedCount} recipients, ${multiSendResult.failedCount} failed`
+            : 'Transfer completed'
+        }
+        txSignature={multiSendResult?.recipients.find(r => r.signature)?.signature || ''}
+      />
 
-  const phaseLabels: Record<string, { icon: string; color: string }> = {
-    idle: { icon: '⏸', color: 'text-text-muted' },
-    initializing: { icon: '⚡', color: 'text-neon-cyan' },
-    generating_proofs: { icon: '🔐', color: 'text-neon-green' },
-    building_transactions: { icon: '🔨', color: 'text-neon-cyan' },
-    signing: { icon: '✍️', color: 'text-warning' },
-    submitting: { icon: '📡', color: 'text-neon-green' },
-    complete: { icon: '✅', color: 'text-success' },
-  };
-
-  const phaseInfo = phaseLabels[currentPhase] || phaseLabels.initializing;
-
-  return (
-    <div className="space-y-6 py-4">
-      {/* Phase indicator */}
-      <div className="text-center">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-neon-green/20 to-neon-cyan/20 flex items-center justify-center">
-          {currentPhase === 'complete' ? (
-            <span className="text-3xl">✅</span>
-          ) : (
-            <div className="w-12 h-12 rounded-full border-4 border-neon-green/30 border-t-neon-green animate-spin" />
-          )}
-        </div>
-        <h3 className={`text-lg font-semibold ${phaseInfo.color}`}>
-          {progress?.phaseLabel || 'Initializing...'}
-        </h3>
-        <p className="text-sm text-text-secondary mt-1">
-          {currentPhase === 'generating_proofs' && (
-            <>Generating ZK proofs for all {recipients.length} recipients</>
-          )}
-          {currentPhase === 'signing' && (
-            <>Please approve in your wallet</>
-          )}
-          {currentPhase === 'submitting' && (
-            <>Broadcasting transactions to network...</>
-          )}
-          {currentPhase === 'complete' && (
-            <>All transactions processed!</>
-          )}
-        </p>
-      </div>
-
-      {/* Phase steps */}
-      <div className="flex justify-center gap-2">
-        {['initializing', 'generating_proofs', 'building_transactions', 'signing', 'submitting'].map((phase, i) => {
-          const phases = ['initializing', 'generating_proofs', 'building_transactions', 'signing', 'submitting'];
-          const currentIndex = phases.indexOf(currentPhase);
-          const isComplete = i < currentIndex || currentPhase === 'complete';
-          const isCurrent = phase === currentPhase;
-
-          return (
-            <div key={phase} className="flex items-center gap-2">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
-                  isComplete
-                    ? 'bg-success text-bg-primary'
-                    : isCurrent
-                    ? 'bg-neon-green/20 text-neon-green border-2 border-neon-green'
-                    : 'bg-bg-tertiary text-text-muted'
-                }`}
-              >
-                {isComplete ? '✓' : i + 1}
-              </div>
-              {i < 4 && (
-                <div className={`w-4 h-0.5 ${isComplete ? 'bg-success' : 'bg-bg-tertiary'}`} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Progress bar */}
-      <div className="relative h-2 bg-bg-tertiary rounded-full overflow-hidden">
-        <div
-          className="absolute inset-y-0 left-0 bg-gradient-to-r from-neon-green to-neon-cyan transition-all duration-300"
-          style={{
-            width: `${((progress?.current || 0) / Math.max(progress?.total || 1, 1)) * 100}%`,
-          }}
-        />
-      </div>
-
-      {/* Recipients list with status */}
-      <div className="max-h-48 overflow-y-auto space-y-2">
-        {recipients.map((r, index) => (
-          <div
-            key={r.id}
-            className={`p-3 rounded-lg border ${
-              r.status === 'success'
-                ? 'bg-success/10 border-success/30'
-                : r.status === 'failed'
-                ? 'bg-error/10 border-error/30'
-                : 'bg-bg-tertiary border-border-secondary'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium bg-bg-elevated">
-                  {index + 1}
-                </div>
-                <div>
-                  <span className="text-sm font-mono text-text-primary">
-                    {r.address.slice(0, 8)}...{r.address.slice(-4)}
-                  </span>
-                  <div className="text-xs text-text-muted">
-                    {r.amount} {token} (${r.usdValue > 0
-                      ? r.usdValue < 0.01
-                        ? r.usdValue.toFixed(6)
-                        : r.usdValue.toFixed(2)
-                      : '0.00'
-                    })
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {r.status === 'success' && (
-                  <Badge size="xs" variant="success">Done</Badge>
-                )}
-                {r.status === 'failed' && (
-                  <Badge size="xs" variant="error">Failed</Badge>
-                )}
-                {r.status === 'pending' && (
-                  <Badge size="xs" variant="default">Pending</Badge>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Status summary */}
-      <div className="flex items-center justify-center gap-4 text-sm">
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-success" />
-          <span className="text-text-secondary">{progress?.completed || 0} Completed</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-error" />
-          <span className="text-text-secondary">{progress?.failed || 0} Failed</span>
-        </div>
-      </div>
-
-      {/* Time estimate */}
-      {currentPhase === 'generating_proofs' && (
-        <div className="text-center text-xs text-text-muted">
-          Estimated time: ~{Math.ceil(recipients.length * 40 / 60)} minutes
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Multi-Send Success View Component
-function MultiSendSuccessView({
-  result,
-  token,
-  onClose,
-}: {
-  result: ReturnType<typeof useMultiSend>['result'];
-  token: TokenType;
-  onClose: () => void;
-}) {
-  if (!result) return null;
-
-  return (
-    <div className="space-y-6 py-4">
-      <div className="text-center">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-success/20 to-neon-green/20 flex items-center justify-center">
-          <span className="text-4xl">🎉</span>
-        </div>
-        <h3 className="text-xl font-bold text-text-primary mb-2">
-          Multi-Send Complete!
-        </h3>
-        <p className="text-sm text-text-secondary">
-          {result.failedCount === 0
-            ? `Successfully sent ${token} to ${result.completedCount} recipients`
-            : `Sent to ${result.completedCount} recipients, ${result.failedCount} failed`}
-        </p>
-      </div>
-
-      {/* Results summary */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="p-3 rounded-lg bg-success/10 border border-success/30 text-center">
-          <div className="text-2xl font-bold text-success">{result.completedCount}</div>
-          <div className="text-xs text-text-secondary">Successful</div>
-        </div>
-        <div className="p-3 rounded-lg bg-error/10 border border-error/30 text-center">
-          <div className="text-2xl font-bold text-error">{result.failedCount}</div>
-          <div className="text-xs text-text-secondary">Failed</div>
-        </div>
-      </div>
-
-      {/* Recipients with results */}
-      <div className="max-h-48 overflow-y-auto space-y-2">
-        {result.recipients.map((r, index) => (
-          <div
-            key={r.id}
-            className={`p-3 rounded-lg border ${
-              r.status === 'success'
-                ? 'bg-success/10 border-success/30'
-                : 'bg-error/10 border-error/30'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium bg-bg-elevated">
-                  {index + 1}
-                </div>
-                <div>
-                  <span className="text-sm font-mono text-text-primary">
-                    {r.address.slice(0, 8)}...{r.address.slice(-4)}
-                  </span>
-                  <div className="text-xs text-text-muted">
-                    {r.amount} {token}
-                  </div>
-                </div>
-              </div>
-              {r.status === 'success' && r.signature && (
-                <a
-                  href={`https://solscan.io/tx/${r.signature}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-neon-cyan hover:underline"
-                >
-                  View →
-                </a>
-              )}
-              {r.status === 'failed' && (
-                <span className="text-xs text-error">{r.error || 'Failed'}</span>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <Button fullWidth onClick={onClose}>
-        Done
-      </Button>
     </div>
   );
 }
