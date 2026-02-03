@@ -6,20 +6,15 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import { useMultiSend, type MultiSendRecipient, type TokenType } from '@/hooks/useMultiSend';
 import { useAuth } from '@/lib/privy/hooks';
-import { TOKENS as TOKEN_CONFIG, type TokenMetadata } from '@/lib/tokens';
+import { MULTI_SEND_TOKEN_LIST, type TokenMetadata } from '@/lib/tokens';
 
 interface MultiSendModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-// Supported tokens with full metadata
-const TOKENS: (TokenMetadata & { symbol: TokenType })[] = [
-  TOKEN_CONFIG.SOL as TokenMetadata & { symbol: TokenType },
-  TOKEN_CONFIG.USDC as TokenMetadata & { symbol: TokenType },
-  TOKEN_CONFIG.USDT as TokenMetadata & { symbol: TokenType },
-  TOKEN_CONFIG.USD1 as TokenMetadata & { symbol: TokenType },
-];
+// Supported tokens - all tokens with multiSendEnabled flag
+const TOKENS: (TokenMetadata & { symbol: TokenType })[] = MULTI_SEND_TOKEN_LIST as (TokenMetadata & { symbol: TokenType })[];
 
 // Generate unique ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -159,10 +154,11 @@ export function MultiSendModal({ isOpen, onClose }: MultiSendModalProps) {
   if (isExecuting || progress) {
     const currentPhase = progress?.phase || 'initializing';
     const phaseInfo = phaseLabels[currentPhase] || phaseLabels.initializing;
+    const currentIdx = progress?.current || 0;
 
     return (
       <Modal isOpen={isOpen} onClose={() => {}} title="Multi-Send in Progress" size="lg">
-        <div className="space-y-6 py-4">
+        <div className="space-y-5 py-4">
           {/* Phase indicator */}
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-neon-green/20 to-neon-cyan/20 flex items-center justify-center">
@@ -177,7 +173,7 @@ export function MultiSendModal({ isOpen, onClose }: MultiSendModalProps) {
             </h3>
             <p className="text-sm text-text-secondary mt-1">
               {currentPhase === 'generating_proofs' && (
-                <>Generating ZK proofs for all {recipients.length} recipients</>
+                <>Generating ZK proof {currentIdx + 1} of {recipients.length}</>
               )}
               {currentPhase === 'signing' && (
                 <>Please approve in your wallet (single prompt for all)</>
@@ -186,41 +182,79 @@ export function MultiSendModal({ isOpen, onClose }: MultiSendModalProps) {
                 <>Broadcasting transactions to network...</>
               )}
               {currentPhase === 'complete' && (
-                <>All transactions processed!</>
+                <>All {recipients.length} transactions processed!</>
               )}
             </p>
           </div>
 
-          {/* Phase steps */}
-          <div className="flex justify-center gap-2">
-            {['initializing', 'generating_proofs', 'building_transactions', 'signing', 'submitting'].map((phase, i) => {
+          {/* Phase steps with labels */}
+          <div className="flex justify-between items-center px-2">
+            {[
+              { key: 'initializing', label: 'Init' },
+              { key: 'generating_proofs', label: 'Proofs' },
+              { key: 'building_transactions', label: 'Build' },
+              { key: 'signing', label: 'Sign' },
+              { key: 'submitting', label: 'Submit' },
+            ].map((phase, i) => {
               const phases = ['initializing', 'generating_proofs', 'building_transactions', 'signing', 'submitting'];
               const currentIndex = phases.indexOf(currentPhase);
               const isComplete = i < currentIndex || currentPhase === 'complete';
-              const isCurrent = phase === currentPhase;
+              const isCurrent = phase.key === currentPhase;
 
               return (
-                <div key={phase} className="flex items-center gap-2">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
-                      isComplete
-                        ? 'bg-success text-bg-primary'
-                        : isCurrent
-                        ? 'bg-neon-green/20 text-neon-green border-2 border-neon-green'
-                        : 'bg-bg-tertiary text-text-muted'
-                    }`}
-                  >
-                    {isComplete ? '✓' : i + 1}
+                <div key={phase.key} className="flex flex-col items-center gap-1">
+                  <div className="flex items-center">
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${
+                        isComplete
+                          ? 'bg-success text-bg-primary'
+                          : isCurrent
+                          ? 'bg-neon-green/20 text-neon-green border-2 border-neon-green animate-pulse'
+                          : 'bg-bg-tertiary text-text-muted'
+                      }`}
+                    >
+                      {isComplete ? '✓' : i + 1}
+                    </div>
+                    {i < 4 && (
+                      <div className={`w-8 h-0.5 ${isComplete ? 'bg-success' : 'bg-bg-tertiary'}`} />
+                    )}
                   </div>
-                  {i < 4 && (
-                    <div className={`w-6 h-0.5 ${isComplete ? 'bg-success' : 'bg-bg-tertiary'}`} />
-                  )}
+                  <span className={`text-[10px] ${isCurrent ? 'text-neon-green' : 'text-text-muted'}`}>
+                    {phase.label}
+                  </span>
                 </div>
               );
             })}
           </div>
 
-          {/* Progress bar */}
+          {/* Per-recipient progress (only during proof generation) */}
+          {currentPhase === 'generating_proofs' && (
+            <div className="p-3 rounded-xl bg-bg-tertiary border border-neon-green/20">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-neon-green">🔐 ZK Proof Generation</span>
+                <span className="text-xs text-text-muted">{currentIdx + 1}/{recipients.length}</span>
+              </div>
+              <div className="flex gap-1.5">
+                {recipients.map((_, i) => (
+                  <div
+                    key={i}
+                    className={`flex-1 h-2 rounded-full transition-all ${
+                      i < currentIdx
+                        ? 'bg-success'
+                        : i === currentIdx
+                        ? 'bg-neon-green animate-pulse'
+                        : 'bg-bg-elevated'
+                    }`}
+                  />
+                ))}
+              </div>
+              <p className="text-[10px] text-text-muted mt-2 text-center">
+                ~30-45 seconds per recipient • Currently generating proof #{currentIdx + 1}
+              </p>
+            </div>
+          )}
+
+          {/* Overall progress bar */}
           <div className="relative h-2 bg-bg-tertiary rounded-full overflow-hidden">
             <div
               className="absolute inset-y-0 left-0 bg-gradient-to-r from-neon-green to-neon-cyan transition-all duration-300"
@@ -231,46 +265,63 @@ export function MultiSendModal({ isOpen, onClose }: MultiSendModalProps) {
           </div>
 
           {/* Recipients list with status */}
-          <div className="max-h-48 overflow-y-auto space-y-2">
-            {recipients.map((r, index) => (
-              <div
-                key={r.id}
-                className={`p-3 rounded-lg border ${
-                  r.status === 'success'
-                    ? 'bg-success/10 border-success/30'
-                    : r.status === 'failed'
-                    ? 'bg-error/10 border-error/30'
-                    : 'bg-bg-tertiary border-border-secondary'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium bg-bg-elevated">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <span className="text-sm font-mono text-text-primary">
-                        {r.address.slice(0, 8)}...{r.address.slice(-4)}
-                      </span>
-                      <div className="text-xs text-text-muted">
-                        {r.amount} {selectedToken} (${r.usdValue.toFixed(2)})
+          <div className="max-h-44 overflow-y-auto space-y-2">
+            {recipients.map((r, index) => {
+              const isCurrentRecipient = currentPhase === 'generating_proofs' && index === currentIdx;
+
+              return (
+                <div
+                  key={r.id}
+                  className={`p-3 rounded-lg border transition-all ${
+                    r.status === 'success'
+                      ? 'bg-success/10 border-success/30'
+                      : r.status === 'failed'
+                      ? 'bg-error/10 border-error/30'
+                      : isCurrentRecipient
+                      ? 'bg-neon-green/10 border-neon-green/50'
+                      : 'bg-bg-tertiary border-border-secondary'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                        r.status === 'success'
+                          ? 'bg-success text-bg-primary'
+                          : r.status === 'failed'
+                          ? 'bg-error text-white'
+                          : isCurrentRecipient
+                          ? 'bg-neon-green/20 text-neon-green'
+                          : 'bg-bg-elevated text-text-muted'
+                      }`}>
+                        {r.status === 'success' ? '✓' : r.status === 'failed' ? '✗' : index + 1}
+                      </div>
+                      <div>
+                        <span className="text-sm font-mono text-text-primary">
+                          {r.address.slice(0, 8)}...{r.address.slice(-4)}
+                        </span>
+                        <div className="text-xs text-text-muted">
+                          {r.amount} {selectedToken} • ${r.usdValue.toFixed(r.usdValue < 0.01 ? 6 : 2)}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {r.status === 'success' && (
-                      <Badge size="xs" variant="success">Done</Badge>
-                    )}
-                    {r.status === 'failed' && (
-                      <Badge size="xs" variant="error">Failed</Badge>
-                    )}
-                    {r.status === 'pending' && (
-                      <Badge size="xs" variant="default">Pending</Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {r.status === 'success' && (
+                        <Badge size="xs" variant="success">Done</Badge>
+                      )}
+                      {r.status === 'failed' && (
+                        <Badge size="xs" variant="error">Failed</Badge>
+                      )}
+                      {r.status === 'pending' && isCurrentRecipient && (
+                        <Badge size="xs" variant="default" className="animate-pulse">Processing</Badge>
+                      )}
+                      {r.status === 'pending' && !isCurrentRecipient && (
+                        <Badge size="xs" variant="default">Queued</Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Status summary */}
@@ -280,18 +331,14 @@ export function MultiSendModal({ isOpen, onClose }: MultiSendModalProps) {
               <span className="text-text-secondary">{progress?.completed || 0} Completed</span>
             </div>
             <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse" />
+              <span className="text-text-secondary">{recipients.length - (progress?.completed || 0) - (progress?.failed || 0)} Processing</span>
+            </div>
+            <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full bg-error" />
               <span className="text-text-secondary">{progress?.failed || 0} Failed</span>
             </div>
           </div>
-
-          {/* Time estimate */}
-          {currentPhase === 'generating_proofs' && (
-            <div className="text-center text-xs text-text-muted">
-              Estimated time: ~{Math.ceil(recipients.length * 40 / 60)} minutes
-              (proofs generated in parallel where possible)
-            </div>
-          )}
         </div>
       </Modal>
     );
@@ -335,35 +382,35 @@ export function MultiSendModal({ isOpen, onClose }: MultiSendModalProps) {
           <label className="block text-xs font-medium text-text-secondary mb-2">
             Select Token
           </label>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="flex flex-wrap gap-2">
             {TOKENS.map(token => (
               <button
                 key={token.symbol}
                 onClick={() => handleTokenChange(token.symbol)}
-                className={`p-2.5 rounded-lg border text-center transition-all ${
+                className={`px-3 py-2 rounded-lg border transition-all flex items-center gap-2 ${
                   selectedToken === token.symbol
                     ? 'bg-neon-green/10 border-neon-green text-neon-green'
                     : 'bg-bg-tertiary border-border-secondary text-text-secondary hover:border-border-primary'
                 }`}
               >
-                <div className="flex justify-center mb-1">
+                <div className="flex-shrink-0">
                   {token.logoURI ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={token.logoURI}
                       alt={token.symbol}
-                      className="w-6 h-6 rounded-full"
+                      className="w-5 h-5 rounded-full ring-1 ring-white/10"
                     />
                   ) : (
-                    <span className="text-lg">{token.icon}</span>
+                    <span className="text-sm">{token.icon}</span>
                   )}
                 </div>
-                <div className="text-xs font-medium">{token.symbol}</div>
+                <span className="text-xs font-medium">{token.symbol}</span>
               </button>
             ))}
           </div>
           <p className="text-xs text-text-muted mt-2">
-            Price: ${tokenPrice.toFixed(2)} per {selectedToken}
+            Price: ${tokenPrice.toFixed(tokenPrice < 0.01 ? 6 : 2)} per {selectedToken}
           </p>
         </div>
 
@@ -446,8 +493,13 @@ export function MultiSendModal({ isOpen, onClose }: MultiSendModalProps) {
                           {selectedToken}
                         </span>
                       </div>
-                      <div className="px-3 py-2 rounded-lg bg-bg-elevated border border-border-secondary text-sm text-text-secondary min-w-[80px] text-center">
-                        ${recipient.usdValue.toFixed(2)}
+                      <div className="px-3 py-2 rounded-lg bg-bg-elevated border border-border-secondary text-sm text-text-secondary min-w-[90px] text-center">
+                        ${recipient.usdValue > 0
+                          ? recipient.usdValue < 0.01
+                            ? recipient.usdValue.toFixed(6)
+                            : recipient.usdValue.toFixed(2)
+                          : '0.00'
+                        }
                       </div>
                     </div>
                   </div>
@@ -470,13 +522,18 @@ export function MultiSendModal({ isOpen, onClose }: MultiSendModalProps) {
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-text-muted">Total Amount</span>
             <span className="text-sm font-bold text-text-primary">
-              {totalAmount.toFixed(4)} {selectedToken}
+              {totalAmount < 1000 ? totalAmount.toFixed(4) : totalAmount.toLocaleString()} {selectedToken}
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-text-muted">Total USD Value</span>
             <span className="text-sm font-bold text-neon-green">
-              ${totalUsd.toFixed(2)}
+              ${totalUsd > 0
+                ? totalUsd < 0.01
+                  ? totalUsd.toFixed(6)
+                  : totalUsd.toFixed(2)
+                : '0.00'
+              }
             </span>
           </div>
         </div>

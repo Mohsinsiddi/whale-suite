@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export type MultiSendStatus = 'pending' | 'in_progress' | 'completed' | 'partial' | 'failed';
-export type TokenType = 'SOL' | 'USDC' | 'USDT' | 'USD1';
+export type TokenType = 'SOL' | 'USDC' | 'USDT' | 'USD1' | 'BONK' | 'WIF' | 'JUP' | 'JTO' | 'RADR' | 'WLFI' | 'WSOL';
 
 export interface IMultiSendRecipient {
   address: string;
@@ -81,7 +81,7 @@ const MultiSendBatchSchema = new Schema<IMultiSendBatch>({
   // Token info
   token: {
     type: String,
-    enum: ['SOL', 'USDC', 'USDT', 'USD1'],
+    enum: ['SOL', 'USDC', 'USDT', 'USD1', 'BONK', 'WIF', 'JUP', 'JTO', 'RADR', 'WLFI', 'WSOL'],
     required: true,
     default: 'SOL'
   },

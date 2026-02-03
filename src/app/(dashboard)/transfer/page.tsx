@@ -1175,7 +1175,7 @@ export default function TransferPage() {
                               {SHADOWWIRE_POOL_TOKENS.find(t => t.symbol === multiSendToken)?.name || multiSendToken}
                             </div>
                             <div className="text-[10px] sm:text-xs text-text-muted">
-                              {multiSendToken} • ${multiSendTokenPrice.toFixed(2)}/token
+                              {multiSendToken} • ${multiSendTokenPrice < 0.01 ? multiSendTokenPrice.toFixed(6) : multiSendTokenPrice.toFixed(2)}/token
                             </div>
                           </div>
                         </div>
@@ -1271,8 +1271,13 @@ export default function TransferPage() {
                                     {multiSendToken}
                                   </span>
                                 </div>
-                                <div className="px-2.5 sm:px-3 py-2 rounded-lg bg-bg-elevated border border-border-secondary text-xs sm:text-sm text-text-secondary min-w-[70px] sm:min-w-[80px] text-center">
-                                  ${r.usdValue.toFixed(2)}
+                                <div className="px-2.5 sm:px-3 py-2 rounded-lg bg-bg-elevated border border-border-secondary text-xs sm:text-sm text-text-secondary min-w-[70px] sm:min-w-[85px] text-center">
+                                  ${r.usdValue > 0
+                                    ? r.usdValue < 0.01
+                                      ? r.usdValue.toFixed(6)
+                                      : r.usdValue.toFixed(2)
+                                    : '0.00'
+                                  }
                                 </div>
                               </div>
                             </div>
@@ -1333,7 +1338,12 @@ export default function TransferPage() {
                       <span className="text-text-muted">Total (incl. fees)</span>
                       <span className="text-neon-green font-bold">
                         ~{(multiSendValidation.totalAmount + shadowWireCalculateFee(multiSendValidation.totalAmount, multiSendToken as ShadowWireTokenSymbol).fee).toFixed(4)} {multiSendToken}
-                        <span className="text-text-muted font-normal ml-1">(${multiSendValidation.totalUsd.toFixed(2)})</span>
+                        <span className="text-text-muted font-normal ml-1">(${multiSendValidation.totalUsd > 0
+                          ? multiSendValidation.totalUsd < 0.01
+                            ? multiSendValidation.totalUsd.toFixed(6)
+                            : multiSendValidation.totalUsd.toFixed(2)
+                          : '0.00'
+                        })</span>
                       </span>
                     </div>
                   </div>
@@ -1672,7 +1682,12 @@ function MultiSendProgressView({
                     {r.address.slice(0, 8)}...{r.address.slice(-4)}
                   </span>
                   <div className="text-xs text-text-muted">
-                    {r.amount} {token} (${r.usdValue.toFixed(2)})
+                    {r.amount} {token} (${r.usdValue > 0
+                      ? r.usdValue < 0.01
+                        ? r.usdValue.toFixed(6)
+                        : r.usdValue.toFixed(2)
+                      : '0.00'
+                    })
                   </div>
                 </div>
               </div>
