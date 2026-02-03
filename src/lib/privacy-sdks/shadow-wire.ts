@@ -665,6 +665,81 @@ class ShadowWireService {
   }
 
   /**
+   * Check if a recipient has a pool account for a specific token
+   * Returns true if recipient can receive transfers, false otherwise
+   */
+  async checkRecipientPool(recipient: string, token: TokenSymbol = 'SOL'): Promise<{
+    hasPool: boolean;
+    poolAddress?: string;
+    error?: string;
+  }> {
+    try {
+      const balance = await this.getBalance(recipient, token);
+
+      // Check if pool_address exists and is valid
+      if (balance.pool_address && balance.pool_address.length > 0) {
+        return {
+          hasPool: true,
+          poolAddress: balance.pool_address,
+        };
+      }
+
+      return {
+        hasPool: false,
+        error: `Recipient has no ${token} pool. They need to deposit ${token} first to receive private transfers.`,
+      };
+    } catch (error) {
+      // If we get an error fetching balance, the pool likely doesn't exist
+      console.error('[ShadowWire] Error checking recipient pool:', error);
+      return {
+        hasPool: false,
+        error: `Unable to verify recipient's ${token} pool. They may need to deposit ${token} first.`,
+      };
+    }
+  }
+
+  /**
+   * Validate multiple recipients have pools for a specific token
+   * Returns validation results for each recipient
+   */
+  async validateRecipientsPool(
+    recipients: string[],
+    token: TokenSymbol = 'SOL'
+  ): Promise<{
+    valid: boolean;
+    results: Array<{ address: string; hasPool: boolean; error?: string }>;
+    invalidCount: number;
+  }> {
+    const results: Array<{ address: string; hasPool: boolean; error?: string }> = [];
+    let invalidCount = 0;
+
+    // Check each recipient in parallel for better performance
+    const checks = await Promise.all(
+      recipients.map(async (address) => {
+        const check = await this.checkRecipientPool(address, token);
+        return { address, ...check };
+      })
+    );
+
+    for (const check of checks) {
+      if (!check.hasPool) {
+        invalidCount++;
+      }
+      results.push({
+        address: check.address,
+        hasPool: check.hasPool,
+        error: check.error,
+      });
+    }
+
+    return {
+      valid: invalidCount === 0,
+      results,
+      invalidCount,
+    };
+  }
+
+  /**
    * Get all fee percentages by token
    */
   getAllFees(): Record<string, number> {

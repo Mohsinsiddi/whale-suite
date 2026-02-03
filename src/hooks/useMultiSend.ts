@@ -55,6 +55,7 @@ export function useMultiSend() {
     batchTransfer,
     signAllTransactions,
     getMinimumAmount, // SDK's minimum amount function
+    validateRecipientsPool, // Validate recipients have pools
   } = useShadowWire();
 
   const { getPrice, getUSDValue } = useTokenPrices();
@@ -157,6 +158,35 @@ export function useMultiSend() {
     const updatedRecipients = [...recipients];
 
     try {
+      // Phase 0: Validate all recipients have pools for this token
+      const recipientAddresses = recipients.map(r => r.address);
+      const poolValidation = await validateRecipientsPool(recipientAddresses, token);
+
+      if (!poolValidation.valid) {
+        // Build error message with invalid recipients
+        const invalidRecipients = poolValidation.results
+          .filter(r => !r.hasPool)
+          .map((r) => {
+            const recipientNum = recipientAddresses.indexOf(r.address) + 1;
+            return `Recipient ${recipientNum} (${r.address.slice(0, 6)}...${r.address.slice(-4)})`;
+          })
+          .join(', ');
+
+        const errorMsg = `${poolValidation.invalidCount} recipient(s) have no ${token} pool: ${invalidRecipients}. They need to deposit ${token} first to receive private transfers.`;
+        setError(errorMsg);
+
+        return {
+          success: false,
+          completedCount: 0,
+          failedCount: recipients.length,
+          recipients: recipients.map(r => ({
+            ...r,
+            status: 'failed' as const,
+            error: poolValidation.results.find(pr => pr.address === r.address)?.error || `No ${token} pool`,
+          })),
+        };
+      }
+
       // Create batch in database first
       const batchId = await createBatch(wallet, recipients, token, transferType);
 
