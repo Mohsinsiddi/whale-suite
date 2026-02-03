@@ -15,6 +15,8 @@ import LearnMoreLink from "@/components/ui/LearnMoreLink";
 import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
 import {
   PRIVACY_CASH_TOKENS,
+  calculateWithdrawalFee,
+  WITHDRAWAL_FEE_RATE,
   type PrivacyCashTokenSymbol,
 } from "@/lib/privacy-sdks/privacy-cash";
 
@@ -565,9 +567,11 @@ export default function PrivacyCashPage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-text-muted">Relay Fee</span>
+                      <span className="text-xs text-text-muted">Fee (0.35% + {tokenFees.WITHDRAWAL_FEE} rent)</span>
                       <span className="text-xs text-error">
-                        -{tokenFees.WITHDRAWAL_FEE} {selectedToken}
+                        -{amount && parseFloat(amount) > 0
+                          ? calculateWithdrawalFee(parseFloat(amount), selectedToken).toFixed(currentToken.decimals > 6 ? 6 : 4)
+                          : "0.0000"} {selectedToken}
                       </span>
                     </div>
                     <div className="border-t border-border-secondary pt-2 mt-2">
@@ -724,16 +728,20 @@ export default function PrivacyCashPage() {
                 <span className="text-neon-green">Free</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-text-muted">Withdrawal Fee</span>
-                <span className="text-text-secondary">~{tokenFees.WITHDRAWAL_FEE} {selectedToken}</span>
+                <span className="text-text-muted">Withdrawal Rate</span>
+                <span className="text-text-secondary">{(WITHDRAWAL_FEE_RATE * 100).toFixed(2)}%</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-text-muted">Rent Fee</span>
+                <span className="text-text-secondary">+{tokenFees.WITHDRAWAL_FEE} {selectedToken}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-text-muted">Min Withdrawal</span>
+                <span className="text-text-secondary">{tokenFees.MIN_WITHDRAWAL} {selectedToken}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-text-muted">Min Deposit</span>
                 <span className="text-text-secondary">{tokenFees.MIN_DEPOSIT} {selectedToken}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-text-muted">Recommended Min</span>
-                <span className="text-neon-green">{tokenFees.RECOMMENDED_MIN_BALANCE} {selectedToken}</span>
               </div>
             </div>
           </Card>

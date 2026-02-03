@@ -37,13 +37,18 @@ const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 // SDK appends .wasm and .zkey to this path
 const CIRCUIT_BASE_PATH = '/circuit2/transaction2';
 
-// Fee constants (in SOL) - Default for SOL, use getTokenFees() for other tokens
+// Fee constants from Privacy Cash API (https://api3.privacycash.org/config)
+// Total withdrawal fee = (amount * WITHDRAWAL_FEE_RATE) + RENT_FEE
+export const WITHDRAWAL_FEE_RATE = 0.0035; // 0.35% of withdrawal amount
+
+// Default fees for SOL - use getTokenFees() for other tokens
 export const PRIVACY_FEES = {
-  WITHDRAWAL_FEE: 0.006, // ~6,000,000 lamports - relay fee for ZK withdrawal
-  DEPOSIT_FEE: 0, // No deposit fee from Privacy Cash (only minimal network fee)
-  MIN_DEPOSIT: 0.001, // Minimum deposit amount
-  MIN_WITHDRAWAL: 0.007, // Minimum withdrawal (must be > fee to receive something)
-  RECOMMENDED_MIN_BALANCE: 0.01, // Recommended minimum for withdrawals
+  WITHDRAWAL_FEE: 0.006, // Rent fee for SOL
+  WITHDRAWAL_FEE_RATE: WITHDRAWAL_FEE_RATE, // 0.35%
+  DEPOSIT_FEE: 0, // No deposit fee
+  MIN_DEPOSIT: 0.001,
+  MIN_WITHDRAWAL: 0.01, // From API minimum_withdrawal
+  RECOMMENDED_MIN_BALANCE: 0.015,
 };
 
 // Get fees for a specific token
@@ -53,12 +58,20 @@ export function getTokenFees(tokenSymbol: PrivacyCashTokenSymbol = 'SOL') {
     return PRIVACY_FEES;
   }
   return {
-    WITHDRAWAL_FEE: token.withdrawalFee,
+    WITHDRAWAL_FEE: token.withdrawalFee, // Rent fee (flat)
+    WITHDRAWAL_FEE_RATE: WITHDRAWAL_FEE_RATE, // 0.35% rate
     DEPOSIT_FEE: 0,
     MIN_DEPOSIT: token.minDeposit,
     MIN_WITHDRAWAL: token.minWithdrawal,
     RECOMMENDED_MIN_BALANCE: token.minWithdrawal * 1.5,
   };
+}
+
+// Calculate total withdrawal fee for a given amount
+export function calculateWithdrawalFee(amount: number, tokenSymbol: PrivacyCashTokenSymbol = 'SOL'): number {
+  const fees = getTokenFees(tokenSymbol);
+  // Fee = (amount * 0.35%) + rent_fee
+  return (amount * WITHDRAWAL_FEE_RATE) + fees.WITHDRAWAL_FEE;
 }
 
 // Import from centralized token config
@@ -465,14 +478,8 @@ class PrivacyCashService {
     tokenSymbol: PrivacyCashTokenSymbol = 'SOL'
   ): ValidationResult {
     const fees = getTokenFees(tokenSymbol);
-    const token = getPrivacyCashToken(tokenSymbol);
-    const decimals = token?.decimals || 9;
-    const multiplier = Math.pow(10, decimals);
-
-    // Use smallest units for precise integer comparison (avoid floating point issues)
-    const balanceUnits = Math.round(privateBalance * multiplier);
-    const amountUnits = Math.round(amountFromBalance * multiplier);
-    const feeUnits = Math.round(fees.WITHDRAWAL_FEE * multiplier);
+    const totalFee = calculateWithdrawalFee(amountFromBalance, tokenSymbol);
+    const receiveAmount = amountFromBalance - totalFee;
 
     if (amountFromBalance <= 0) {
       return {
@@ -481,21 +488,30 @@ class PrivacyCashService {
       };
     }
 
-    if (amountUnits <= feeUnits) {
+    // Check minimum withdrawal
+    if (amountFromBalance < fees.MIN_WITHDRAWAL) {
       return {
         valid: false,
-        error: `Amount must be greater than the relay fee (${fees.WITHDRAWAL_FEE} ${tokenSymbol}). You would receive nothing.`,
+        error: `Minimum withdrawal is ${fees.MIN_WITHDRAWAL} ${tokenSymbol}`,
       };
     }
 
-    if (balanceUnits < amountUnits) {
+    // Check if user would receive something after fees
+    if (receiveAmount <= 0) {
+      return {
+        valid: false,
+        error: `Amount too low. After fees (~${totalFee.toFixed(4)} ${tokenSymbol}), you would receive nothing.`,
+      };
+    }
+
+    if (privateBalance < amountFromBalance) {
       return {
         valid: false,
         error: `Insufficient balance. You have ${privateBalance.toFixed(4)} ${tokenSymbol} but trying to withdraw ${amountFromBalance.toFixed(4)} ${tokenSymbol}`,
         details: {
           required: amountFromBalance,
           available: privateBalance,
-          fee: fees.WITHDRAWAL_FEE,
+          fee: totalFee,
         },
       };
     }
@@ -505,22 +521,18 @@ class PrivacyCashService {
       details: {
         required: amountFromBalance,
         available: privateBalance,
-        fee: fees.WITHDRAWAL_FEE,
+        fee: totalFee,
       }
     };
   }
 
   /**
    * Calculate what user receives after fee
+   * Fee = (amount * 0.35%) + rent_fee
    */
   calculateReceiveAmount(amountFromBalance: number, tokenSymbol: PrivacyCashTokenSymbol = 'SOL'): number {
-    const fees = getTokenFees(tokenSymbol);
-    const token = getPrivacyCashToken(tokenSymbol);
-    const decimals = token?.decimals || 9;
-    const multiplier = Math.pow(10, decimals);
-
-    const receiveUnits = Math.round(amountFromBalance * multiplier) - Math.round(fees.WITHDRAWAL_FEE * multiplier);
-    return Math.max(0, receiveUnits / multiplier);
+    const totalFee = calculateWithdrawalFee(amountFromBalance, tokenSymbol);
+    return Math.max(0, amountFromBalance - totalFee);
   }
 
   /**

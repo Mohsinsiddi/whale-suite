@@ -254,6 +254,11 @@ export interface PrivacyCashToken {
   minWithdrawal: number;  // Minimum withdrawal amount
 }
 
+// Privacy Cash fee structure from API (https://api3.privacycash.org/config):
+// - withdraw_fee_rate: 0.35% of amount
+// - rent_fees: flat fee per token (covers relayer costs)
+// Total fee = (amount * 0.0035) + rent_fee
+
 export const PRIVACY_CASH_TOKENS: PrivacyCashToken[] = [
   {
     symbol: 'SOL',
@@ -264,9 +269,9 @@ export const PRIVACY_CASH_TOKENS: PrivacyCashToken[] = [
     logoURI: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
     unitsPerToken: 1e9,
     prefix: '',
-    withdrawalFee: 0.006,    // ~6,000,000 lamports relay fee
+    withdrawalFee: 0.006,    // rent_fee from API
     minDeposit: 0.001,
-    minWithdrawal: 0.007,    // Must be > fee to receive something
+    minWithdrawal: 0.01,     // minimum_withdrawal from API
   },
   {
     symbol: 'USDC',
@@ -277,9 +282,9 @@ export const PRIVACY_CASH_TOKENS: PrivacyCashToken[] = [
     logoURI: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
     unitsPerToken: 1e6,
     prefix: 'usdc_',
-    withdrawalFee: 1,        // 1 USDC relay fee
+    withdrawalFee: 0.623,    // rent_fee from API (~$0.62)
     minDeposit: 0.01,
-    minWithdrawal: 1.01,
+    minWithdrawal: 2,        // minimum_withdrawal from API
   },
   {
     symbol: 'USDT',
@@ -290,9 +295,9 @@ export const PRIVACY_CASH_TOKENS: PrivacyCashToken[] = [
     logoURI: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.svg',
     unitsPerToken: 1e6,
     prefix: 'usdt_',
-    withdrawalFee: 1,        // 1 USDT relay fee
+    withdrawalFee: 0.623,    // rent_fee from API (~$0.62)
     minDeposit: 0.01,
-    minWithdrawal: 1.01,
+    minWithdrawal: 2,        // minimum_withdrawal from API
   },
   {
     symbol: 'ZEC',
@@ -300,12 +305,12 @@ export const PRIVACY_CASH_TOKENS: PrivacyCashToken[] = [
     icon: '🔐',
     mint: 'A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS',
     decimals: 8,
-    logoURI: '', // Use icon fallback - Wormhole ZEC logo not reliably available
+    logoURI: '', // Use icon fallback
     unitsPerToken: 1e8,
     prefix: 'zec_',
-    withdrawalFee: 0.0001,   // Small ZEC fee
-    minDeposit: 0.0001,
-    minWithdrawal: 0.0002,
+    withdrawalFee: 0.00216,  // rent_fee from API
+    minDeposit: 0.001,
+    minWithdrawal: 0.01,     // minimum_withdrawal from API
   },
   {
     symbol: 'ORE',
@@ -316,9 +321,9 @@ export const PRIVACY_CASH_TOKENS: PrivacyCashToken[] = [
     logoURI: '', // Use icon fallback
     unitsPerToken: 1e11,
     prefix: 'ore_',
-    withdrawalFee: 0.01,     // 0.01 ORE fee
+    withdrawalFee: 0.00864,  // rent_fee from API
     minDeposit: 0.001,
-    minWithdrawal: 0.011,
+    minWithdrawal: 0.02,     // minimum_withdrawal from API
   },
   {
     symbol: 'STORE',
@@ -329,9 +334,9 @@ export const PRIVACY_CASH_TOKENS: PrivacyCashToken[] = [
     logoURI: '', // Use icon fallback
     unitsPerToken: 1e11,
     prefix: 'store_',
-    withdrawalFee: 0.01,     // 0.01 STORE fee
+    withdrawalFee: 0.00851,  // rent_fee from API
     minDeposit: 0.001,
-    minWithdrawal: 0.011,
+    minWithdrawal: 0.02,     // minimum_withdrawal from API
   },
 ];
 
