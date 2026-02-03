@@ -40,7 +40,6 @@ export default function PrivacyCashPage() {
     reset,
     validateWithdrawal,
     calculateReceiveAmount,
-    fees,
     setSelectedToken,
     fetchPrivateBalance,
     getSelectedTokenFees,
@@ -171,6 +170,7 @@ export default function PrivacyCashPage() {
         awardPoints(action, {
           txSignature: result.signature,
           amount: operationAmount,
+          token: selectedToken, // Pass the selected token for whale intelligence
           network,
         }).then((pointsResult) => {
           if (pointsResult) {
