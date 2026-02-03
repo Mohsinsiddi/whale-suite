@@ -295,7 +295,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       {
         title: "Premium",
         items: [
-          { href: "/badges", icon: <BadgeIcon />, label: "NFT Badges", badge: "FHE", badgeColor: "cyan", tooltip: {
+          { href: "/badges", icon: <BadgeIcon />, label: "INCO Badges", badge: "FHE", badgeColor: "cyan", tooltip: {
             sponsor: "INCO Network",
             description: "Confidential tier badges",
             points: ["FHE-encrypted badge tiers", "Access gated features", "Claim on Channels page"]
