@@ -21,7 +21,7 @@ interface HeaderProps {
 export default function Header({ variant = "landing", wallet }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { logout, walletAddress, authenticated, login } = useAuth();
-  const { userNumber, badgeTier, privacyScore } = useUser();
+  const { userNumber, badgeTier, privacyScore, userNotFound } = useUser();
   const { hiddenBalance } = useWallet();
   const { toggleSidebar } = useUI();
 
@@ -110,8 +110,28 @@ export default function Header({ variant = "landing", wallet }: HeaderProps) {
               </Link>
             ) : authenticated ? (
               <>
+                {/* User Not Found Warning Icon with Tooltip */}
+                {userNotFound && (
+                  <div className="relative group">
+                    <div className="p-2 rounded-lg bg-error/10 border border-error/30 cursor-help">
+                      <AlertIcon className="w-4 h-4 text-error" />
+                      <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-error opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-error"></span>
+                      </span>
+                    </div>
+                    {/* Hover Tooltip */}
+                    <div className="absolute right-0 top-full mt-2 w-56 p-2 rounded-lg bg-bg-secondary border border-error/30 shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                      <p className="text-xs text-error font-medium mb-1">User Not Found</p>
+                      <p className="text-[10px] text-text-muted">
+                        Session expired or DB reset. Logout & login again to re-register →
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Wallet Changed Warning Icon with Tooltip */}
-                {isMismatch && (
+                {isMismatch && !userNotFound && (
                   <div className="relative group">
                     <div className="p-2 rounded-lg bg-warning/10 border border-warning/30 cursor-help">
                       <AlertIcon className="w-4 h-4 text-warning" />
