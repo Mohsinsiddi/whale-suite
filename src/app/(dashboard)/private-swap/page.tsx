@@ -93,8 +93,9 @@ export default function PrivateSwapPage() {
   const { awardPoints } = usePoints();
   const { network } = useNetwork();
 
-  const [fromToken, setFromToken] = useState(PRIVATE_SWAP_TOKENS[0]); // SOL
-  const [toToken, setToToken] = useState(PRIVATE_SWAP_TOKENS[1]); // USDC
+  // Default: SOL -> USDC
+  const [fromToken, setFromToken] = useState(() => PRIVATE_SWAP_TOKENS.find(t => t.symbol === "SOL") || PRIVATE_SWAP_TOKENS[0]);
+  const [toToken, setToToken] = useState(() => PRIVATE_SWAP_TOKENS.find(t => t.symbol === "USDC") || PRIVATE_SWAP_TOKENS[2]);
   const [fromAmount, setFromAmount] = useState("");
   const [toAmount, setToAmount] = useState("");
   const [slippage, setSlippage] = useState("100"); // In basis points (1%)
@@ -986,13 +987,13 @@ function TokenSelector({
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg-elevated border border-border-secondary hover:border-neon-green transition-colors"
+        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg-primary border border-border-primary hover:border-neon-green/40 transition-all"
       >
         {selected.logoURI ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={selected.logoURI} alt={selected.symbol} className="w-6 h-6 rounded-full" />
+          <img src={selected.logoURI} alt={selected.symbol} className="w-6 h-6 rounded-full ring-2 ring-border-secondary" />
         ) : (
-          <span className="text-lg">{selected.icon}</span>
+          <span className="w-6 h-6 rounded-full bg-bg-elevated flex items-center justify-center text-sm">{selected.icon || selected.symbol[0]}</span>
         )}
         <span className="font-medium text-text-primary">{selected.symbol}</span>
         <ChevronDownIcon className="w-4 h-4 text-text-muted" />
@@ -1001,30 +1002,48 @@ function TokenSelector({
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 w-48 rounded-xl bg-bg-elevated border border-border-secondary shadow-xl z-50 overflow-hidden">
-            {availableTokens.map((token) => (
-              <button
-                key={token.mint}
-                onClick={() => {
-                  onSelect(token);
-                  setIsOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 hover:bg-bg-tertiary transition-colors ${
-                  token.mint === selected.mint ? "bg-neon-green/10" : ""
-                }`}
-              >
-                {token.logoURI ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={token.logoURI} alt={token.symbol} className="w-6 h-6 rounded-full" />
-                ) : (
-                  <span className="text-lg">{token.icon}</span>
-                )}
-                <div className="text-left">
-                  <div className="text-sm font-medium text-text-primary">{token.symbol}</div>
-                  <div className="text-xs text-text-muted">{token.balance?.toFixed(4) || "0"}</div>
-                </div>
-              </button>
-            ))}
+          <div className="absolute right-0 top-full mt-2 w-64 p-2 bg-bg-primary border border-border-primary rounded-2xl shadow-2xl shadow-black/50 z-50 overflow-hidden">
+            <div className="text-xs text-text-muted px-2 py-1.5 mb-1">Select Token</div>
+            <div className="space-y-1">
+              {availableTokens.map((token) => {
+                const hasBalance = (token.balance || 0) > 0;
+                return (
+                  <button
+                    key={token.mint}
+                    onClick={() => {
+                      onSelect(token);
+                      setIsOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                      token.mint === selected.mint
+                        ? "bg-neon-green/10 border-neon-green/30"
+                        : "bg-bg-secondary/50 border-border-secondary hover:border-border-primary hover:bg-bg-tertiary"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {token.logoURI ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={token.logoURI} alt={token.symbol} className="w-8 h-8 rounded-full ring-2 ring-border-secondary" />
+                      ) : (
+                        <span className="w-8 h-8 rounded-full bg-bg-elevated flex items-center justify-center text-sm ring-2 ring-border-secondary">{token.icon || token.symbol[0]}</span>
+                      )}
+                      <div className="text-left">
+                        <div className="text-sm font-semibold text-text-primary">{token.symbol}</div>
+                        <div className="text-xs text-text-muted truncate max-w-[100px]">{token.name}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-sm font-medium ${hasBalance ? "text-text-primary" : "text-text-muted"}`}>
+                        {(token.balance || 0).toFixed(4)}
+                      </div>
+                      {hasBalance && (
+                        <div className="text-[10px] text-neon-green">Available</div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </>
       )}

@@ -69,6 +69,10 @@ export type {
   TokenType,
 } from './useMultiSend';
 
+// Recent Transfers
+export { useRecentTransfers } from './useRecentTransfers';
+export type { RecentTransfer } from './useRecentTransfers';
+
 // Darklake Private Swap
 export { useDarklake } from './useDarklake';
 export type { DarklakeState, UseDarklakeReturn } from './useDarklake';

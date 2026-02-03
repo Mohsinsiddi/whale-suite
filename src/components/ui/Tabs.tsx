@@ -7,6 +7,7 @@ interface Tab {
   label: string;
   icon?: ReactNode;
   badge?: number;
+  disabled?: boolean;
 }
 
 interface TabsProps {
@@ -69,14 +70,18 @@ export default function Tabs({
     <div className={`${variants[variant].container} ${fullWidth ? "w-full" : ""}`}>
       {tabs.map((tab) => {
         const isActive = active === tab.id;
+        const isDisabled = tab.disabled === true;
         return (
           <button
             key={tab.id}
-            onClick={() => handleChange(tab.id)}
+            onClick={() => !isDisabled && handleChange(tab.id)}
+            disabled={isDisabled}
             className={`
               ${baseStyles}
               ${sizes[size]}
-              ${variants[variant].tab(isActive)}
+              ${isDisabled
+                ? "opacity-40 cursor-not-allowed text-text-muted"
+                : variants[variant].tab(isActive)}
               ${fullWidth ? "flex-1 justify-center" : ""}
             `}
           >

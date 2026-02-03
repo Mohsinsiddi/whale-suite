@@ -1,25 +1,19 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import Modal, { SuccessModal } from '@/components/ui/Modal';
+import Modal, { SuccessModal, TransactionModal } from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
-import Badge from '@/components/ui/Badge';
 import { useMultiSend, type MultiSendRecipient, type TokenType } from '@/hooks/useMultiSend';
 import { useAuth } from '@/lib/privy/hooks';
-import { TOKENS as TOKEN_CONFIG, type TokenMetadata } from '@/lib/tokens';
+import { MULTI_SEND_TOKEN_LIST, type TokenMetadata } from '@/lib/tokens';
 
 interface MultiSendModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-// Supported tokens with full metadata
-const TOKENS: (TokenMetadata & { symbol: TokenType })[] = [
-  TOKEN_CONFIG.SOL as TokenMetadata & { symbol: TokenType },
-  TOKEN_CONFIG.USDC as TokenMetadata & { symbol: TokenType },
-  TOKEN_CONFIG.USDT as TokenMetadata & { symbol: TokenType },
-  TOKEN_CONFIG.USD1 as TokenMetadata & { symbol: TokenType },
-];
+// Supported tokens - all tokens with multiSendEnabled flag
+const TOKENS: (TokenMetadata & { symbol: TokenType })[] = MULTI_SEND_TOKEN_LIST as (TokenMetadata & { symbol: TokenType })[];
 
 // Generate unique ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -144,156 +138,130 @@ export function MultiSendModal({ isOpen, onClose }: MultiSendModalProps) {
     handleClose();
   };
 
-  // Phase labels for display
-  const phaseLabels: Record<string, { icon: string; color: string }> = {
-    idle: { icon: '⏸', color: 'text-text-muted' },
-    initializing: { icon: '⚡', color: 'text-neon-cyan' },
-    generating_proofs: { icon: '🔐', color: 'text-neon-green' },
-    building_transactions: { icon: '🔨', color: 'text-neon-cyan' },
-    signing: { icon: '✍️', color: 'text-warning' },
-    submitting: { icon: '📡', color: 'text-neon-green' },
-    complete: { icon: '✅', color: 'text-success' },
-  };
+  // Build transaction steps for TransactionModal
+  const getTransactionSteps = useCallback((): { label: string; status: 'pending' | 'active' | 'completed'; description: string }[] => {
+    const currentPhase = progress?.phase || 'initializing';
+    const currentIdx = progress?.current || 0;
+    const phases = ['initializing', 'generating_proofs', 'building_transactions', 'signing', 'submitting'];
+    const currentPhaseIndex = phases.indexOf(currentPhase);
 
-  // Render progress view
+    const getStatus = (phaseIndex: number): 'pending' | 'active' | 'completed' => {
+      if (currentPhase === 'complete') return 'completed';
+      if (phaseIndex < currentPhaseIndex) return 'completed';
+      if (phaseIndex === currentPhaseIndex) return 'active';
+      return 'pending';
+    };
+
+    return [
+      {
+        label: 'Initializing ZK Environment',
+        status: getStatus(0),
+        description: 'Loading WebAssembly cryptographic modules...',
+      },
+      {
+        label: `Generating Bulletproof ZK Proofs (${Math.min(currentIdx + 1, recipients.length)}/${recipients.length})`,
+        status: getStatus(1),
+        description: `Creating ${recipients.length} ZK proofs to hide transaction amounts. ~30-45 sec per recipient.`,
+      },
+      {
+        label: 'Building Transactions',
+        status: getStatus(2),
+        description: `Preparing ${recipients.length} private transactions...`,
+      },
+      {
+        label: 'Signing with Wallet',
+        status: getStatus(3),
+        description: 'Please approve the transactions in your wallet...',
+      },
+      {
+        label: 'Broadcasting to ShadowWire',
+        status: getStatus(4),
+        description: `Submitting ${recipients.length} private transactions to network...`,
+      },
+    ];
+  }, [progress, recipients.length]);
+
+  // Get current step index for TransactionModal
+  const getCurrentStepIndex = useCallback((): number => {
+    const phases = ['initializing', 'generating_proofs', 'building_transactions', 'signing', 'submitting', 'complete'];
+    const currentPhase = progress?.phase || 'initializing';
+    const idx = phases.indexOf(currentPhase);
+    return idx >= 0 ? Math.min(idx, 4) : 0;
+  }, [progress]);
+
+  // Render progress view using TransactionModal
   if (isExecuting || progress) {
     const currentPhase = progress?.phase || 'initializing';
-    const phaseInfo = phaseLabels[currentPhase] || phaseLabels.initializing;
+    const currentIdx = progress?.current || 0;
 
     return (
-      <Modal isOpen={isOpen} onClose={() => {}} title="Multi-Send in Progress" size="lg">
-        <div className="space-y-6 py-4">
-          {/* Phase indicator */}
-          <div className="text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-neon-green/20 to-neon-cyan/20 flex items-center justify-center">
-              {currentPhase === 'complete' ? (
-                <span className="text-3xl">✅</span>
-              ) : (
-                <div className="w-12 h-12 rounded-full border-4 border-neon-green/30 border-t-neon-green animate-spin" />
-              )}
+      <>
+        <TransactionModal
+          isOpen={isOpen}
+          onClose={() => {}}
+          title={`Multi-Send to ${recipients.length} Recipients`}
+          steps={getTransactionSteps()}
+          currentStep={getCurrentStepIndex()}
+        />
+
+        {/* Recipient Progress Overlay - shows alongside TransactionModal */}
+        {currentPhase !== 'complete' && (
+          <div className="fixed bottom-4 right-4 z-[60] w-80 max-h-64 overflow-hidden rounded-xl bg-bg-secondary/95 backdrop-blur-sm border border-border-primary shadow-2xl animate-fade-in">
+            <div className="p-3 border-b border-border-secondary">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-neon-green">
+                  📋 Recipients ({progress?.completed || 0}/{recipients.length})
+                </span>
+                <span className="text-[10px] text-text-muted">
+                  {currentPhase === 'generating_proofs' && `Proof ${currentIdx + 1}/${recipients.length}`}
+                </span>
+              </div>
             </div>
-            <h3 className={`text-lg font-semibold ${phaseInfo.color}`}>
-              {progress?.phaseLabel || 'Initializing...'}
-            </h3>
-            <p className="text-sm text-text-secondary mt-1">
-              {currentPhase === 'generating_proofs' && (
-                <>Generating ZK proofs for all {recipients.length} recipients</>
-              )}
-              {currentPhase === 'signing' && (
-                <>Please approve in your wallet (single prompt for all)</>
-              )}
-              {currentPhase === 'submitting' && (
-                <>Broadcasting transactions to network...</>
-              )}
-              {currentPhase === 'complete' && (
-                <>All transactions processed!</>
-              )}
-            </p>
-          </div>
+            <div className="max-h-48 overflow-y-auto p-2 space-y-1.5">
+              {recipients.map((r, index) => {
+                const isCurrentRecipient = currentPhase === 'generating_proofs' && index === currentIdx;
 
-          {/* Phase steps */}
-          <div className="flex justify-center gap-2">
-            {['initializing', 'generating_proofs', 'building_transactions', 'signing', 'submitting'].map((phase, i) => {
-              const phases = ['initializing', 'generating_proofs', 'building_transactions', 'signing', 'submitting'];
-              const currentIndex = phases.indexOf(currentPhase);
-              const isComplete = i < currentIndex || currentPhase === 'complete';
-              const isCurrent = phase === currentPhase;
-
-              return (
-                <div key={phase} className="flex items-center gap-2">
+                return (
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
-                      isComplete
-                        ? 'bg-success text-bg-primary'
-                        : isCurrent
-                        ? 'bg-neon-green/20 text-neon-green border-2 border-neon-green'
-                        : 'bg-bg-tertiary text-text-muted'
+                    key={r.id}
+                    className={`p-2 rounded-lg border transition-all text-xs ${
+                      r.status === 'success'
+                        ? 'bg-success/10 border-success/30'
+                        : r.status === 'failed'
+                        ? 'bg-error/10 border-error/30'
+                        : isCurrentRecipient
+                        ? 'bg-neon-green/10 border-neon-green/50'
+                        : 'bg-bg-tertiary/50 border-border-secondary'
                     }`}
                   >
-                    {isComplete ? '✓' : i + 1}
-                  </div>
-                  {i < 4 && (
-                    <div className={`w-6 h-0.5 ${isComplete ? 'bg-success' : 'bg-bg-tertiary'}`} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Progress bar */}
-          <div className="relative h-2 bg-bg-tertiary rounded-full overflow-hidden">
-            <div
-              className="absolute inset-y-0 left-0 bg-gradient-to-r from-neon-green to-neon-cyan transition-all duration-300"
-              style={{
-                width: `${((progress?.current || 0) / Math.max(progress?.total || 1, 1)) * 100}%`,
-              }}
-            />
-          </div>
-
-          {/* Recipients list with status */}
-          <div className="max-h-48 overflow-y-auto space-y-2">
-            {recipients.map((r, index) => (
-              <div
-                key={r.id}
-                className={`p-3 rounded-lg border ${
-                  r.status === 'success'
-                    ? 'bg-success/10 border-success/30'
-                    : r.status === 'failed'
-                    ? 'bg-error/10 border-error/30'
-                    : 'bg-bg-tertiary border-border-secondary'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium bg-bg-elevated">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <span className="text-sm font-mono text-text-primary">
-                        {r.address.slice(0, 8)}...{r.address.slice(-4)}
-                      </span>
-                      <div className="text-xs text-text-muted">
-                        {r.amount} {selectedToken} (${r.usdValue.toFixed(2)})
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium ${
+                          r.status === 'success'
+                            ? 'bg-success text-bg-primary'
+                            : r.status === 'failed'
+                            ? 'bg-error text-white'
+                            : isCurrentRecipient
+                            ? 'bg-neon-green/20 text-neon-green animate-pulse'
+                            : 'bg-bg-elevated text-text-muted'
+                        }`}>
+                          {r.status === 'success' ? '✓' : r.status === 'failed' ? '✗' : index + 1}
+                        </div>
+                        <span className="font-mono text-text-secondary">
+                          {r.address.slice(0, 6)}...{r.address.slice(-4)}
+                        </span>
                       </div>
+                      <span className="text-text-muted">
+                        {r.amount} {selectedToken}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {r.status === 'success' && (
-                      <Badge size="xs" variant="success">Done</Badge>
-                    )}
-                    {r.status === 'failed' && (
-                      <Badge size="xs" variant="error">Failed</Badge>
-                    )}
-                    {r.status === 'pending' && (
-                      <Badge size="xs" variant="default">Pending</Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Status summary */}
-          <div className="flex items-center justify-center gap-4 text-sm">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-success" />
-              <span className="text-text-secondary">{progress?.completed || 0} Completed</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-error" />
-              <span className="text-text-secondary">{progress?.failed || 0} Failed</span>
+                );
+              })}
             </div>
           </div>
-
-          {/* Time estimate */}
-          {currentPhase === 'generating_proofs' && (
-            <div className="text-center text-xs text-text-muted">
-              Estimated time: ~{Math.ceil(recipients.length * 40 / 60)} minutes
-              (proofs generated in parallel where possible)
-            </div>
-          )}
-        </div>
-      </Modal>
+        )}
+      </>
     );
   }
 
@@ -335,35 +303,35 @@ export function MultiSendModal({ isOpen, onClose }: MultiSendModalProps) {
           <label className="block text-xs font-medium text-text-secondary mb-2">
             Select Token
           </label>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="flex flex-wrap gap-2">
             {TOKENS.map(token => (
               <button
                 key={token.symbol}
                 onClick={() => handleTokenChange(token.symbol)}
-                className={`p-2.5 rounded-lg border text-center transition-all ${
+                className={`px-3 py-2 rounded-lg border transition-all flex items-center gap-2 ${
                   selectedToken === token.symbol
                     ? 'bg-neon-green/10 border-neon-green text-neon-green'
                     : 'bg-bg-tertiary border-border-secondary text-text-secondary hover:border-border-primary'
                 }`}
               >
-                <div className="flex justify-center mb-1">
+                <div className="flex-shrink-0">
                   {token.logoURI ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={token.logoURI}
                       alt={token.symbol}
-                      className="w-6 h-6 rounded-full"
+                      className="w-5 h-5 rounded-full ring-1 ring-white/10"
                     />
                   ) : (
-                    <span className="text-lg">{token.icon}</span>
+                    <span className="text-sm">{token.icon}</span>
                   )}
                 </div>
-                <div className="text-xs font-medium">{token.symbol}</div>
+                <span className="text-xs font-medium">{token.symbol}</span>
               </button>
             ))}
           </div>
           <p className="text-xs text-text-muted mt-2">
-            Price: ${tokenPrice.toFixed(2)} per {selectedToken}
+            Price: ${tokenPrice.toFixed(tokenPrice < 0.01 ? 6 : 2)} per {selectedToken}
           </p>
         </div>
 
@@ -446,8 +414,13 @@ export function MultiSendModal({ isOpen, onClose }: MultiSendModalProps) {
                           {selectedToken}
                         </span>
                       </div>
-                      <div className="px-3 py-2 rounded-lg bg-bg-elevated border border-border-secondary text-sm text-text-secondary min-w-[80px] text-center">
-                        ${recipient.usdValue.toFixed(2)}
+                      <div className="px-3 py-2 rounded-lg bg-bg-elevated border border-border-secondary text-sm text-text-secondary min-w-[90px] text-center">
+                        ${recipient.usdValue > 0
+                          ? recipient.usdValue < 0.01
+                            ? recipient.usdValue.toFixed(6)
+                            : recipient.usdValue.toFixed(2)
+                          : '0.00'
+                        }
                       </div>
                     </div>
                   </div>
@@ -470,13 +443,18 @@ export function MultiSendModal({ isOpen, onClose }: MultiSendModalProps) {
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-text-muted">Total Amount</span>
             <span className="text-sm font-bold text-text-primary">
-              {totalAmount.toFixed(4)} {selectedToken}
+              {totalAmount < 1000 ? totalAmount.toFixed(4) : totalAmount.toLocaleString()} {selectedToken}
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-text-muted">Total USD Value</span>
             <span className="text-sm font-bold text-neon-green">
-              ${totalUsd.toFixed(2)}
+              ${totalUsd > 0
+                ? totalUsd < 0.01
+                  ? totalUsd.toFixed(6)
+                  : totalUsd.toFixed(2)
+                : '0.00'
+              }
             </span>
           </div>
         </div>

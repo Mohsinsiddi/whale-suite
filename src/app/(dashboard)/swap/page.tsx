@@ -52,8 +52,9 @@ export default function SwapPage() {
   const { awardPoints } = usePoints();
   const { network } = useNetwork();
 
-  const [fromToken, setFromToken] = useState(DEFAULT_TOKENS[0]);
-  const [toToken, setToToken] = useState(DEFAULT_TOKENS[1]);
+  // Default: SOL -> USDC
+  const [fromToken, setFromToken] = useState(() => DEFAULT_TOKENS.find(t => t.symbol === "SOL") || DEFAULT_TOKENS[0]);
+  const [toToken, setToToken] = useState(() => DEFAULT_TOKENS.find(t => t.symbol === "USDC") || DEFAULT_TOKENS[1]);
   const [fromAmount, setFromAmount] = useState("");
   const [toAmount, setToAmount] = useState("");
   const [slippage, setSlippage] = useState("50"); // In basis points (0.5%)
@@ -525,25 +526,33 @@ export default function SwapPage() {
                 Refresh
               </button>
             </CardHeader>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
               {balancesLoading ? (
-                <p className="text-xs text-text-muted">Loading...</p>
+                <div className="flex items-center justify-center py-4">
+                  <div className="w-5 h-5 border-2 border-neon-green border-t-transparent rounded-full animate-spin" />
+                </div>
               ) : (
                 <>
                   {/* SOL Balance */}
-                  <div className="flex items-center justify-between py-2 border-b border-border-secondary">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-bg-secondary/50 border border-border-secondary">
+                    <div className="flex items-center gap-3">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png"
                         alt="SOL"
-                        className="w-5 h-5 rounded-full"
+                        className="w-8 h-8 rounded-full ring-2 ring-border-secondary"
                       />
-                      <span className="text-sm font-medium text-text-primary">SOL</span>
+                      <div>
+                        <span className="text-sm font-semibold text-text-primary block">SOL</span>
+                        <span className="text-xs text-text-muted">Solana</span>
+                      </div>
                     </div>
-                    <span className="text-sm text-text-secondary">
-                      {(balances?.sol || 0).toFixed(4)}
-                    </span>
+                    <div className="text-right">
+                      <span className="text-sm font-medium text-text-primary block">
+                        {(balances?.sol || 0).toFixed(4)}
+                      </span>
+                      <span className="text-[10px] text-neon-green">Native</span>
+                    </div>
                   </div>
                   {/* Token Balances */}
                   {balances?.tokens
@@ -561,40 +570,44 @@ export default function SwapPage() {
                             (dt) => dt.mint.toLowerCase() === token.mint.toLowerCase() && dt.symbol !== "SOL"
                           );
                       const logoURI = defaultToken?.logoURI || token.logoURI;
-                      const symbol = isWSOL ? "WSOL" : (defaultToken?.symbol || token.symbol || "???");
-                      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                      const name = isWSOL ? "Wrapped SOL" : (defaultToken?.name || token.name || symbol);
+                      const symbol = isWSOL ? "WSOL" : (defaultToken?.symbol || token.symbol || token.mint.slice(0, 4));
+                      const name = isWSOL ? "Wrapped SOL" : (defaultToken?.name || token.name || "Unknown Token");
 
                       return (
                         <div
                           key={`${token.mint}-${symbol}`}
-                          className="flex items-center justify-between py-2 border-b border-border-secondary last:border-0"
+                          className="flex items-center justify-between p-2.5 rounded-xl bg-bg-secondary/50 border border-border-secondary hover:border-border-primary transition-colors"
                         >
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-3">
                             {logoURI ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
                                 src={logoURI}
                                 alt={symbol}
-                                className="w-5 h-5 rounded-full"
+                                className="w-8 h-8 rounded-full ring-2 ring-border-secondary"
                               />
                             ) : (
-                              <span className="w-5 h-5 rounded-full bg-bg-elevated flex items-center justify-center text-xs">
-                                {symbol[0] || "?"}
+                              <span className="w-8 h-8 rounded-full bg-bg-elevated ring-2 ring-border-secondary flex items-center justify-center text-xs font-medium text-text-muted">
+                                {symbol[0]}
                               </span>
                             )}
-                            <span className="text-sm font-medium text-text-primary">
-                              {symbol}
+                            <div>
+                              <span className="text-sm font-semibold text-text-primary block">
+                                {symbol}
+                              </span>
+                              <span className="text-xs text-text-muted truncate max-w-[80px] block">{name}</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-sm font-medium text-text-primary block">
+                              {token.uiAmount.toFixed(token.decimals <= 6 ? 4 : 6)}
                             </span>
                           </div>
-                          <span className="text-sm text-text-secondary">
-                            {token.uiAmount.toFixed(token.decimals <= 6 ? 4 : 6)}
-                          </span>
                         </div>
                       );
                     })}
                   {(!balances?.tokens || balances.tokens.filter((t) => t.uiAmount > 0).length === 0) && (
-                    <p className="text-xs text-text-muted py-2">No tokens found</p>
+                    <p className="text-xs text-text-muted py-4 text-center">No tokens found</p>
                   )}
                 </>
               )}
@@ -675,13 +688,13 @@ function TokenSelector({
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg-tertiary hover:bg-bg-elevated transition-colors"
+        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg-primary border border-border-primary hover:border-neon-green/40 transition-all"
       >
         {token.logoURI ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={token.logoURI} alt={token.symbol} className="w-5 h-5 rounded-full" />
+          <img src={token.logoURI} alt={token.symbol} className="w-6 h-6 rounded-full ring-2 ring-border-secondary" />
         ) : (
-          <span className="text-lg">{token.icon}</span>
+          <span className="w-6 h-6 rounded-full bg-bg-elevated flex items-center justify-center text-sm">{token.icon || token.symbol[0]}</span>
         )}
         <span className="text-sm font-semibold text-text-primary">{token.symbol}</span>
         <ChevronDownIcon />
@@ -690,37 +703,51 @@ function TokenSelector({
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 w-56 py-2 bg-bg-tertiary border border-border-primary rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto animate-dropdown-in">
-            {tokens.map((t) => (
-              <button
-                key={t.mint}
-                onClick={() => {
-                  onSelect(t);
-                  setIsOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2 hover:bg-bg-elevated transition-colors ${
-                  t.mint === token.mint ? "bg-neon-green/10" : ""
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  {t.logoURI ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={t.logoURI} alt={t.symbol} className="w-5 h-5 rounded-full" />
-                  ) : (
-                    <span className="text-lg">{t.icon}</span>
-                  )}
-                  <div className="text-left">
-                    <div className="text-sm font-medium text-text-primary">{t.symbol}</div>
-                    <div className="text-xs text-text-muted truncate max-w-[100px]">
-                      {t.name}
+          <div className="absolute right-0 top-full mt-2 w-72 p-2 bg-bg-primary border border-border-primary rounded-2xl shadow-2xl shadow-black/50 z-50 max-h-80 overflow-y-auto animate-dropdown-in">
+            <div className="text-xs text-text-muted px-2 py-1.5 mb-1">Select Token</div>
+            <div className="space-y-1">
+              {tokens.map((t) => {
+                const balance = getBalance(t);
+                const hasBalance = balance > 0;
+                return (
+                  <button
+                    key={t.mint}
+                    onClick={() => {
+                      onSelect(t);
+                      setIsOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                      t.mint === token.mint
+                        ? "bg-neon-green/10 border-neon-green/30"
+                        : "bg-bg-secondary/50 border-border-secondary hover:border-border-primary hover:bg-bg-tertiary"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {t.logoURI ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={t.logoURI} alt={t.symbol} className="w-8 h-8 rounded-full ring-2 ring-border-secondary" />
+                      ) : (
+                        <span className="w-8 h-8 rounded-full bg-bg-elevated flex items-center justify-center text-sm ring-2 ring-border-secondary">{t.icon || t.symbol[0]}</span>
+                      )}
+                      <div className="text-left">
+                        <div className="text-sm font-semibold text-text-primary">{t.symbol}</div>
+                        <div className="text-xs text-text-muted truncate max-w-[120px]">
+                          {t.name}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-                <span className="text-xs text-text-secondary">
-                  {getBalance(t).toFixed(t.decimals <= 6 ? 2 : 4)}
-                </span>
-              </button>
-            ))}
+                    <div className="text-right">
+                      <div className={`text-sm font-medium ${hasBalance ? "text-text-primary" : "text-text-muted"}`}>
+                        {balance.toFixed(t.decimals <= 6 ? 4 : 6)}
+                      </div>
+                      {hasBalance && (
+                        <div className="text-[10px] text-neon-green">Available</div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </>
       )}

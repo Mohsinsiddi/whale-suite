@@ -13,6 +13,8 @@ const TOKEN_MINTS: Record<string, string> = {
   JTO: 'jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL',
   WIF: 'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm',
   JUP: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN',
+  RADR: 'CzFvsLdUazabdiu9TYXujj4EY495fG7VgJJ3vQs6bonk', // Radr
+  WLFI: 'WLFinEv6ypjkczcS83FZqFpgFZYwQXutRbxGe7oC16g', // World Liberty Financial
 };
 
 // Export token mints for use in other modules
@@ -35,6 +37,8 @@ const getFallbackPrices = (): TokenPrices => ({
   JTO: 3.5,
   WIF: 1.5,
   JUP: 0.8,
+  RADR: 0.02, // Radr fallback
+  WLFI: 0.015, // World Liberty Financial fallback
 });
 
 // Jupiter API key (optional but recommended)

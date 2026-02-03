@@ -249,7 +249,7 @@ const faqCategories = [
       },
       {
         q: "Which networks are supported?",
-        a: "We support both Solana Mainnet and Devnet. Some features like Privacy Cash, Jupiter Swap, and Private Swap are Mainnet-only, while features like Dark Pool and Confidential Channels are currently Devnet-only (testing phase). You can switch networks using the network toggle in the sidebar."
+        a: "We support both Solana Mainnet and Devnet. Mainnet features include Privacy Cash, Jupiter Swap, Dark Pool (Darklake), Ghost Send, and PNP Markets. Devnet features include Confidential Channels (INCO FHE) and experimental Private Swap. You can switch networks using the network toggle in the sidebar."
       },
       {
         q: "Do I need to create an account?",
@@ -271,16 +271,16 @@ const faqCategories = [
         a: "Ghost Send uses ShadowWire's Bulletproof ZK proofs to hide transfer amounts. When you send SOL, the recipient receives it but the exact amount is hidden on-chain. Perfect for private payments without revealing how much you're sending."
       },
       {
-        q: "What's the difference between Jupiter Swap and Private Swap?",
-        a: "Jupiter Swap gives you the best rates across all DEXs but transactions are public. Private Swap uses Darklake's ZK AMM to hide your swap amounts - slightly higher fees but maximum privacy. Use Jupiter for casual swaps, Private Swap when you don't want others to see your trading activity."
+        q: "What's the difference between Jupiter Swap and Dark Pool?",
+        a: "Jupiter Swap gives you the best rates across all DEXs but transactions are public. Dark Pool uses Darklake's ZK AMM to hide your swap amounts - slightly higher fees but maximum privacy. Use Jupiter for casual swaps, Dark Pool when you don't want others to see your trading activity."
       },
       {
         q: "Are my transactions truly private?",
-        a: "Yes, when using privacy tools. Privacy Cash shields your balance using ZK compression, Ghost Send hides transfer amounts with Bulletproof proofs, and Private Swap uses ZK proofs to hide swap amounts. Regular Jupiter swaps are public. Always check the 'Privacy Level' indicator on each feature."
+        a: "Yes, when using privacy tools. Privacy Cash shields your balance using ZK compression, Ghost Send hides transfer amounts with Bulletproof proofs, and Dark Pool uses Darklake ZK proofs to hide swap amounts. Regular Jupiter swaps are public. Always check the 'Privacy Level' indicator on each feature."
       },
       {
         q: "What is Dark Pool?",
-        a: "Dark Pool is our experimental private swap feature on Devnet. It's a testing ground for new ZK swap technologies before they go to Mainnet. Use it to preview upcoming privacy features and provide feedback."
+        a: "Dark Pool is our private swap feature powered by Darklake ZK AMM on Mainnet. It uses zero-knowledge proofs to hide your swap amounts, trade direction, and slippage. Two signatures required: one to commit the encrypted order, one to settle with ZK proof."
       },
     ]
   },
@@ -307,7 +307,7 @@ const faqCategories = [
       },
       {
         q: "What is Private Payments?",
-        a: "Private Payments is powered by Dark Pool on Devnet. It allows you to make payments with hidden amounts to other users. This feature uses the same ZK technology as Dark Pool swaps but for direct transfers."
+        a: "Private Payments is powered by INCO FHE on Devnet. It allows you to make payments where sender, recipient, AND amount are all encrypted. This uses Fully Homomorphic Encryption so verification happens on encrypted data without ever revealing the values."
       },
     ]
   },
@@ -1103,41 +1103,41 @@ export default function DocsPage() {
                   points="+5 pts per swap"
                 />
                 <FeatureCard
-                  icon="🔐"
-                  title="Private Swap"
+                  icon="🌙"
+                  title="Dark Pool"
                   subtitle="Darklake ZK AMM"
-                  description="Swap tokens privately with hidden amounts using ZK proofs. First ZK-native AMM on Solana."
+                  description="Swap tokens privately with hidden amounts using ZK proofs. First ZK-native AMM on Solana. Powered by Darklake."
                   privacyLevel="Maximum"
                   network="Mainnet"
-                  stats={{ popups: 1, gas: "~0.002 SOL", fee: "~0.3%" }}
+                  stats={{ popups: 2, gas: "~0.002 SOL", fee: "~0.3%" }}
                   steps={[
-                    "Select token pair",
+                    "Select token pair (SOL, USDC, USDT)",
                     "Enter swap amount",
-                    "ZK proof generates automatically",
-                    "Click Swap → Approve (1 popup)",
+                    "Commit encrypted order (1st signature)",
+                    "ZK proof settles the swap (2nd signature)",
                     "Private swap complete!"
                   ]}
                   useCases={["Whale trades", "Hide trading patterns", "Private accumulation"]}
                   points="+15 pts per swap"
-                  badge="Bounty"
+                  badge="Darklake"
                 />
                 <FeatureCard
-                  icon="🌙"
-                  title="Dark Pool"
-                  subtitle="Beta Testing"
-                  description="Experimental ZK swap feature. Test on devnet before mainnet launch."
-                  privacyLevel="High"
+                  icon="🔐"
+                  title="Private Swap"
+                  subtitle="INCO FHE (Coming Soon)"
+                  description="Experimental private swap using Fully Homomorphic Encryption. Currently in development on Devnet."
+                  privacyLevel="Maximum"
                   network="Devnet"
                   stats={{ popups: 1, gas: "Free (devnet)", fee: "0%" }}
                   steps={[
                     "Switch to Devnet network",
-                    "Get test tokens from faucet",
-                    "Navigate to Dark Pool",
-                    "Test private swaps"
+                    "Connect wallet",
+                    "Test FHE-encrypted swaps",
+                    "Preview upcoming features"
                   ]}
-                  useCases={["Beta testing", "Feature preview"]}
+                  useCases={["Beta testing", "FHE preview", "Feature testing"]}
                   points="No points (devnet)"
-                  badge="Beta"
+                  badge="INCO"
                 />
               </div>
             )}
