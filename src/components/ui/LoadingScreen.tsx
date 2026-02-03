@@ -106,8 +106,9 @@ export default function LoadingScreen({
           />
 
           {/* Center logo container - Using the same WhaleLogo component as header */}
-          <div className="absolute inset-8 flex items-center justify-center">
-            <WhaleLogo size="lg" showText={false} animated={true} />
+          <div className="absolute inset-6 sm:inset-8 flex items-center justify-center">
+            <WhaleLogo size="md" showText={false} animated={true} className="sm:hidden" />
+            <WhaleLogo size="lg" showText={false} animated={true} className="hidden sm:flex" />
           </div>
 
           {/* Floating particles */}

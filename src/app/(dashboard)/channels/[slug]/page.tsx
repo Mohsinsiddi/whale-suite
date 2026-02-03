@@ -8,6 +8,7 @@ import { useConfidentialBadge } from '@/hooks/useConfidentialBadge';
 import Link from 'next/link';
 import { AnonAvatar } from '@/components/ui/AnonAvatar';
 import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
+import WhaleLogo from "@/components/ui/WhaleLogo";
 
 type ActivityType = 'swap' | 'transfer' | 'deposit' | 'withdraw' | 'bet' | 'badge_claim';
 
@@ -223,8 +224,38 @@ export default function ChannelChatPage() {
   // Render loading
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin w-8 h-8 border-2 border-neon-green border-t-transparent rounded-full" />
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <div className="relative">
+          {/* Outer pulse */}
+          <motion.div
+            className="absolute -inset-4 sm:-inset-6 rounded-full border-2 border-neon-green/20"
+            animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0, 0.3] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+          />
+          {/* Spinning ring */}
+          <motion.div
+            className="absolute -inset-3 sm:-inset-4 rounded-full border-2 border-transparent border-t-neon-green border-r-neon-cyan"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+          />
+          {/* Inner spinning ring (reverse) */}
+          <motion.div
+            className="absolute -inset-1.5 sm:-inset-2 rounded-full border border-transparent border-t-neon-cyan/60"
+            animate={{ rotate: -360 }}
+            transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+          />
+          {/* Logo - responsive */}
+          <WhaleLogo size="md" showText={false} animated={true} className="sm:hidden" />
+          <WhaleLogo size="lg" showText={false} animated={true} className="hidden sm:flex" />
+        </div>
+        <p className="text-sm text-text-muted flex items-center gap-2">
+          <motion.span
+            className="w-2 h-2 rounded-full bg-neon-green"
+            animate={{ opacity: [1, 0.4, 1] }}
+            transition={{ duration: 0.8, repeat: Infinity }}
+          />
+          Loading channel...
+        </p>
       </div>
     );
   }

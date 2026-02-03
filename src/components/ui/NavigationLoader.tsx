@@ -172,27 +172,28 @@ export default function NavigationLoader() {
           <div className="relative mb-6">
             {/* Outer pulse */}
             <motion.div
-              className="absolute -inset-6 rounded-full border-2 border-neon-green/20"
+              className="absolute -inset-4 sm:-inset-6 rounded-full border-2 border-neon-green/20"
               animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0, 0.3] }}
               transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
             />
 
             {/* Spinning ring */}
             <motion.div
-              className="absolute -inset-4 rounded-full border-2 border-transparent border-t-neon-green border-r-neon-cyan"
+              className="absolute -inset-3 sm:-inset-4 rounded-full border-2 border-transparent border-t-neon-green border-r-neon-cyan"
               animate={{ rotate: 360 }}
               transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
             />
 
             {/* Inner spinning ring (reverse) */}
             <motion.div
-              className="absolute -inset-2 rounded-full border border-transparent border-t-neon-cyan/60"
+              className="absolute -inset-1.5 sm:-inset-2 rounded-full border border-transparent border-t-neon-cyan/60"
               animate={{ rotate: -360 }}
               transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
             />
 
-            {/* Logo */}
-            <WhaleLogo size="xl" showText={false} animated={true} />
+            {/* Logo - responsive */}
+            <WhaleLogo size="lg" showText={false} animated={true} className="sm:hidden" />
+            <WhaleLogo size="xl" showText={false} animated={true} className="hidden sm:flex" />
           </div>
 
           {/* Page info */}
