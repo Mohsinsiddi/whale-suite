@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import WhaleLogo from "./WhaleLogo";
 
 interface ModalProps {
   isOpen: boolean;
@@ -145,19 +146,16 @@ export function TransactionModal({
       <div className="space-y-5">
         {/* Header with animation */}
         <div className="text-center">
-          <div className="relative w-20 h-20 mx-auto mb-4">
+          <div className="relative w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4">
             {/* Outer rotating ring */}
             <div className="absolute inset-0 rounded-full border-2 border-neon-green/20 animate-pulse" />
             <div className="absolute inset-1 rounded-full border-2 border-transparent border-t-neon-green border-r-neon-cyan animate-spin" style={{ animationDuration: '2s' }} />
             <div className="absolute inset-3 rounded-full border border-transparent border-t-neon-cyan animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
 
-            {/* Center icon */}
-            <div className="absolute inset-4 rounded-full bg-gradient-to-br from-neon-green/20 to-neon-cyan/20 flex items-center justify-center">
-              {isZKStep ? (
-                <ZKProofIcon className="w-6 h-6 text-neon-green" />
-              ) : (
-                <SpinnerIcon className="w-6 h-6 text-neon-green animate-spin" />
-              )}
+            {/* Center logo */}
+            <div className="absolute inset-3 sm:inset-4 flex items-center justify-center">
+              <WhaleLogo size="xs" showText={false} animated={true} className="sm:hidden" />
+              <WhaleLogo size="sm" showText={false} animated={true} className="hidden sm:block" />
             </div>
           </div>
 
@@ -262,14 +260,22 @@ export function TransactionModal({
         {/* Error message */}
         {error && (
           <div className="p-3 rounded-xl bg-error/10 border border-error/30">
-            <p className="text-xs text-error">{error}</p>
+            <p className="text-sm text-error mb-3">{error}</p>
+            <button
+              onClick={onClose}
+              className="w-full py-2 px-4 rounded-lg bg-error/20 text-error text-sm font-medium hover:bg-error/30 transition-colors"
+            >
+              Close
+            </button>
           </div>
         )}
 
-        {/* Cancel hint */}
-        <p className="text-center text-[10px] text-text-muted">
-          Please do not close this window
-        </p>
+        {/* Cancel hint - only show when not error */}
+        {!error && (
+          <p className="text-center text-[10px] text-text-muted">
+            Please do not close this window
+          </p>
+        )}
       </div>
 
       <style jsx>{`
@@ -405,11 +411,7 @@ const ExternalLinkIcon = ({ className = "w-4 h-4" }) => (
   </svg>
 );
 
-const ZKProofIcon = ({ className = "w-4 h-4" }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611l-4.819.855a6.025 6.025 0 01-6.632 0l-4.82-.855c-1.715-.293-2.298-2.379-1.066-3.611L5 14.5" />
-  </svg>
-);
+// ZKProofIcon removed - replaced with logo image in center
 
 const LockIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">

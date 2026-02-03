@@ -4,6 +4,7 @@ import { ReactNode, useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
+import WhaleLogo from "@/components/ui/WhaleLogo";
 import TermsAcceptanceModal from "@/components/modals/TermsAcceptanceModal";
 import { useAuth } from "@/lib/privy/hooks";
 import { useWalletChange } from "@/hooks/useWalletChange";
@@ -161,14 +162,35 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="p-6 max-w-7xl mx-auto">
             <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
               <div className="relative">
-                <div className="w-12 h-12 border-2 border-neon-green/30 rounded-full" />
-                <div className="absolute inset-0 w-12 h-12 border-2 border-neon-green border-t-transparent rounded-full animate-spin" />
+                {/* Outer pulse */}
+                <motion.div
+                  className="absolute -inset-4 sm:-inset-6 rounded-full border-2 border-neon-green/20"
+                  animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0, 0.3] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                />
+                {/* Spinning ring */}
+                <motion.div
+                  className="absolute -inset-3 sm:-inset-4 rounded-full border-2 border-transparent border-t-neon-green border-r-neon-cyan"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+                />
+                {/* Inner spinning ring (reverse) */}
+                <motion.div
+                  className="absolute -inset-1.5 sm:-inset-2 rounded-full border border-transparent border-t-neon-cyan/60"
+                  animate={{ rotate: -360 }}
+                  transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+                />
+                {/* Logo */}
+                <WhaleLogo size="lg" showText={false} animated={true} />
               </div>
-              <p className="text-sm text-text-muted">Initializing Whale Suite...</p>
-              <div className="flex items-center gap-2 text-xs text-text-muted/60">
-                <span className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
-                <span>Loading...</span>
-              </div>
+              <p className="text-sm text-text-muted flex items-center gap-2">
+                <motion.span
+                  className="w-2 h-2 rounded-full bg-neon-green"
+                  animate={{ opacity: [1, 0.4, 1] }}
+                  transition={{ duration: 0.8, repeat: Infinity }}
+                />
+                Initializing Whale Suite...
+              </p>
             </div>
           </div>
         </motion.main>
@@ -178,10 +200,35 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="p-4 md:p-6 max-w-7xl mx-auto">
             <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
               <div className="relative">
-                <div className="w-12 h-12 border-2 border-neon-green/30 rounded-full" />
-                <div className="absolute inset-0 w-12 h-12 border-2 border-neon-green border-t-transparent rounded-full animate-spin" />
+                {/* Outer pulse */}
+                <motion.div
+                  className="absolute -inset-4 rounded-full border-2 border-neon-green/20"
+                  animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0, 0.3] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                />
+                {/* Spinning ring */}
+                <motion.div
+                  className="absolute -inset-3 rounded-full border-2 border-transparent border-t-neon-green border-r-neon-cyan"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+                />
+                {/* Inner spinning ring (reverse) */}
+                <motion.div
+                  className="absolute -inset-1.5 rounded-full border border-transparent border-t-neon-cyan/60"
+                  animate={{ rotate: -360 }}
+                  transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+                />
+                {/* Logo - smaller on mobile */}
+                <WhaleLogo size="md" showText={false} animated={true} />
               </div>
-              <p className="text-sm text-text-muted">Initializing Whale Suite...</p>
+              <p className="text-sm text-text-muted flex items-center gap-2">
+                <motion.span
+                  className="w-2 h-2 rounded-full bg-neon-green"
+                  animate={{ opacity: [1, 0.4, 1] }}
+                  transition={{ duration: 0.8, repeat: Infinity }}
+                />
+                Initializing Whale Suite...
+              </p>
             </div>
           </div>
         </main>

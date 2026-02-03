@@ -21,6 +21,7 @@ import { TransactionModal, SuccessModal } from '@/components/ui/Modal';
 import { BadgeSelectorModal } from '@/components/modals/BadgeSelectorModal';
 import NetworkSelectModal from '@/components/ui/NetworkSelectModal';
 import LearnMoreLink from '@/components/ui/LearnMoreLink';
+import WhaleLogo from '@/components/ui/WhaleLogo';
 import { usePoints } from '@/hooks';
 
 type TabType = 'channels' | 'claim';
@@ -672,8 +673,24 @@ export default function ChannelsPage() {
                 </button>
               </div>
             ) : loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin w-6 h-6 border-2 border-neon-green border-t-transparent rounded-full" />
+              <div className="flex flex-col items-center justify-center py-12 gap-4">
+                <div className="relative">
+                  {/* Spinning ring */}
+                  <motion.div
+                    className="absolute -inset-3 rounded-full border-2 border-transparent border-t-neon-green border-r-neon-cyan"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+                  />
+                  {/* Inner spinning ring (reverse) */}
+                  <motion.div
+                    className="absolute -inset-1.5 rounded-full border border-transparent border-t-neon-cyan/60"
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+                  />
+                  {/* Logo */}
+                  <WhaleLogo size="sm" showText={false} animated={true} />
+                </div>
+                <p className="text-xs text-text-muted">Loading channels...</p>
               </div>
             ) : (
               <div className="space-y-4">

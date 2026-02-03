@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/privy/hooks";
 import LearnMoreLink from "@/components/ui/LearnMoreLink";
 import { usePoints } from "@/hooks";
 import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
+import WhaleLogo from "@/components/ui/WhaleLogo";
 
 interface TokenLinks {
   dexscreener: string;
@@ -1181,14 +1182,14 @@ export default function LaunchPage() {
 
                 {/* Error Display */}
                 <AnimatePresence>
-                  {error && (
+                  {error && !loading && (
                     <motion.div
                       initial={{ opacity: 0, y: -10, height: 0 }}
                       animate={{ opacity: 1, y: 0, height: "auto" }}
                       exit={{ opacity: 0, y: -10, height: 0 }}
-                      className="p-4 rounded-xl bg-error/10 border border-error/30"
+                      className="p-3 rounded-xl bg-error/10 border border-error/30"
                     >
-                      <p className="text-sm text-error font-medium">{error}</p>
+                      <p className="text-sm text-error">{error}</p>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -1376,8 +1377,25 @@ export default function LaunchPage() {
             </Button>
           </motion.div>
         ) : tokensLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="w-8 h-8 border-2 border-neon-green border-t-transparent rounded-full animate-spin" />
+          <div className="flex flex-col items-center justify-center py-16 gap-4">
+            <div className="relative">
+              {/* Spinning ring */}
+              <motion.div
+                className="absolute -inset-3 sm:-inset-4 rounded-full border-2 border-transparent border-t-neon-green border-r-neon-cyan"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+              />
+              {/* Inner spinning ring (reverse) */}
+              <motion.div
+                className="absolute -inset-1.5 sm:-inset-2 rounded-full border border-transparent border-t-neon-cyan/60"
+                animate={{ rotate: -360 }}
+                transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+              />
+              {/* Logo - responsive */}
+              <WhaleLogo size="sm" showText={false} animated={true} className="sm:hidden" />
+              <WhaleLogo size="md" showText={false} animated={true} className="hidden sm:flex" />
+            </div>
+            <p className="text-sm text-text-muted">Loading your tokens...</p>
           </div>
         ) : myTokens.length === 0 ? (
           <motion.div
@@ -1434,11 +1452,12 @@ export default function LaunchPage() {
 
       {/* Transaction Modal */}
       <TransactionModal
-        isOpen={loading}
-        onClose={() => {}}
-        title="Launching Token"
+        isOpen={loading || !!error}
+        onClose={() => { setError(null); }}
+        title={error ? "Launch Failed" : "Launching Token"}
         steps={txSteps}
         currentStep={currentStep}
+        error={error || undefined}
       />
 
       {/* Success Modal */}
