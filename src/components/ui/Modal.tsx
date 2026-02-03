@@ -262,14 +262,22 @@ export function TransactionModal({
         {/* Error message */}
         {error && (
           <div className="p-3 rounded-xl bg-error/10 border border-error/30">
-            <p className="text-xs text-error">{error}</p>
+            <p className="text-sm text-error mb-3">{error}</p>
+            <button
+              onClick={onClose}
+              className="w-full py-2 px-4 rounded-lg bg-error/20 text-error text-sm font-medium hover:bg-error/30 transition-colors"
+            >
+              Close
+            </button>
           </div>
         )}
 
-        {/* Cancel hint */}
-        <p className="text-center text-[10px] text-text-muted">
-          Please do not close this window
-        </p>
+        {/* Cancel hint - only show when not error */}
+        {!error && (
+          <p className="text-center text-[10px] text-text-muted">
+            Please do not close this window
+          </p>
+        )}
       </div>
 
       <style jsx>{`

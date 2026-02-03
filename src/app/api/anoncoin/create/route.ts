@@ -170,6 +170,23 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Try to parse JSON error response from Anoncoin
+      try {
+        const errorData = JSON.parse(text);
+        if (errorData.message) {
+          return NextResponse.json(
+            {
+              error: errorData.message,
+              errorCode: errorData.errorCode,
+              requestId: errorData.requestId,
+            },
+            { status: response.status }
+          );
+        }
+      } catch {
+        // Not JSON, return raw text
+      }
+
       return NextResponse.json(
         {
           error: 'Anoncoin API error',

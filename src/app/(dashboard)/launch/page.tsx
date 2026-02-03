@@ -1181,14 +1181,14 @@ export default function LaunchPage() {
 
                 {/* Error Display */}
                 <AnimatePresence>
-                  {error && (
+                  {error && !loading && (
                     <motion.div
                       initial={{ opacity: 0, y: -10, height: 0 }}
                       animate={{ opacity: 1, y: 0, height: "auto" }}
                       exit={{ opacity: 0, y: -10, height: 0 }}
-                      className="p-4 rounded-xl bg-error/10 border border-error/30"
+                      className="p-3 rounded-xl bg-error/10 border border-error/30"
                     >
-                      <p className="text-sm text-error font-medium">{error}</p>
+                      <p className="text-sm text-error">{error}</p>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -1434,11 +1434,12 @@ export default function LaunchPage() {
 
       {/* Transaction Modal */}
       <TransactionModal
-        isOpen={loading}
-        onClose={() => {}}
-        title="Launching Token"
+        isOpen={loading || !!error}
+        onClose={() => { setError(null); }}
+        title={error ? "Launch Failed" : "Launching Token"}
         steps={txSteps}
         currentStep={currentStep}
+        error={error || undefined}
       />
 
       {/* Success Modal */}
