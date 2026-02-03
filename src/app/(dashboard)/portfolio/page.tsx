@@ -1,211 +1,845 @@
 "use client";
 
-import Card, { CardHeader, CardTitle } from "@/components/ui/Card";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
-import Tabs from "@/components/ui/Tabs";
-import { useState } from "react";
+import Button from "@/components/ui/Button";
 import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
+import RPCProviderSelector from "@/components/portfolio/RPCProviderSelector";
+import ProviderSwitchingOverlay from "@/components/portfolio/ProviderSwitchingOverlay";
+import { usePortfolio } from "@/hooks/usePortfolio";
+import { useWalletAddress } from "@/lib/privy/hooks";
+import { useNetworkContext } from "@/providers/NetworkProvider";
+import { useConfidentialBadge, TIER_INFO } from "@/hooks/useConfidentialBadge";
+import { findAllUserBadges, UserBadge } from "@/hooks/useChannelJoin";
+import { Connection, PublicKey } from "@solana/web3.js";
+import Link from "next/link";
+import {
+  Wallet,
+  TrendingUp,
+  Image as ImageIcon,
+  Shield,
+  Activity,
+  RefreshCw,
+  ExternalLink,
+  ChevronRight,
+  Layers,
+  Sparkles,
+  Lock,
+  Globe,
+  Users,
+  Zap,
+  BarChart3,
+  AlertCircle,
+  ArrowUpRight,
+} from "lucide-react";
 
-const holdings = [
-  { token: "SOL", name: "Solana", icon: "◎", amount: 974.5, value: 146175, change: 12.5, hidden: 850 },
-  { token: "USDC", name: "USD Coin", icon: "$", amount: 5420, value: 5420, change: 0, hidden: 5420 },
-  { token: "USDT", name: "Tether", icon: "₮", amount: 1250, value: 1250, change: 0, hidden: 1250 },
-  { token: "JUP", name: "Jupiter", icon: "♃", amount: 10000, value: 8500, change: -5.2, hidden: 0 },
-  { token: "RAY", name: "Raydium", icon: "◈", amount: 500, value: 2250, change: 8.3, hidden: 500 },
-];
-
-const pnlHistory = [
-  { date: "Jan 25", pnl: 1250, cumulative: 12500 },
-  { date: "Jan 24", pnl: -320, cumulative: 11250 },
-  { date: "Jan 23", pnl: 890, cumulative: 11570 },
-  { date: "Jan 22", pnl: 450, cumulative: 10680 },
-  { date: "Jan 21", pnl: -150, cumulative: 10230 },
-];
+// INCO Devnet RPC
+const INCO_DEVNET_RPC = 'https://devnet.helius-rpc.com/?api-key=2572cf42-5399-4552-a902-495bd4cb11c5';
 
 export default function PortfolioPage() {
+  const walletAddress = useWalletAddress();
+  const { network, switchNetwork } = useNetworkContext();
+
+  const {
+    tokens,
+    nfts,
+    transactions,
+    stats,
+    globalStats,
+    provider,
+    switchProvider,
+    ping,
+    loading,
+    switching,
+    error,
+    hasMoreTokens,
+    hasMoreNfts,
+    loadMoreTokens,
+    loadMoreNfts,
+    refresh,
+  } = usePortfolio(walletAddress);
+
+  // FHE Badge state (from devnet - independent of mainnet portfolio)
+  const { badge: confidentialBadge, loading: badgeLoading } = useConfidentialBadge();
+  const [userBadges, setUserBadges] = useState<UserBadge[]>([]);
+  const [badgesLoadingState, setBadgesLoadingState] = useState(false);
+
+  // Fetch user badges from INCO devnet
+  useEffect(() => {
+    async function fetchBadges() {
+      if (!walletAddress) {
+        setUserBadges([]);
+        return;
+      }
+
+      setBadgesLoadingState(true);
+      try {
+        const connection = new Connection(INCO_DEVNET_RPC, 'confirmed');
+        const userPubkey = new PublicKey(walletAddress);
+        const badges = await findAllUserBadges(connection, userPubkey);
+        setUserBadges(badges);
+      } catch (err) {
+        console.error('Error fetching FHE badges:', err);
+        setUserBadges([]);
+      } finally {
+        setBadgesLoadingState(false);
+      }
+    }
+
+    fetchBadges();
+  }, [walletAddress]);
+
   const [activeTab, setActiveTab] = useState("holdings");
 
   const tabs = [
-    { id: "holdings", label: "Holdings" },
-    { id: "pnl", label: "P&L History" },
-    { id: "activity", label: "Activity" },
+    { id: "holdings", label: "Holdings", icon: Wallet },
+    { id: "nfts", label: "NFTs", icon: ImageIcon },
+    { id: "fhe-badges", label: "FHE Badges", icon: Shield },
+    { id: "activity", label: "Activity", icon: Activity },
   ];
 
-  const totalValue = holdings.reduce((acc, h) => acc + h.value, 0);
-  const totalHidden = holdings.reduce((acc, h) => acc + (h.hidden * (h.value / h.amount)), 0);
+  // Format currency
+  const formatUSD = (value: number) => {
+    if (value >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
+    if (value >= 1000) return `$${(value / 1000).toFixed(2)}K`;
+    return `$${value.toFixed(2)}`;
+  };
+
+  // Format time ago
+  const formatTimeAgo = (timestamp: number) => {
+    const diff = Date.now() - timestamp * 1000;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  };
+
+  // Check if on devnet - show mainnet notice
+  const isOnDevnet = network === 'devnet';
 
   return (
     <div className="space-y-6">
+      {/* Provider Switching Overlay */}
+      <ProviderSwitchingOverlay isVisible={switching} provider={provider} />
+
       <WalletMismatchBanner />
 
+      {/* Devnet Notice */}
+      {isOnDevnet && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 rounded-xl bg-gradient-to-r from-warning/20 to-warning/10 border border-warning/40"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-warning flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-warning">You&apos;re on Devnet</p>
+                <p className="text-xs text-text-secondary">Portfolio shows mainnet assets. Switch to mainnet for full experience.</p>
+              </div>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => switchNetwork('mainnet')}
+            >
+              Switch to Mainnet
+            </Button>
+          </div>
+        </motion.div>
+      )}
+
       {/* Page Header */}
-      <div>
-        <h1 className="text-xl font-bold text-text-primary">Portfolio</h1>
-        <p className="text-sm text-text-secondary">Track your holdings and P&L</p>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <h1 className="text-xl font-bold text-text-primary flex items-center gap-2">
+              <BarChart3 className="w-6 h-6 text-neon-green" />
+              Portfolio
+            </h1>
+            <Badge variant="success" size="sm">Mainnet</Badge>
+          </div>
+          <p className="text-sm text-text-secondary">Track your assets, NFTs & on-chain activity</p>
+        </div>
+
+        {/* RPC Provider Selector */}
+        <div className="flex items-center gap-3">
+          <RPCProviderSelector
+            provider={provider}
+            onProviderChange={switchProvider}
+            ping={ping}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={refresh}
+            disabled={loading}
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
       </div>
 
-      {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card variant="glow" padding="md">
-          <div className="text-xs text-text-muted mb-1">Total Value</div>
-          <div className="text-2xl font-bold text-text-primary">${totalValue.toLocaleString()}</div>
-          <div className="text-xs text-neon-green">+$12,500 (7.8%)</div>
+      {/* Stats Overview */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card variant="glow" padding="md" className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-neon-green/10 to-transparent" />
+          <div className="relative">
+            <div className="text-xs text-text-muted mb-1">Total Value</div>
+            <div className="text-2xl font-bold text-text-primary">{formatUSD(stats.totalValue)}</div>
+            <div className="text-xs text-neon-green flex items-center gap-1 mt-1">
+              <TrendingUp className="w-3 h-3" />
+              +{stats.pnlAllTimePercent.toFixed(1)}% all time
+            </div>
+          </div>
         </Card>
-        <Card variant="default" padding="md">
-          <div className="text-xs text-text-muted mb-1">Hidden Value</div>
-          <div className="text-2xl font-bold text-neon-green">${totalHidden.toLocaleString()}</div>
-          <div className="text-xs text-text-secondary">{((totalHidden / totalValue) * 100).toFixed(1)}% private</div>
-        </Card>
+
         <Card variant="default" padding="md">
           <div className="text-xs text-text-muted mb-1">24h P&L</div>
-          <div className="text-2xl font-bold text-neon-green">+$1,250</div>
-          <div className="text-xs text-neon-green">+2.4%</div>
+          <div className="text-2xl font-bold text-neon-green">+{formatUSD(stats.pnl24h)}</div>
+          <div className="text-xs text-neon-green flex items-center gap-1 mt-1">
+            <ArrowUpRight className="w-3 h-3" />
+            +{stats.pnl24hPercent.toFixed(1)}%
+          </div>
         </Card>
+
         <Card variant="default" padding="md">
-          <div className="text-xs text-text-muted mb-1">All-Time P&L</div>
-          <div className="text-2xl font-bold text-neon-green">+$12,500</div>
-          <div className="text-xs text-neon-green">+8.5%</div>
+          <div className="text-xs text-text-muted mb-1">Assets</div>
+          <div className="text-2xl font-bold text-neon-cyan">{stats.tokenCount}</div>
+          <div className="text-xs text-text-secondary mt-1">SPL Tokens</div>
+        </Card>
+
+        <Card variant="default" padding="md">
+          <div className="text-xs text-text-muted mb-1">NFTs</div>
+          <div className="text-2xl font-bold text-purple-400">{stats.nftCount}</div>
+          <div className="text-xs text-text-secondary mt-1">Collectibles</div>
         </Card>
       </div>
 
-      {/* Chart Placeholder */}
-      <Card variant="default" padding="md">
-        <CardHeader>
-          <CardTitle>Portfolio Value</CardTitle>
-          <div className="flex gap-2">
-            {["1D", "1W", "1M", "3M", "1Y", "ALL"].map((period) => (
-              <button
-                key={period}
-                className="px-2 py-1 text-xs rounded-md hover:bg-bg-tertiary text-text-muted hover:text-text-secondary transition-colors"
-              >
-                {period}
-              </button>
-            ))}
+      {/* Global App Stats */}
+      <Card variant="default" padding="sm">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-xs text-text-muted">
+            <Globe className="w-4 h-4 text-neon-cyan" />
+            <span>Global Stats</span>
           </div>
-        </CardHeader>
-        <div className="h-64 flex items-end justify-between gap-1 p-4">
-          {[65, 70, 68, 75, 72, 78, 82, 80, 85, 88, 84, 90, 92, 88, 95].map((h, i) => (
-            <div
-              key={i}
-              className="flex-1 bg-gradient-to-t from-neon-green/30 to-neon-green/10 rounded-t transition-all hover:from-neon-green/50 hover:to-neon-green/20"
-              style={{ height: `${h}%` }}
-            />
-          ))}
+          <div className="flex flex-wrap items-center gap-6">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-neon-green" />
+              <span className="text-sm font-medium text-text-primary">{globalStats.totalUsers.toLocaleString()}</span>
+              <span className="text-xs text-text-muted">Users</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-yellow-400" />
+              <span className="text-sm font-medium text-text-primary">{globalStats.transactionsToday.toLocaleString()}</span>
+              <span className="text-xs text-text-muted">Txs Today</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-purple-400" />
+              <span className="text-sm font-medium text-text-primary">{formatUSD(globalStats.totalVolume)}</span>
+              <span className="text-xs text-text-muted">Volume</span>
+            </div>
+          </div>
         </div>
       </Card>
 
-      {/* Tabs Content */}
-      <div>
-        <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} size="sm" />
-
-        <div className="mt-4">
-          {activeTab === "holdings" && (
-            <Card variant="default" padding="md">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border-secondary">
-                      <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider py-3 px-2">Asset</th>
-                      <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wider py-3 px-2">Balance</th>
-                      <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wider py-3 px-2">Value</th>
-                      <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wider py-3 px-2">24h</th>
-                      <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wider py-3 px-2">Hidden</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {holdings.map((holding) => (
-                      <tr key={holding.token} className="border-b border-border-secondary/50 hover:bg-bg-tertiary/50">
-                        <td className="py-3 px-2">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-bg-tertiary flex items-center justify-center text-lg">
-                              {holding.icon}
-                            </div>
-                            <div>
-                              <div className="text-sm font-medium text-text-primary">{holding.token}</div>
-                              <div className="text-xs text-text-muted">{holding.name}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="text-right py-3 px-2">
-                          <div className="text-sm text-text-primary">{holding.amount.toLocaleString()}</div>
-                        </td>
-                        <td className="text-right py-3 px-2">
-                          <div className="text-sm text-text-primary">${holding.value.toLocaleString()}</div>
-                        </td>
-                        <td className="text-right py-3 px-2">
-                          <span className={`text-sm ${holding.change >= 0 ? "text-neon-green" : "text-error"}`}>
-                            {holding.change >= 0 ? "+" : ""}{holding.change}%
-                          </span>
-                        </td>
-                        <td className="text-right py-3 px-2">
-                          {holding.hidden > 0 ? (
-                            <Badge size="xs" variant="success">{holding.hidden.toLocaleString()} 🔒</Badge>
-                          ) : (
-                            <Badge size="xs" variant="warning">Public</Badge>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          )}
-
-          {activeTab === "pnl" && (
-            <Card variant="default" padding="md">
-              <div className="space-y-2">
-                {pnlHistory.map((day, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary hover:bg-bg-elevated transition-colors">
-                    <div className="text-sm text-text-secondary">{day.date}</div>
-                    <div className="text-right">
-                      <div className={`text-sm font-medium ${day.pnl >= 0 ? "text-neon-green" : "text-error"}`}>
-                        {day.pnl >= 0 ? "+" : ""}{day.pnl.toLocaleString()} USD
-                      </div>
-                      <div className="text-xs text-text-muted">
-                        Total: ${day.cumulative.toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {activeTab === "activity" && (
-            <Card variant="default" padding="md">
-              <div className="space-y-2">
-                {[
-                  { action: "Deposit", amount: "50 SOL", time: "2h ago", type: "deposit" },
-                  { action: "Swap", amount: "100 USDC → SOL", time: "5h ago", type: "swap" },
-                  { action: "Transfer", amount: "25 SOL", time: "1d ago", type: "transfer" },
-                  { action: "Withdraw", amount: "10 SOL", time: "2d ago", type: "withdraw" },
-                ].map((tx, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary hover:bg-bg-elevated transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${
-                        tx.type === "deposit" ? "bg-neon-green/20 text-neon-green" :
-                        tx.type === "withdraw" ? "bg-warning/20 text-warning" :
-                        tx.type === "transfer" ? "bg-neon-cyan/20 text-neon-cyan" :
-                        "bg-purple-500/20 text-purple-400"
-                      }`}>
-                        {tx.type === "deposit" ? "↓" :
-                         tx.type === "withdraw" ? "↑" :
-                         tx.type === "transfer" ? "→" : "↔"}
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-text-primary">{tx.action}</div>
-                        <div className="text-xs text-text-muted">{tx.time}</div>
-                      </div>
-                    </div>
-                    <div className="text-sm text-text-primary">{tx.amount}</div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-        </div>
+      {/* Tabs */}
+      <div className="flex items-center gap-2 border-b border-border-primary pb-2 overflow-x-auto">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === tab.id
+                  ? "bg-neon-green/10 text-neon-green border border-neon-green/30"
+                  : "text-text-muted hover:text-text-primary hover:bg-bg-elevated"
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {tab.label}
+              {tab.id === 'nfts' && stats.nftCount > 0 && (
+                <Badge variant="default" size="xs">{stats.nftCount}</Badge>
+              )}
+              {tab.id === 'fhe-badges' && (
+                <Badge variant="cyan" size="xs">FHE</Badge>
+              )}
+            </button>
+          );
+        })}
       </div>
+
+      {/* Loading State */}
+      {loading && tokens.length === 0 && (
+        <Card variant="default" padding="lg">
+          <div className="flex flex-col items-center justify-center py-12">
+            <RefreshCw className="w-8 h-8 text-neon-green animate-spin mb-4" />
+            <p className="text-text-muted">Loading portfolio from {provider}...</p>
+          </div>
+        </Card>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <Card variant="default" padding="lg" className="border-error/30">
+          <div className="flex flex-col items-center justify-center py-8">
+            <AlertCircle className="w-8 h-8 text-error mb-4" />
+            <p className="text-error font-medium mb-2">Failed to load portfolio</p>
+            <p className="text-text-muted text-sm mb-4">{error}</p>
+            <Button variant="secondary" size="sm" onClick={refresh}>
+              Try Again
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Holdings Tab */}
+      <AnimatePresence mode="wait">
+        {activeTab === "holdings" && !loading && !error && (
+          <motion.div
+            key="holdings"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            <Card variant="default" padding="none">
+              {tokens.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <Wallet className="w-12 h-12 text-text-muted mb-4" />
+                  <p className="text-text-muted font-medium">No tokens found</p>
+                  <p className="text-xs text-text-muted mt-1">Connect a wallet with assets to view your portfolio</p>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-border-secondary bg-bg-tertiary">
+                          <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider py-3 px-4">Asset</th>
+                          <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wider py-3 px-4">Balance</th>
+                          <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wider py-3 px-4">Price</th>
+                          <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wider py-3 px-4">Value</th>
+                          <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wider py-3 px-4">24h P&L</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tokens.map((token, i) => (
+                          <motion.tr
+                            key={token.id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: i * 0.03 }}
+                            className="border-b border-border-secondary/50 hover:bg-bg-tertiary/50 transition-colors"
+                          >
+                            <td className="py-4 px-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-bg-tertiary flex items-center justify-center overflow-hidden">
+                                  {token.logoURI ? (
+                                    <img src={token.logoURI} alt={token.symbol} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="text-lg font-bold text-text-muted">{token.symbol.charAt(0)}</span>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-text-primary">{token.symbol}</span>
+                                    {token.isNative && <Badge variant="success" size="xs">Native</Badge>}
+                                  </div>
+                                  <div className="text-xs text-text-muted">{token.name}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="text-right py-4 px-4">
+                              <div className="text-sm text-text-primary font-mono">
+                                {token.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                              </div>
+                            </td>
+                            <td className="text-right py-4 px-4">
+                              <div className="text-sm text-text-secondary">
+                                ${token.price.toFixed(token.price < 1 ? 6 : 2)}
+                              </div>
+                            </td>
+                            <td className="text-right py-4 px-4">
+                              <div className="text-sm font-medium text-text-primary">
+                                {formatUSD(token.usdValue)}
+                              </div>
+                            </td>
+                            <td className="text-right py-4 px-4">
+                              <div className="text-sm font-medium text-neon-green">
+                                +{token.pnl24h.toFixed(1)}%
+                              </div>
+                            </td>
+                          </motion.tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {hasMoreTokens && (
+                    <div className="p-4 border-t border-border-primary">
+                      <Button variant="ghost" size="sm" onClick={loadMoreTokens} fullWidth>
+                        Load More
+                        <ChevronRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </Card>
+          </motion.div>
+        )}
+
+        {/* NFTs Tab */}
+        {activeTab === "nfts" && !loading && !error && (
+          <motion.div
+            key="nfts"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            {nfts.length === 0 ? (
+              <Card variant="default" padding="lg">
+                <div className="flex flex-col items-center justify-center py-16">
+                  <ImageIcon className="w-12 h-12 text-text-muted mb-4" />
+                  <p className="text-text-muted font-medium">No NFTs found</p>
+                  <p className="text-xs text-text-muted mt-1">Your collectibles will appear here</p>
+                </div>
+              </Card>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {nfts.map((nft, i) => (
+                    <motion.div
+                      key={nft.id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.05 }}
+                    >
+                      <Card variant="default" padding="none" className="group overflow-hidden hover:border-neon-green/30 transition-all">
+                        {/* Image */}
+                        <div className="aspect-square bg-bg-tertiary relative overflow-hidden">
+                          {nft.image ? (
+                            <img
+                              src={nft.image}
+                              alt={nft.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <ImageIcon className="w-12 h-12 text-text-muted" />
+                            </div>
+                          )}
+
+                          {/* Floor Price Badge */}
+                          {nft.floorPrice && (
+                            <div className="absolute bottom-2 right-2 px-2 py-1 rounded-md bg-bg-primary/90 backdrop-blur text-xs font-medium text-neon-green">
+                              ◎ {nft.floorPrice.toFixed(2)}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Info */}
+                        <div className="p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className="font-medium text-text-primary text-sm truncate flex-1">{nft.name}</h3>
+                            <a
+                              href={`https://solscan.io/token/${nft.mint}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1 rounded hover:bg-bg-elevated text-text-muted hover:text-neon-cyan transition-colors flex-shrink-0"
+                              title="View on Solscan"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                          {nft.collection && (
+                            <div className="flex items-center gap-1 mt-1">
+                              {nft.collection.verified && (
+                                <Sparkles className="w-3 h-3 text-neon-cyan" />
+                              )}
+                              <span className="text-xs text-text-muted truncate">{nft.collection.name}</span>
+                            </div>
+                          )}
+                        </div>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </div>
+
+                {hasMoreNfts && (
+                  <div className="mt-4">
+                    <Button variant="ghost" size="sm" onClick={loadMoreNfts} fullWidth>
+                      Load More NFTs
+                      <ChevronRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </motion.div>
+        )}
+
+        {/* FHE Badges Tab */}
+        {activeTab === "fhe-badges" && (
+          <motion.div
+            key="fhe-badges"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-4"
+          >
+            {/* Info Banner */}
+            <Card variant="default" padding="md" className="bg-gradient-to-r from-neon-cyan/5 to-purple-500/5 border-neon-cyan/30">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-neon-cyan/20 flex items-center justify-center flex-shrink-0">
+                  <Shield className="w-5 h-5 text-neon-cyan" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-neon-cyan mb-1">INCO FHE Encrypted Badges</h3>
+                  <p className="text-xs text-text-secondary">
+                    Your badge data is encrypted using Fully Homomorphic Encryption (FHE) on INCO Network.
+                    Badge tier is verified without revealing your actual holdings.
+                  </p>
+                </div>
+                <Badge variant="warning" size="sm">Devnet</Badge>
+              </div>
+            </Card>
+
+            {/* Loading State */}
+            {(badgesLoadingState || badgeLoading) && (
+              <Card variant="default" padding="lg">
+                <div className="flex flex-col items-center justify-center py-8">
+                  <RefreshCw className="w-8 h-8 text-neon-cyan animate-spin mb-4" />
+                  <p className="text-text-muted">Loading FHE badges from INCO devnet...</p>
+                </div>
+              </Card>
+            )}
+
+            {/* FHE Badges - Real Data */}
+            {!badgesLoadingState && !badgeLoading && userBadges.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {userBadges.map((badge, index) => {
+                  // Determine highest tier for this badge
+                  const tierNum = badge.data.proofLegendary ? 5 :
+                                  badge.data.proofDiamond ? 4 :
+                                  badge.data.proofGold ? 3 :
+                                  badge.data.proofSilver ? 2 :
+                                  badge.data.proofBronze ? 1 : 1;
+                  const tierInfo = TIER_INFO[tierNum as keyof typeof TIER_INFO] || TIER_INFO[1];
+
+                  // Map tier to hex colors for styling
+                  const tierColors: Record<number, string> = {
+                    1: '#CD7F32', // Bronze
+                    2: '#C0C0C0', // Silver
+                    3: '#FFD700', // Gold
+                    4: '#00D4FF', // Diamond
+                    5: '#8B5CF6', // Legendary
+                  };
+                  const tierColor = tierColors[tierNum] || tierColors[1];
+
+                  return (
+                    <Card key={badge.pda.toBase58()} variant="glow" padding="md" style={{ borderColor: `${tierColor}40` }}>
+                      <div className="flex items-start gap-4">
+                        {/* Badge Icon */}
+                        <div
+                          className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-lg bg-gradient-to-br ${tierInfo.color}`}
+                          style={{ boxShadow: `0 8px 32px ${tierColor}30` }}
+                        >
+                          {tierInfo.icon}
+                        </div>
+
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="font-semibold text-text-primary">{tierInfo.name}</h3>
+                            <Badge variant="success" size="xs">Active</Badge>
+                            {userBadges.length > 1 && (
+                              <Badge variant="default" size="xs">#{index + 1}</Badge>
+                            )}
+                          </div>
+
+                          {/* Badge PDA (encrypted reference) */}
+                          <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-bg-tertiary">
+                            <Lock className="w-4 h-4 text-neon-cyan flex-shrink-0" />
+                            <span className="text-xs font-mono text-text-muted truncate">
+                              {badge.pda.toBase58().slice(0, 8)}...{badge.pda.toBase58().slice(-8)}
+                            </span>
+                            <a
+                              href={`https://solscan.io/account/${badge.pda.toBase58()}?cluster=devnet`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1 hover:text-neon-cyan transition-colors flex-shrink-0"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+
+                          {/* Tier Benefits */}
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="default" size="xs">{[1, 1.25, 1.5, 1.75, 2][tierNum - 1] || 1}x Multiplier</Badge>
+                            <Badge variant="default" size="xs">{[5, 10, 15, 20, 25][tierNum - 1] || 5}% Commission</Badge>
+                            {tierNum >= 3 && <Badge variant="default" size="xs">Priority Support</Badge>}
+                          </div>
+
+                          {/* Proof Status */}
+                          <div className="flex items-center gap-2 mt-3 text-xs text-text-muted">
+                            <span>Badge ID: {badge.badgeId.toString()}</span>
+                            <span className="text-text-muted/50">•</span>
+                            <span className="flex items-center gap-1">
+                              <span className="w-2 h-2 rounded-full bg-neon-green"></span>
+                              FHE Verified
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : !badgesLoadingState && !badgeLoading && (
+              <Card variant="default" padding="lg">
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Shield className="w-12 h-12 text-text-muted mb-4" />
+                  <p className="text-text-muted font-medium">No FHE Badges Found</p>
+                  <p className="text-xs text-text-muted mt-1 mb-4">Claim your encrypted badge on the Channels page</p>
+                  <Link href="/channels">
+                    <Button variant="primary" size="sm">
+                      <Layers className="w-4 h-4 mr-2" />
+                      Go to Channels
+                    </Button>
+                  </Link>
+                </div>
+              </Card>
+            )}
+
+            {/* MongoDB Badge Status (if different from on-chain) */}
+            {confidentialBadge?.hasClaimed && (
+              <Card variant="default" padding="md" className="border-neon-green/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-neon-green/20 flex items-center justify-center">
+                      <Shield className="w-5 h-5 text-neon-green" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-text-primary">
+                        {confidentialBadge.tier && confidentialBadge.tier >= 1 && confidentialBadge.tier <= 5
+                          ? TIER_INFO[confidentialBadge.tier as 1 | 2 | 3 | 4 | 5]?.name
+                          : 'Badge'} (Backend Record)
+                      </p>
+                      <p className="text-xs text-text-muted">
+                        Claimed on {confidentialBadge.claimedAt ? new Date(confidentialBadge.claimedAt).toLocaleDateString() : 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="success" size="sm">Synced</Badge>
+                </div>
+              </Card>
+            )}
+
+            {/* Link to Channels */}
+            <Card variant="default" padding="md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Layers className="w-5 h-5 text-neon-cyan" />
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">Manage Badges on Channels</p>
+                    <p className="text-xs text-text-muted">Claim, upgrade, and view badge details</p>
+                  </div>
+                </div>
+                <Link href="/channels">
+                  <Button variant="secondary" size="sm">
+                    View Channels
+                    <ExternalLink className="w-4 h-4 ml-2" />
+                  </Button>
+                </Link>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Activity Tab */}
+        {activeTab === "activity" && !loading && !error && (
+          <motion.div
+            key="activity"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            <Card variant="default" padding="none">
+              {transactions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <Activity className="w-12 h-12 text-text-muted mb-4" />
+                  <p className="text-text-muted font-medium">No recent activity</p>
+                  <p className="text-xs text-text-muted mt-1">Your transactions will appear here</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border-secondary">
+                  {transactions.map((tx, i) => (
+                    <motion.div
+                      key={tx.signature}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.03 }}
+                      className="flex items-center justify-between p-4 hover:bg-bg-tertiary/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        {/* Transaction Type Icon */}
+                        <div
+                          className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
+                          style={{
+                            backgroundColor: `${tx.typeColor}20`,
+                            color: tx.typeColor,
+                          }}
+                        >
+                          {tx.typeIcon}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Transaction Type */}
+                            <span
+                              className="font-medium text-sm"
+                              style={{ color: tx.typeColor }}
+                            >
+                              {tx.typeLabel}
+                            </span>
+
+                            {/* Source Badge (Jupiter, Raydium, etc.) */}
+                            {tx.sourceLabel && (
+                              <span
+                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border"
+                                style={{
+                                  backgroundColor: `${tx.sourceColor}20`,
+                                  color: tx.sourceColor,
+                                  borderColor: `${tx.sourceColor}40`,
+                                }}
+                              >
+                                {tx.sourceLabel}
+                              </span>
+                            )}
+
+                            {/* Program Badge */}
+                            {tx.programLabel && !tx.sourceLabel && (
+                              <Badge variant="default" size="xs" className="text-[10px]">
+                                {tx.programLabel}
+                              </Badge>
+                            )}
+
+                            {/* Status Badge */}
+                            <Badge
+                              variant={tx.status === 'success' ? 'success' : 'error'}
+                              size="xs"
+                            >
+                              {tx.status}
+                            </Badge>
+                          </div>
+
+                          {/* Description or Swap Details */}
+                          <div className="text-xs text-text-muted mt-0.5 truncate max-w-[300px]">
+                            {tx.swapIn?.amount !== undefined && tx.swapOut?.amount !== undefined ? (
+                              <span className="flex items-center gap-1">
+                                <span className="text-text-secondary">
+                                  {tx.swapIn.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {tx.swapIn.symbol}
+                                </span>
+                                <span className="text-text-muted">→</span>
+                                <span className="text-neon-green">
+                                  {tx.swapOut.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {tx.swapOut.symbol}
+                                </span>
+                              </span>
+                            ) : (
+                              tx.description
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          {/* Amount */}
+                          {tx.amount && !tx.swapIn && (
+                            <div className="text-sm font-medium text-text-primary font-mono">
+                              {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {tx.tokenSymbol || 'SOL'}
+                            </div>
+                          )}
+
+                          {/* Fee */}
+                          <div className="text-xs text-text-muted flex items-center gap-2 justify-end">
+                            <span>{formatTimeAgo(tx.timestamp)}</span>
+                            <span className="text-text-muted/50">•</span>
+                            <span className="font-mono">{tx.fee.toFixed(6)} SOL</span>
+                          </div>
+                        </div>
+
+                        {/* External Link */}
+                        <a
+                          href={`https://solscan.io/tx/${tx.signature}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 rounded-lg hover:bg-bg-elevated text-text-muted hover:text-neon-cyan transition-colors flex-shrink-0"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            {/* Activity Legend */}
+            <Card variant="default" padding="md" className="mt-4">
+              <div className="flex flex-wrap items-center gap-4 text-xs">
+                <span className="text-text-muted">Transaction Types:</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-[#00D18C]">🔄</span>
+                  <span className="text-text-secondary">Swap</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[#00ff88]">↗️</span>
+                  <span className="text-text-secondary">Transfer</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[#E42575]">🛒</span>
+                  <span className="text-text-secondary">NFT</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[#14F195]">🔒</span>
+                  <span className="text-text-secondary">Staking</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[#8b5cf6]">🐋</span>
+                  <span className="text-text-secondary">Privacy</span>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Sponsor Footer */}
+      <Card variant="default" padding="sm">
+        <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-text-muted">
+          <span>Powered by</span>
+          <a href="https://helius.dev" target="_blank" rel="noopener noreferrer" className="text-[#FF6B35] hover:underline font-medium flex items-center gap-1">
+            <span className="w-4 h-4 rounded bg-[#FF6B35] text-white text-[10px] flex items-center justify-center font-bold">H</span>
+            Helius
+          </a>
+          <span>•</span>
+          <a href="https://quicknode.com" target="_blank" rel="noopener noreferrer" className="text-[#0052FF] hover:underline font-medium flex items-center gap-1">
+            <span className="w-4 h-4 rounded bg-[#0052FF] text-white text-[10px] flex items-center justify-center font-bold">Q</span>
+            QuickNode
+          </a>
+          <span>•</span>
+          <a href="https://jup.ag" target="_blank" rel="noopener noreferrer" className="text-[#00D18C] hover:underline font-medium flex items-center gap-1">
+            <span className="w-4 h-4 rounded bg-[#00D18C] text-white text-[10px] flex items-center justify-center font-bold">J</span>
+            Jupiter
+          </a>
+        </div>
+      </Card>
     </div>
   );
 }
