@@ -4,7 +4,6 @@ import { useState } from "react";
 import Card, { CardHeader, CardTitle } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge, { TierBadge } from "@/components/ui/Badge";
-import { TransactionModal, SuccessModal } from "@/components/ui/Modal";
 import { useUserStats } from "@/hooks/useUserStats";
 import {
   Award,
@@ -25,6 +24,7 @@ import {
 } from "lucide-react";
 import LearnMoreLink from "@/components/ui/LearnMoreLink";
 import { WalletMismatchBanner } from "@/components/ui/WalletMismatchBanner";
+import Link from "next/link";
 
 // Alias for Flame
 const Fire = Flame;
@@ -252,12 +252,8 @@ const ACHIEVEMENTS = [
 ];
 
 export default function BadgesPage() {
-  const { stats, rank, points, streak, refresh } = useUserStats();
+  const { stats, rank, points, streak } = useUserStats();
 
-  const [selectedBadge, setSelectedBadge] = useState<string | null>(null);
-  const [showTxModal, setShowTxModal] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
   const [activeTab, setActiveTab] = useState<"badges" | "achievements">("badges");
 
   // Note: useUserStats hook automatically handles wallet changes with caching
@@ -341,32 +337,6 @@ export default function BadgesPage() {
     };
   };
 
-  const handlePurchase = (badgeId: string) => {
-    setSelectedBadge(badgeId);
-    setShowTxModal(true);
-    setCurrentStep(0);
-
-    // Simulate transaction
-    setTimeout(() => setCurrentStep(1), 1500);
-    setTimeout(() => setCurrentStep(2), 3000);
-    setTimeout(() => {
-      setShowTxModal(false);
-      setShowSuccessModal(true);
-    }, 4500);
-  };
-
-  const getStepStatus = (stepIndex: number): "pending" | "active" | "completed" => {
-    if (currentStep > stepIndex) return "completed";
-    if (currentStep === stepIndex) return "active";
-    return "pending";
-  };
-
-  const txSteps = [
-    { label: "Verifying requirements", status: getStepStatus(0) },
-    { label: "Processing payment", status: getStepStatus(1) },
-    { label: "Minting NFT badge", status: getStepStatus(2) },
-  ];
-
   const unlockedAchievements = ACHIEVEMENTS.filter(a => checkAchievement(a).unlocked).length;
 
   return (
@@ -381,6 +351,7 @@ export default function BadgesPage() {
               <Award className="w-6 h-6 text-neon-green" />
               Badges & Achievements
             </h1>
+            <Badge variant="cyan" size="sm">FHE</Badge>
             <LearnMoreLink section="badges">How it works</LearnMoreLink>
           </div>
           <p className="text-sm text-text-secondary">Unlock achievements and claim exclusive NFT badges</p>
@@ -391,6 +362,30 @@ export default function BadgesPage() {
             <TierBadge tier={userBadgeTier as 'bronze' | 'silver' | 'gold' | 'diamond' | 'legendary'} size="md" />
           </div>
         )}
+      </div>
+
+      {/* INCO FHE Claim Banner */}
+      <div className="p-4 rounded-xl bg-gradient-to-r from-neon-cyan/10 via-neon-green/5 to-neon-cyan/10 border border-neon-cyan/30">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-neon-cyan/20 flex items-center justify-center flex-shrink-0">
+              <Shield className="w-5 h-5 text-neon-cyan" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-neon-cyan mb-0.5">Claim Badges with INCO FHE</h3>
+              <p className="text-xs text-text-secondary">
+                Badge tiers are encrypted on-chain. Claim your badge on the Channels page to access private channels.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/channels"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-neon-cyan/20 text-neon-cyan text-sm font-medium hover:bg-neon-cyan/30 transition-colors whitespace-nowrap"
+          >
+            <Unlock className="w-4 h-4" />
+            Claim on Channels
+          </Link>
+        </div>
       </div>
 
       {/* Wallet Mismatch Banner */}
@@ -559,20 +554,20 @@ export default function BadgesPage() {
                     )}
                   </div>
 
-                  <Button
-                    fullWidth
-                    variant={status.isOwned ? "success" : status.canPurchase ? "primary" : "secondary"}
-                    onClick={() => !status.isOwned && status.canPurchase && handlePurchase(badge.id)}
-                    disabled={status.isOwned || !status.canPurchase}
-                  >
-                    {status.isOwned ? (
+                  {status.isOwned ? (
+                    <Button fullWidth variant="success" disabled>
                       <span className="flex items-center gap-2"><Check className="w-4 h-4" /> Owned</span>
-                    ) : status.canPurchase ? (
-                      <span className="flex items-center gap-2"><Unlock className="w-4 h-4" /> Claim Badge</span>
-                    ) : (
-                      <span className="flex items-center gap-2"><Lock className="w-4 h-4" /> Locked</span>
-                    )}
-                  </Button>
+                    </Button>
+                  ) : (
+                    <Link href="/channels" className="block">
+                      <Button fullWidth variant={status.canPurchase ? "primary" : "secondary"}>
+                        <span className="flex items-center gap-2">
+                          {status.canPurchase ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                          Claim on Channels
+                        </span>
+                      </Button>
+                    </Link>
+                  )}
                 </Card>
               );
             })}
@@ -664,27 +659,6 @@ export default function BadgesPage() {
         </div>
       </Card>
 
-      {/* Transaction Modal */}
-      <TransactionModal
-        isOpen={showTxModal}
-        onClose={() => setShowTxModal(false)}
-        title="Purchasing Badge..."
-        steps={txSteps}
-        currentStep={currentStep}
-      />
-
-      {/* Success Modal */}
-      <SuccessModal
-        isOpen={showSuccessModal}
-        onClose={() => {
-          setShowSuccessModal(false);
-          setSelectedBadge(null);
-          refresh();
-        }}
-        title="Badge Claimed!"
-        message={`Your ${BADGE_TIERS.find(b => b.id === selectedBadge)?.name} NFT has been minted`}
-        txSignature="badge123...xyz"
-      />
     </div>
   );
 }

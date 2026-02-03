@@ -298,7 +298,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           { href: "/badges", icon: <BadgeIcon />, label: "NFT Badges", badge: "FHE", badgeColor: "cyan", tooltip: {
             sponsor: "INCO Network",
             description: "Confidential tier badges",
-            points: ["FHE-encrypted badge tiers", "Access gated features", "On-chain verification"]
+            points: ["FHE-encrypted badge tiers", "Access gated features", "Claim on Channels page"]
           }},
           { href: "/affiliate", icon: <AffiliateIcon />, label: "Affiliate", badge: "Soon", badgeColor: "default", tooltip: {
             sponsor: "Whale Suite",
